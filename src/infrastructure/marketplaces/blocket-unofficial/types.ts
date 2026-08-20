@@ -3,6 +3,10 @@ export interface BlocketSearchDocument {
   heading: string;
   canonicalUrl: string;
   location: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
   timestamp?: Date;
   priceAmount: number;
   organisationName?: string;

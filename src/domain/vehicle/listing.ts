@@ -14,6 +14,8 @@ export interface ListingLocation {
   municipality: string;
   county?: string;
   countryCode: "SE";
+  latitude?: number;
+  longitude?: number;
 }
 
 export type ServiceHistoryStatus =

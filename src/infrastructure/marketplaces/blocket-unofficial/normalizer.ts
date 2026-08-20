@@ -113,6 +113,8 @@ export function normalizeBlocketListing(
       mileageKm: document.mileageMil * 10,
       location: document.location,
       municipality: document.location,
+      latitude: document.coordinates?.latitude,
+      longitude: document.coordinates?.longitude,
       description: detail?.description,
       serviceHistory: "unknown",
       equipment: detail?.equipment ?? [],

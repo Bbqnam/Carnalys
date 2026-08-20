@@ -1,7 +1,7 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
 import type {
+  AnalysisConfidence,
   BodyStyle,
   Drivetrain,
   FuelType,
@@ -13,16 +13,83 @@ import {
   generateVehicleInsights,
 } from "@/domain/vehicle";
 import type {
+  AvailableVehicleFilters,
   SearchFilters,
   SearchSort,
+  VehiclePageSize,
   VehicleSearchOptions,
   VehicleSearchResult,
 } from "@/features/search/types";
-import type { Prisma } from "@/generated/prisma/client";
-import { prisma } from "./prisma";
+import { Prisma } from "@/generated/prisma/client";
+import { getPreparedCatalogFilters } from "./catalog-facet-repository";
+import { initializeDatabase, prisma } from "./prisma";
+
+const storedListingSelect = {
+  id: true,
+  vehicleId: true,
+  provider: true,
+  externalId: true,
+  listingUrl: true,
+  firstSeenAt: true,
+  lastSeenAt: true,
+  sellerName: true,
+  sellerType: true,
+  priceAmount: true,
+  previousPriceAmount: true,
+  monthlyCostAmount: true,
+  municipality: true,
+  latitude: true,
+  longitude: true,
+  description: true,
+  mileageKm: true,
+  serviceHistory: true,
+  publishedAt: true,
+  synchronizedAt: true,
+  vehicle: {
+    select: {
+      id: true,
+      make: true,
+      model: true,
+      variant: true,
+      modelYear: true,
+      registrationYear: true,
+      bodyStyle: true,
+      fuelType: true,
+      transmission: true,
+      drivetrain: true,
+      horsepower: true,
+      engineDescription: true,
+      engineDisplacement: true,
+      registrationNumber: true,
+      vin: true,
+      firstRegistration: true,
+    },
+  },
+  images: {
+    select: { url: true, alt: true, position: true },
+    orderBy: { position: "asc" as const },
+  },
+  equipment: {
+    select: { label: true },
+  },
+  analysis: {
+    select: {
+      marketValueAmount: true,
+      marketValueMinimum: true,
+      marketValueMaximum: true,
+      comparableCount: true,
+      confidence: true,
+      dealScore: true,
+      buyConfidenceScore: true,
+      annualOwnershipCost: true,
+      methodologyVersion: true,
+      calculatedAt: true,
+    },
+  },
+} satisfies Prisma.ListingRecordSelect;
 
 type StoredListing = Prisma.ListingRecordGetPayload<{
-  include: { vehicle: true; images: true; equipment: true };
+  select: typeof storedListingSelect;
 }>;
 
 const bodyStyles = new Set<BodyStyle>([
@@ -60,45 +127,76 @@ const serviceHistories = new Set<ServiceHistoryStatus>([
   "missing",
   "unknown",
 ]);
+const analysisConfidences = new Set<AnalysisConfidence>([
+  "low",
+  "medium",
+  "high",
+]);
 
-function enumValue<T extends string>(value: string | null, values: Set<T>, fallback: T) {
+function enumValue<T extends string>(
+  value: string | null,
+  values: Set<T>,
+  fallback: T,
+) {
   return value && values.has(value as T) ? (value as T) : fallback;
 }
 
-function stableSeed(value: string) {
-  return Number.parseInt(createHash("sha1").update(value).digest("hex").slice(0, 8), 16);
+function roundedThousands(value: number) {
+  return Math.max(1_000, Math.round(value / 1_000) * 1_000);
 }
 
-function createPlaceholderAnalysis(result: StoredListing): VehicleSearchResult["analysis"] {
-  const seed = stableSeed(result.id);
+function createStoredAnalysis(
+  result: StoredListing,
+): VehicleSearchResult["analysis"] {
+  const stored = result.analysis;
   const askingPrice = result.priceAmount;
-  const marketPremium = 0.02 + (seed % 7) / 100;
-  const marketValue = Math.round((askingPrice * (1 + marketPremium)) / 1_000) * 1_000;
-  const dealScore = Math.min(95, Math.round(69 + marketPremium * 260));
-  const fuelMultiplier = result.vehicle.fuelType === "electric" ? 0.8 : 1;
-  const annualOwnership = Math.round(
-    (34_000 + askingPrice * 0.065) * fuelMultiplier,
+  const confidence = enumValue(
+    stored?.confidence ?? null,
+    analysisConfidences,
+    "low",
   );
-  const buyConfidence = 76 + (seed % 14);
-  const calculatedAt = result.synchronizedAt.toISOString();
+  const comparableCount = stored?.comparableCount ?? 0;
 
   return {
     vehicleId: result.vehicleId,
     listingId: result.id,
-    methodologyVersion: "listing-placeholder-1.0",
-    calculatedAt,
+    methodologyVersion: stored?.methodologyVersion ?? "stored-neutral-1.0",
+    calculatedAt: (
+      stored?.calculatedAt ?? result.synchronizedAt
+    ).toISOString(),
     marketValue: {
-      value: { amount: marketValue, currency: "SEK" },
-      range: {
-        minimum: { amount: Math.round(marketValue * 0.95), currency: "SEK" },
-        maximum: { amount: Math.round(marketValue * 1.05), currency: "SEK" },
+      value: {
+        amount: stored?.marketValueAmount ?? askingPrice,
+        currency: "SEK",
       },
-      confidence: "low",
-      comparableListingCount: 0,
-      explanation: "Tillfällig modell tills marknadsvärderingen är ansluten.",
+      range: {
+        minimum: {
+          amount:
+            stored?.marketValueMinimum ??
+            roundedThousands(askingPrice * 0.9),
+          currency: "SEK",
+        },
+        maximum: {
+          amount:
+            stored?.marketValueMaximum ??
+            roundedThousands(askingPrice * 1.1),
+          currency: "SEK",
+        },
+      },
+      confidence,
+      comparableListingCount: comparableCount,
+      explanation:
+        comparableCount >= 3
+          ? `Medianpris från ${comparableCount} jämförbara aktiva annonser.`
+          : "För få jämförbara annonser; värderingen visas neutralt.",
     },
     ownershipCost: {
-      annualCost: { amount: annualOwnership, currency: "SEK" },
+      annualCost: {
+        amount:
+          stored?.annualOwnershipCost ??
+          Math.round(34_000 + askingPrice * 0.065),
+        currency: "SEK",
+      },
       estimatedForAnnualDistanceKm: 15_000,
       confidence: "low",
       items: [],
@@ -106,16 +204,19 @@ function createPlaceholderAnalysis(result: StoredListing): VehicleSearchResult["
     },
     dealScore: {
       kind: "deal",
-      value: dealScore,
-      confidence: "low",
-      summary: "Preliminär bedömning i väntan på marknadsdata.",
+      value: stored?.dealScore ?? 70,
+      confidence,
+      summary:
+        comparableCount >= 3
+          ? "Priset jämförs med liknande aktiva annonser."
+          : "För få jämförbara annonser för en säker prisbedömning.",
       factors: [],
     },
     buyConfidenceScore: {
       kind: "buy_confidence",
-      value: buyConfidence,
-      confidence: "low",
-      summary: "Preliminär bedömning i väntan på fordonsanalys.",
+      value: stored?.buyConfidenceScore ?? 70,
+      confidence,
+      summary: "Sparad bedömning baserad på tillgänglig annonsdata.",
       factors: [],
     },
     insights: [],
@@ -130,7 +231,6 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
     transmissions,
     "other",
   );
-  const analysis = createPlaceholderAnalysis(record);
 
   return {
     vehicle: {
@@ -188,6 +288,8 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
       location: {
         municipality: record.municipality,
         countryCode: "SE",
+        latitude: record.latitude ?? undefined,
+        longitude: record.longitude ?? undefined,
       },
       status: "active",
       title: `${record.vehicle.make} ${record.vehicle.model} ${record.vehicle.variant ?? ""}`.trim(),
@@ -199,60 +301,75 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
         "unknown",
       ),
       equipment: record.equipment.map(({ label }) => label),
-      images: record.images
-        .toSorted((left, right) => left.position - right.position)
-        .map((image) => ({
-          url: image.url,
-          alt: image.alt ?? undefined,
-          position: image.position,
-        })),
+      images: record.images.map((image) => ({
+        url: image.url,
+        alt: image.alt ?? undefined,
+        position: image.position,
+      })),
       publishedAt: record.publishedAt?.toISOString(),
       observedAt: record.synchronizedAt.toISOString(),
     },
-    analysis,
+    analysis: createStoredAnalysis(record),
   };
 }
 
 export interface VehicleListingCatalog {
   listings: readonly VehicleSearchResult[];
   lastSynchronizedAt?: string;
-  availableFilters: {
-    brands: readonly string[];
-    models: readonly string[];
-    priceRange: { minimum: number; maximum: number };
-  };
+  availableFilters: AvailableVehicleFilters;
   pagination: {
     page: number;
-    pageSize: number;
+    pageSize: VehiclePageSize;
     totalListings: number;
     totalPages: number;
   };
 }
 
-const vehicleListingPageSize = 60;
-
-function buildListingWhere(filters: SearchFilters): Prisma.ListingRecordWhereInput {
+function buildListingWhere(
+  filters: SearchFilters,
+): Prisma.ListingRecordWhereInput {
   const priceFilter: Prisma.IntFilter = {};
   if (filters.minPrice !== null) priceFilter.gte = filters.minPrice;
   if (filters.maxPrice !== null) priceFilter.lte = filters.maxPrice;
 
   const vehicleFilter: Prisma.VehicleRecordWhereInput = {};
-  if (filters.brand) vehicleFilter.make = filters.brand;
-  if (filters.model) vehicleFilter.model = filters.model;
+  if (filters.brands.length > 0)
+    vehicleFilter.make = { in: [...filters.brands] };
+  if (filters.models.length > 0)
+    vehicleFilter.model = { in: [...filters.models] };
   if (filters.fuelType) vehicleFilter.fuelType = filters.fuelType;
-  if (filters.transmission) vehicleFilter.transmission = filters.transmission;
-  if (filters.minYear !== null) vehicleFilter.modelYear = { gte: filters.minYear };
+  if (filters.transmission)
+    vehicleFilter.transmission = filters.transmission;
+  if (filters.minYear !== null || filters.maxYear !== null) {
+    vehicleFilter.modelYear = {
+      ...(filters.minYear !== null ? { gte: filters.minYear } : {}),
+      ...(filters.maxYear !== null ? { lte: filters.maxYear } : {}),
+    };
+  }
   if (filters.bodyStyle) vehicleFilter.bodyStyle = filters.bodyStyle;
 
   const query = filters.query.trim();
 
   return {
     status: "active",
-    ...(Object.keys(priceFilter).length > 0 ? { priceAmount: priceFilter } : {}),
-    ...(filters.maxMileageMil !== null
-      ? { mileageKm: { lte: filters.maxMileageMil * 10 } }
+    ...(Object.keys(priceFilter).length > 0
+      ? { priceAmount: priceFilter }
       : {}),
-    ...(Object.keys(vehicleFilter).length > 0 ? { vehicle: { is: vehicleFilter } } : {}),
+    ...(filters.minMileageMil !== null || filters.maxMileageMil !== null
+      ? {
+          mileageKm: {
+            ...(filters.minMileageMil !== null
+              ? { gte: filters.minMileageMil * 10 }
+              : {}),
+            ...(filters.maxMileageMil !== null
+              ? { lte: filters.maxMileageMil * 10 }
+              : {}),
+          },
+        }
+      : {}),
+    ...(Object.keys(vehicleFilter).length > 0
+      ? { vehicle: { is: vehicleFilter } }
+      : {}),
     ...(query
       ? {
           OR: [
@@ -266,62 +383,49 @@ function buildListingWhere(filters: SearchFilters): Prisma.ListingRecordWhereInp
   };
 }
 
-function listingOrder(sort: SearchSort): Prisma.ListingRecordOrderByWithRelationInput[] {
+function listingOrder(
+  sort: SearchSort,
+): Prisma.ListingRecordOrderByWithRelationInput[] {
   switch (sort) {
     case "price_asc":
       return [{ priceAmount: "asc" }, { id: "asc" }];
     case "price_desc":
       return [{ priceAmount: "desc" }, { id: "asc" }];
     case "newest":
-      return [{ vehicle: { modelYear: "desc" } }, { publishedAt: "desc" }, { id: "asc" }];
+      return [
+        { publishedAt: "desc" },
+        { synchronizedAt: "desc" },
+        { id: "asc" },
+      ];
     case "buy_confidence":
+      return [{ analysis: { buyConfidenceScore: "desc" } }, { id: "asc" }];
     case "deal_score":
     default:
-      return [{ publishedAt: "desc" }, { synchronizedAt: "desc" }, { id: "asc" }];
+      return [{ analysis: { dealScore: "desc" } }, { id: "asc" }];
   }
 }
 
 export async function getActiveVehicleListings(
   options: VehicleSearchOptions,
 ): Promise<VehicleListingCatalog> {
+  await initializeDatabase();
   const where = buildListingWhere(options.filters);
-  const totalListings = await prisma.listingRecord.count({
-    where,
-  });
-  const totalPages = Math.max(1, Math.ceil(totalListings / vehicleListingPageSize));
+  const pageSize = options.pageSize;
+  const totalListings = await prisma.listingRecord.count({ where });
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalListings / pageSize),
+  );
   const page = Math.min(Math.max(1, Math.trunc(options.page)), totalPages);
-  const [records, brands, models, priceRange, synchronization] = await Promise.all([
+  const [records, preparedCatalog] = await Promise.all([
     prisma.listingRecord.findMany({
       where,
-      include: { vehicle: true, images: true, equipment: true },
+      select: storedListingSelect,
       orderBy: listingOrder(options.sort),
-      skip: (page - 1) * vehicleListingPageSize,
-      take: vehicleListingPageSize,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     }),
-    prisma.vehicleRecord.findMany({
-      where: { listings: { some: { status: "active" } } },
-      distinct: ["make"],
-      orderBy: { make: "asc" },
-      select: { make: true },
-    }),
-    prisma.vehicleRecord.findMany({
-      where: {
-        ...(options.filters.brand ? { make: options.filters.brand } : {}),
-        listings: { some: { status: "active" } },
-      },
-      distinct: ["model"],
-      orderBy: { model: "asc" },
-      select: { model: true },
-    }),
-    prisma.listingRecord.aggregate({
-      where: { status: "active" },
-      _min: { priceAmount: true },
-      _max: { priceAmount: true },
-    }),
-    prisma.listingRecord.aggregate({
-      where: { status: "active" },
-      _max: { synchronizedAt: true },
-    }),
+    getPreparedCatalogFilters(options.filters.brands),
   ]);
   const baseResults = records.map(mapStoredListing);
   const benchmarks = buildVehicleInsightBenchmarks(baseResults);
@@ -335,18 +439,11 @@ export async function getActiveVehicleListings(
 
   return {
     listings,
-    lastSynchronizedAt: synchronization._max.synchronizedAt?.toISOString(),
-    availableFilters: {
-      brands: brands.map(({ make }) => make),
-      models: models.map(({ model }) => model),
-      priceRange: {
-        minimum: priceRange._min.priceAmount ?? 0,
-        maximum: priceRange._max.priceAmount ?? 0,
-      },
-    },
+    lastSynchronizedAt: preparedCatalog.lastSynchronizedAt,
+    availableFilters: preparedCatalog.filters,
     pagination: {
       page,
-      pageSize: vehicleListingPageSize,
+      pageSize,
       totalListings,
       totalPages,
     },

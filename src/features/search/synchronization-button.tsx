@@ -1,0 +1,107 @@
+"use client";
+
+import { useActionState } from "react";
+import {
+  synchronizeLatestListings,
+  type ManualSynchronizationState,
+} from "@/app/actions";
+import type { Locale } from "./copy";
+import { RefreshIcon } from "./icons";
+
+const initialState: ManualSynchronizationState = { outcome: "idle" };
+
+interface SynchronizationButtonProps {
+  activeSynchronization?: {
+    mode: string;
+    fetchedCount: number;
+  };
+  locale: Locale;
+}
+
+export function SynchronizationButton({
+  activeSynchronization,
+  locale,
+}: SynchronizationButtonProps) {
+  const [state, action, pending] = useActionState(
+    synchronizeLatestListings,
+    initialState,
+  );
+  const english = locale === "en";
+  const initiallyBusy = Boolean(activeSynchronization);
+  const label = pending
+    ? english
+      ? "Updating…"
+      : "Uppdaterar…"
+    : initiallyBusy
+      ? activeSynchronization?.mode === "reconciliation"
+        ? english
+          ? "Full sync running"
+          : "Full synk körs"
+        : english
+          ? "Update running"
+          : "Uppdatering körs"
+      : english
+        ? "Update listings"
+        : "Uppdatera annonser";
+
+  const actionMessage =
+    state.outcome === "completed"
+      ? english
+        ? `Done: ${state.createdCount ?? 0} new and ${state.updatedCount ?? 0} updated.`
+        : `Klart: ${state.createdCount ?? 0} nya och ${state.updatedCount ?? 0} uppdaterade.`
+      : state.outcome === "warning"
+        ? english
+          ? `Updated, but ${state.failedCount ?? 0} ads could not be read.`
+          : `Uppdaterat, men ${state.failedCount ?? 0} annonser kunde inte läsas.`
+        : state.outcome === "busy"
+          ? english
+            ? "Another synchronization is already running."
+            : "En annan synkronisering körs redan."
+          : state.outcome === "forbidden"
+            ? english
+              ? "Manual updates are available only on local development."
+              : "Manuell uppdatering är endast tillgänglig lokalt."
+            : state.outcome === "failed"
+              ? english
+                ? "The update failed. Existing listings are unchanged."
+                : "Uppdateringen misslyckades. Befintliga annonser är kvar."
+              : undefined;
+  const busyDescription = initiallyBusy
+    ? english
+      ? `${activeSynchronization?.fetchedCount.toLocaleString("en-SE")} ads processed so far.`
+      : `${activeSynchronization?.fetchedCount.toLocaleString("sv-SE")} annonser behandlade hittills.`
+    : undefined;
+
+  return (
+    <div className="relative">
+      <form action={action}>
+        <button
+          aria-describedby={
+            actionMessage ? "synchronization-status" : undefined
+          }
+          aria-label={label}
+          className="flex h-11 items-center gap-2 rounded-xl border border-[#d6ddd7] bg-[#f3f7f4] px-3.5 text-sm font-semibold text-[#315441] shadow-sm transition hover:border-[#aebeb3] hover:bg-white hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-65"
+          disabled={pending || initiallyBusy}
+          title={busyDescription}
+          type="submit"
+        >
+          <RefreshIcon className={`size-4 ${pending ? "animate-spin" : ""}`} />
+          <span className="hidden xl:inline">{label}</span>
+          <span className="xl:hidden" aria-hidden="true">
+            {pending ? "…" : ""}
+          </span>
+          <span className="sr-only xl:hidden">{label}</span>
+        </button>
+      </form>
+      {actionMessage ? (
+        <p
+          aria-live="polite"
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-64 rounded-xl border border-[#dfe4de] bg-white px-3 py-2.5 text-xs leading-5 text-[#526058] shadow-[0_10px_30px_rgba(24,36,28,0.12)]"
+          id="synchronization-status"
+        >
+          {actionMessage}
+        </p>
+      ) : null}
+    </div>
+  );
+}

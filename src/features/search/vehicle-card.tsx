@@ -2,69 +2,86 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { BrandLogo } from "./brand-logo";
 import { uiCopy, type Locale } from "./copy";
-import { ExternalLinkIcon, HeartIcon, MapPinIcon } from "./icons";
+import {
+  CalendarFilterIcon,
+  ExternalLinkIcon,
+  HeartIcon,
+  MapPinIcon,
+} from "./icons";
 import type { VehicleSearchResult } from "./types";
 
 interface VehicleCardProps {
   result: VehicleSearchResult;
+  currentLocation?: { latitude: number; longitude: number };
   isFavorite: boolean;
   locale: Locale;
   priority?: boolean;
   onToggleFavorite: () => void;
 }
 
+function distanceBetweenKm(
+  origin: { latitude: number; longitude: number },
+  destination: { latitude: number; longitude: number },
+) {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
+  const latitudeDelta = radians(destination.latitude - origin.latitude);
+  const longitudeDelta = radians(destination.longitude - origin.longitude);
+  const originLatitude = radians(origin.latitude);
+  const destinationLatitude = radians(destination.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(originLatitude) *
+      Math.cos(destinationLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  return 6_371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
 const imagePlaceholder =
   "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjUiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjUiIGZpbGw9IiNlN2U3ZTIiLz48L3N2Zz4=";
 
-function ScoreChip({
-  label,
-  value,
-  tone,
-  locale,
-  explanation,
-}: {
-  label: string;
-  value: number;
-  tone: "deal" | "confidence";
-  locale: Locale;
-  explanation: string;
-}) {
-  const isDeal = tone === "deal";
-  const copy = uiCopy[locale].card;
-  const rating =
-    value >= 90
-      ? copy.exceptional
-      : value >= 80
-        ? copy.veryGood
-        : value >= 60
-          ? copy.average
-          : copy.poor;
+function formatExactListingDate(value: string, locale: Locale) {
+  const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
+  return new Intl.DateTimeFormat(formatLocale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Stockholm",
+  }).format(new Date(value));
+}
 
-  return (
-    <span
-      aria-label={`${copy.scoreOutOf(label, value)}. ${rating}. ${explanation}`}
-      className={`group/score relative grid size-10 cursor-help place-items-center rounded-full border-2 text-sm font-bold tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#708b79] focus-visible:ring-offset-2 ${
-        isDeal
-          ? "border-[#4c8a62] bg-[#edf6f0] text-[#1e5737]"
-          : "border-[#6381ae] bg-[#f0f4fa] text-[#345b82]"
-      }`}
-      tabIndex={0}
-    >
-      {value}
-      <span
-        className={`pointer-events-none absolute bottom-[calc(100%+0.55rem)] z-20 w-48 translate-y-1 rounded-xl bg-[#17221c] px-3 py-2.5 text-left text-[11px] leading-4 text-white opacity-0 shadow-xl transition duration-150 group-hover/score:translate-y-0 group-hover/score:opacity-100 group-focus-visible/score:translate-y-0 group-focus-visible/score:opacity-100 ${isDeal ? "left-0" : "right-0"}`}
-        role="tooltip"
-      >
-        <strong className="block font-semibold">{rating}</strong>
-        <span className="mt-0.5 block text-white/70">{explanation}</span>
-      </span>
-    </span>
+function formatRelativeListingDate(value: string, locale: Locale) {
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(value).getTime()) / 60_000),
   );
+  const suffix = locale === "en" ? "ago" : "sedan";
+
+  if (elapsedMinutes < 1) return locale === "en" ? "just now" : "just nu";
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m ${suffix}`;
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours}h ${suffix}`;
+
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  if (elapsedDays < 30) return `${elapsedDays}d ${suffix}`;
+
+  const elapsedMonths = Math.floor(elapsedDays / 30);
+  if (elapsedMonths < 12) {
+    return `${elapsedMonths}${locale === "en" ? "mo" : " mån"} ${suffix}`;
+  }
+
+  const elapsedYears = Math.floor(elapsedDays / 365);
+  return `${elapsedYears}${locale === "en" ? "y" : " år"} ${suffix}`;
 }
 
 export function VehicleCard({
   result,
+  currentLocation,
   isFavorite,
   locale,
   priority = false,
@@ -92,10 +109,34 @@ export function VehicleCard({
     style: "currency",
   });
   const numberFormatter = new Intl.NumberFormat(formatLocale);
-  const mileage = locale === "en" ? listing.mileageKm : listing.mileageKm / 10;
+  const mileage = listing.mileageKm / 10;
   const sellerLocation = [listing.seller.name, listing.location.municipality]
     .filter(Boolean)
     .join(" · ");
+  const distanceKm =
+    currentLocation &&
+    listing.location.latitude !== undefined &&
+    listing.location.longitude !== undefined
+      ? Math.max(
+          1,
+          Math.round(
+            distanceBetweenKm(currentLocation, {
+              latitude: listing.location.latitude,
+              longitude: listing.location.longitude,
+            }),
+          ),
+        )
+      : undefined;
+  const listingDateValue = listing.publishedAt ?? listing.source.firstSeenAt;
+  const listingDate = formatRelativeListingDate(listingDateValue, locale);
+  const exactListingDate = formatExactListingDate(listingDateValue, locale);
+  const listingDateLabel = listing.publishedAt ? copy.card.posted : copy.card.firstSeen;
+  const dealScoreTone =
+    analysis.dealScore.value >= 80
+      ? "border-[#4f8b63] text-[#1f5737]"
+      : analysis.dealScore.value >= 65
+        ? "border-[#8b927b] text-[#555c49]"
+        : "border-[#b8796f] text-[#81463e]";
   const imageAlt =
     locale === "en"
       ? `${identity.make} ${identity.model} in a Nordic setting`
@@ -128,8 +169,11 @@ export function VehicleCard({
         <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3.5">
           <span
             aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
-            className="rounded-full border-2 border-[#4f8b63] bg-white/90 px-3 py-1 text-sm font-bold tabular-nums text-[#1f5737] shadow-sm backdrop-blur-md"
+            className={`flex items-center gap-1.5 rounded-full border-2 bg-white/90 px-3 py-1 text-sm font-bold tabular-nums shadow-sm backdrop-blur-md ${dealScoreTone}`}
           >
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] opacity-75">
+              {copy.card.dealBadge}
+            </span>
             {analysis.dealScore.value}
           </span>
           <button
@@ -150,6 +194,9 @@ export function VehicleCard({
 
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-[#737b75]">
+          <span className="mr-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-[#f5f7f4] ring-1 ring-inset ring-[#e2e6e1]">
+            <BrandLogo className="size-5.5" make={identity.make} />
+          </span>
           <span className="shrink-0">{identity.modelYear}</span>
           <span className="shrink-0 text-[#c5c8c4]">•</span>
           <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
@@ -159,32 +206,14 @@ export function VehicleCard({
           <span className="truncate">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
         </p>
 
-        <div className="mt-3 flex min-w-0 items-start justify-between gap-3">
-          <h2 className="line-clamp-2 min-w-0 flex-1 text-lg font-semibold leading-[1.2] tracking-[-0.035em] text-[#19231d]">
-            {identity.make} {identity.model} {identity.variant}
-          </h2>
-          <p className="shrink-0 whitespace-nowrap text-xl font-semibold leading-none tracking-[-0.045em] text-[#17211b] sm:text-2xl">
+        <h2 className="mt-3 line-clamp-2 min-w-0 text-lg font-semibold leading-[1.2] tracking-[-0.035em] text-[#19231d]">
+          {identity.make} {identity.model} {identity.variant}
+        </h2>
+
+        <div className="mt-3 flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <p className="whitespace-nowrap text-xl font-semibold leading-none tracking-[-0.045em] text-[#17211b] sm:text-2xl">
             {moneyFormatter.format(askingPrice)}
           </p>
-        </div>
-
-        <div className="mt-4 flex items-start justify-between gap-4">
-          <div className="flex shrink-0 items-center gap-2">
-            <ScoreChip
-              explanation={copy.card.dealScoreHelp}
-              label={copy.card.dealScore}
-              locale={locale}
-              tone="deal"
-              value={analysis.dealScore.value}
-            />
-            <ScoreChip
-              explanation={copy.card.confidenceHelp}
-              label={copy.card.confidence}
-              locale={locale}
-              tone="confidence"
-              value={analysis.buyConfidenceScore.value}
-            />
-          </div>
           <span
             aria-label={`${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`}
             className="group/market relative min-w-0 cursor-help rounded-md text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#708b79] focus-visible:ring-offset-2"
@@ -223,10 +252,32 @@ export function VehicleCard({
         </div>
 
         <div className="mt-auto flex min-w-0 items-end justify-between gap-4 pt-5">
-          <p className="flex min-w-0 items-center gap-1.5 text-xs text-[#858c87]">
-            <MapPinIcon className="size-3.5 shrink-0" />
-            <span className="truncate">{sellerLocation}</span>
-          </p>
+          <div className="min-w-0 space-y-1.5 text-xs text-[#858c87]">
+            {sellerLocation ? (
+              <p className="flex min-w-0 items-center gap-1.5">
+                <MapPinIcon className="size-3.5 shrink-0" />
+                <span className="truncate">{sellerLocation}</span>
+                {distanceKm !== undefined ? (
+                  <span className="shrink-0 font-medium text-[#52685a]">
+                    · {copy.card.distanceAway(distanceKm)}
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+            <p className="flex items-center gap-1.5">
+              <CalendarFilterIcon className="size-3.5 shrink-0" />
+              <span>
+                {listingDateLabel}{" "}
+                <time
+                  dateTime={listingDateValue}
+                  suppressHydrationWarning
+                  title={exactListingDate}
+                >
+                  {listingDate}
+                </time>
+              </span>
+            </p>
+          </div>
           {financingOffer ? (
             <div className="shrink-0 text-right">
               <p className="text-[10px] font-medium text-[#8a918c]">

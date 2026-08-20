@@ -1,5 +1,11 @@
 import type { BodyStyle, FuelType, TransmissionType } from "@/domain/vehicle";
-import type { SearchFilters, SearchSort, VehicleSearchOptions } from "./types";
+import {
+  vehiclePageSizes,
+  type SearchFilters,
+  type SearchSort,
+  type VehiclePageSize,
+  type VehicleSearchOptions,
+} from "./types";
 
 export type SearchParameterValue = string | string[] | undefined;
 export type SearchParameters = Record<string, SearchParameterValue>;
@@ -39,16 +45,19 @@ export const defaultSearchFilters: SearchFilters = {
   query: "",
   minPrice: null,
   maxPrice: null,
-  brand: "",
-  model: "",
+  brands: [],
+  models: [],
   fuelType: "",
   transmission: "",
   minYear: null,
+  maxYear: null,
+  minMileageMil: null,
   maxMileageMil: null,
   bodyStyle: "",
 };
 
-export const defaultSearchSort: SearchSort = "deal_score";
+export const defaultSearchSort: SearchSort = "newest";
+export const defaultVehiclePageSize: VehiclePageSize = 24;
 
 function first(value: SearchParameterValue) {
   return Array.isArray(value) ? value[0] : value;
@@ -56,6 +65,15 @@ function first(value: SearchParameterValue) {
 
 function stringValue(value: SearchParameterValue) {
   return first(value)?.trim() ?? "";
+}
+
+function stringValues(value: SearchParameterValue, maximumLength = 80) {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return [
+    ...new Set(
+      values.map((item) => item.trim().slice(0, maximumLength)).filter(Boolean),
+    ),
+  ].slice(0, 40);
 }
 
 function nonNegativeInteger(value: SearchParameterValue) {
@@ -68,6 +86,17 @@ function positiveInteger(value: SearchParameterValue) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function positiveIntegers(value: SearchParameterValue) {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return [
+    ...new Set(
+      values
+        .map((item) => Number.parseInt(item, 10))
+        .filter((item) => Number.isSafeInteger(item) && item > 0),
+    ),
+  ].slice(0, 100);
+}
+
 function enumValue<T extends string>(value: SearchParameterValue, allowed: Set<T>) {
   const parsed = stringValue(value);
   return allowed.has(parsed as T) ? (parsed as T) : "";
@@ -78,9 +107,19 @@ export function parseVehicleSearchOptions(
 ): VehicleSearchOptions {
   const minimumPrice = nonNegativeInteger(parameters.minPrice);
   const maximumPrice = nonNegativeInteger(parameters.maxPrice);
+  const legacyYears = positiveIntegers(parameters.year);
+  const minimumYear = positiveInteger(parameters.minYear);
+  const maximumYear = positiveInteger(parameters.maxYear);
+  const minimumMileage = positiveInteger(parameters.minMileage);
+  const maximumMileage = positiveInteger(parameters.maxMileage ?? parameters.mileage);
+  const requestedPageSize = positiveInteger(parameters.perPage);
+  const pageSize = vehiclePageSizes.includes(requestedPageSize as VehiclePageSize)
+    ? (requestedPageSize as VehiclePageSize)
+    : defaultVehiclePageSize;
 
   return {
     page: positiveInteger(parameters.page) ?? 1,
+    pageSize,
     sort: sorts.has(stringValue(parameters.sort) as SearchSort)
       ? (stringValue(parameters.sort) as SearchSort)
       : defaultSearchSort,
@@ -91,33 +130,46 @@ export function parseVehicleSearchOptions(
           ? minimumPrice
           : null,
       maxPrice: maximumPrice,
-      brand: stringValue(parameters.make).slice(0, 80),
-      model: stringValue(parameters.model).slice(0, 80),
+      brands: stringValues(parameters.make),
+      models: stringValues(parameters.model),
       fuelType: enumValue(parameters.fuel, fuelTypes),
       transmission: enumValue(parameters.transmission, transmissions),
-      minYear: positiveInteger(parameters.year),
-      maxMileageMil: positiveInteger(parameters.mileage),
+      minYear: minimumYear ?? (legacyYears.length ? Math.min(...legacyYears) : null),
+      maxYear: maximumYear ?? (legacyYears.length ? Math.max(...legacyYears) : null),
+      minMileageMil:
+        minimumMileage !== null &&
+        (maximumMileage === null || minimumMileage <= maximumMileage)
+          ? minimumMileage
+          : null,
+      maxMileageMil: maximumMileage,
       bodyStyle: enumValue(parameters.body, bodyStyles),
     },
   };
 }
 
-export function vehicleSearchUrl({ filters, sort, page }: VehicleSearchOptions) {
+export function vehicleSearchUrl({ filters, sort, page, pageSize }: VehicleSearchOptions) {
   const parameters = new URLSearchParams();
 
   if (filters.query.trim()) parameters.set("q", filters.query.trim());
   if (filters.minPrice !== null) parameters.set("minPrice", filters.minPrice.toString());
   if (filters.maxPrice !== null) parameters.set("maxPrice", filters.maxPrice.toString());
-  if (filters.brand) parameters.set("make", filters.brand);
-  if (filters.model) parameters.set("model", filters.model);
+  filters.brands.forEach((brand) => parameters.append("make", brand));
+  filters.models.forEach((model) => parameters.append("model", model));
   if (filters.fuelType) parameters.set("fuel", filters.fuelType);
   if (filters.transmission) parameters.set("transmission", filters.transmission);
-  if (filters.minYear !== null) parameters.set("year", filters.minYear.toString());
+  if (filters.minYear !== null) parameters.set("minYear", filters.minYear.toString());
+  if (filters.maxYear !== null) parameters.set("maxYear", filters.maxYear.toString());
+  if (filters.minMileageMil !== null) {
+    parameters.set("minMileage", filters.minMileageMil.toString());
+  }
   if (filters.maxMileageMil !== null) {
-    parameters.set("mileage", filters.maxMileageMil.toString());
+    parameters.set("maxMileage", filters.maxMileageMil.toString());
   }
   if (filters.bodyStyle) parameters.set("body", filters.bodyStyle);
   if (sort !== defaultSearchSort) parameters.set("sort", sort);
+  if (pageSize !== defaultVehiclePageSize) {
+    parameters.set("perPage", pageSize.toString());
+  }
   if (page > 1) parameters.set("page", page.toString());
 
   const query = parameters.toString();

@@ -1,5 +1,33 @@
 const defaultBaseUrl = "https://blocket-api.se";
 
+export type BlocketSortOrder =
+  | "PUBLISHED_ASC"
+  | "PUBLISHED_DESC"
+  | "PRICE_DESC";
+
+export interface BlocketCarSearchParameters {
+  query?: string;
+  page?: number;
+  sortOrder?: BlocketSortOrder;
+  yearFrom?: number;
+  yearTo?: number;
+  priceFrom?: number;
+  priceTo?: number;
+  mileageFrom?: number;
+  mileageTo?: number;
+}
+
+export class BlocketRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly path?: string,
+  ) {
+    super(message);
+    this.name = "BlocketRequestError";
+  }
+}
+
 export class BlocketUnofficialClient {
   constructor(private readonly baseUrl = process.env.BLOCKET_UNOFFICIAL_API_URL ?? defaultBaseUrl) {}
 
@@ -13,7 +41,14 @@ export class BlocketUnofficialClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Blocket-importen svarade med HTTP ${response.status}.`);
+      const responseBody = (await response.text()).slice(0, 300).replace(/\s+/g, " ");
+      throw new BlocketRequestError(
+        `Blocket-importen svarade med HTTP ${response.status}${
+          responseBody ? `: ${responseBody}` : "."
+        }`,
+        response.status,
+        path,
+      );
     }
 
     return response.json() as Promise<unknown>;
@@ -29,17 +64,7 @@ export class BlocketUnofficialClient {
     priceTo,
     mileageFrom,
     mileageTo,
-  }: {
-    query?: string;
-    page?: number;
-    sortOrder?: "PUBLISHED_ASC" | "PRICE_DESC";
-    yearFrom?: number;
-    yearTo?: number;
-    priceFrom?: number;
-    priceTo?: number;
-    mileageFrom?: number;
-    mileageTo?: number;
-  }) {
+  }: BlocketCarSearchParameters) {
     const params = new URLSearchParams({
       page: page.toString(),
       sort_order: sortOrder,

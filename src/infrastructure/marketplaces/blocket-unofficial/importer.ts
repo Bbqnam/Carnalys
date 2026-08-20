@@ -1,63 +1,46 @@
 import type {
-  MarketplaceImportChunk,
   MarketplaceImporter,
+  MarketplacePageRequest,
+  MarketplaceRequestFailure,
+  VehicleSearchPartition,
 } from "@/application/ingestion/types";
-import { BlocketUnofficialClient } from "./client";
+import {
+  BlocketRequestError,
+  BlocketUnofficialClient,
+} from "./client";
 import { normalizeBlocketListing } from "./normalizer";
 import { parseBlocketSearchResponse } from "./parser";
 
 const requestIntervalMs = 300;
-const maximumResultsPerPartition = 2_450;
 const maximumRequestAttempts = 7;
-
-interface SearchPartition {
-  yearFrom: number;
-  yearTo: number;
-  priceFrom: number;
-  priceTo: number;
-  /** Keeps the highest partition open so newly listed cars cannot exceed a fixed ceiling. */
-  unboundedPriceTo?: boolean;
-  mileageFrom: number;
-  mileageTo: number;
-}
 
 function midpoint(from: number, to: number) {
   return from + Math.floor((to - from) / 2);
 }
 
-function splitPartition(partition: SearchPartition): readonly SearchPartition[] {
-  if (partition.yearFrom < partition.yearTo) {
-    const middle = midpoint(partition.yearFrom, partition.yearTo);
-    return [
-      { ...partition, yearTo: middle },
-      { ...partition, yearFrom: middle + 1 },
-    ];
-  }
-
-  if (partition.priceFrom < partition.priceTo) {
-    const middle = midpoint(partition.priceFrom, partition.priceTo);
-    return [
-      { ...partition, priceTo: middle, unboundedPriceTo: false },
-      { ...partition, priceFrom: middle + 1 },
-    ];
-  }
-
-  if (partition.mileageFrom < partition.mileageTo) {
-    const middle = midpoint(partition.mileageFrom, partition.mileageTo);
-    return [
-      { ...partition, mileageTo: middle },
-      { ...partition, mileageFrom: middle + 1 },
-    ];
-  }
-
-  throw new Error(
-    `Kunde inte dela en överfull sökpartition (${partition.yearFrom}, ${partition.priceFrom} kr, ${partition.mileageFrom} mil).`,
-  );
+function requestContext(
+  query: string,
+  request: MarketplacePageRequest,
+): MarketplaceRequestFailure["requestParameters"] {
+  return {
+    query: query || undefined,
+    page: request.page,
+    sortOrder: request.sortOrder,
+    yearFrom: request.partition?.yearFrom,
+    yearTo: request.partition?.yearTo,
+    priceFrom: request.partition?.priceFrom,
+    priceTo: request.partition?.unboundedPriceTo
+      ? undefined
+      : request.partition?.priceTo,
+    mileageFrom: request.partition?.mileageFrom,
+    mileageTo: request.partition?.mileageTo,
+  };
 }
 
 export class BlocketUnofficialImporter implements MarketplaceImporter {
   readonly provider = "blocket_unofficial";
   readonly scope: string;
+  readonly maximumResultsPerPartition = 2_450;
   private lastRequestAt = 0;
   private readonly query: string;
 
@@ -66,40 +49,56 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
     this.scope = this.query || "all-cars";
   }
 
-  private async search(
-    partition: SearchPartition | undefined,
-    page: number,
-    sortOrder: "PUBLISHED_ASC" | "PRICE_DESC" = "PUBLISHED_ASC",
+  async fetchPage(
+    request: MarketplacePageRequest,
+    onFailure: (failure: MarketplaceRequestFailure) => Promise<void>,
   ) {
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= maximumRequestAttempts; attempt += 1) {
       const elapsed = Date.now() - this.lastRequestAt;
       if (elapsed < requestIntervalMs) {
-        await new Promise((resolve) => setTimeout(resolve, requestIntervalMs - elapsed));
+        await new Promise((resolve) =>
+          setTimeout(resolve, requestIntervalMs - elapsed),
+        );
       }
 
       try {
+        const partition = request.partition;
         const payload = await this.client.searchCars({
           query: this.query,
-          page,
-          sortOrder,
-          ...(partition
-            ? {
-                yearFrom: partition.yearFrom,
-                yearTo: partition.yearTo,
-                priceFrom: partition.priceFrom,
-                priceTo: partition.unboundedPriceTo ? undefined : partition.priceTo,
-                mileageFrom: partition.mileageFrom,
-                mileageTo: partition.mileageTo,
-              }
-            : {}),
+          page: request.page,
+          sortOrder: request.sortOrder,
+          yearFrom: partition?.yearFrom,
+          yearTo: partition?.yearTo,
+          priceFrom: partition?.priceFrom,
+          priceTo: partition?.unboundedPriceTo ? undefined : partition?.priceTo,
+          mileageFrom: partition?.mileageFrom,
+          mileageTo: partition?.mileageTo,
         });
         this.lastRequestAt = Date.now();
-        return parseBlocketSearchResponse(payload);
+        const parsed = parseBlocketSearchResponse(payload);
+
+        return {
+          listings: parsed.documents.map((document) =>
+            normalizeBlocketListing(document, undefined, this.scope),
+          ),
+          rejectedCount: parsed.rejectedCount,
+          totalMatches: parsed.totalMatches,
+          currentPage: parsed.currentPage,
+          lastPage: parsed.lastPage,
+        };
       } catch (error) {
         lastError = error;
         this.lastRequestAt = Date.now();
+        await onFailure({
+          attempt,
+          maximumAttempts: maximumRequestAttempts,
+          error,
+          httpStatus: error instanceof BlocketRequestError ? error.status : undefined,
+          requestParameters: requestContext(this.query, request),
+        });
+
         if (attempt === maximumRequestAttempts) break;
         const retryDelay = Math.min(15_000, 750 * 2 ** (attempt - 1));
         console.warn(
@@ -114,56 +113,61 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
       : new Error("Blocket-importen misslyckades efter flera försök.");
   }
 
-  private normalizeChunk(
-    parsed: ReturnType<typeof parseBlocketSearchResponse>,
-  ): MarketplaceImportChunk {
-    return {
-      listings: parsed.documents.map((document) =>
-        normalizeBlocketListing(document, undefined, this.scope),
-      ),
-      rejectedCount: parsed.rejectedCount,
-    };
-  }
-
-  private async *importPartition(
-    partition: SearchPartition,
-  ): AsyncGenerator<MarketplaceImportChunk> {
-    const firstPage = await this.search(partition, 1);
-
-    if (firstPage.totalMatches > maximumResultsPerPartition) {
-      for (const child of splitPartition(partition)) {
-        yield* this.importPartition(child);
-      }
-      return;
-    }
-
-    if (firstPage.documents.length > 0) yield this.normalizeChunk(firstPage);
-
-    for (let page = 2; page <= firstPage.lastPage; page += 1) {
-      const parsed = await this.search(partition, page);
-      if (parsed.documents.length > 0) yield this.normalizeChunk(parsed);
-    }
-  }
-
-  private async discoverCurrentMaximumPrice() {
-    const highestPricedPage = await this.search(undefined, 1, "PRICE_DESC");
-    return highestPricedPage.documents.reduce(
-      (maximum, listing) => Math.max(maximum, listing.priceAmount),
+  async discoverCurrentMaximumPrice(
+    onFailure: (failure: MarketplaceRequestFailure) => Promise<void>,
+  ) {
+    const highestPricedPage = await this.fetchPage(
+      { page: 1, sortOrder: "PRICE_DESC" },
+      onFailure,
+    );
+    return highestPricedPage.listings.reduce(
+      (maximum, listing) => Math.max(maximum, listing.listing.priceAmount),
       0,
     );
   }
 
-  async *import(): AsyncGenerator<MarketplaceImportChunk> {
+  initialReconciliationPartition(maximumPrice: number): VehicleSearchPartition {
     const currentYear = new Date().getUTCFullYear();
-    const currentMaximumPrice = await this.discoverCurrentMaximumPrice();
-    yield* this.importPartition({
-      yearFrom: 1886,
-      yearTo: currentYear + 2,
+    return {
+      yearFrom: 1900,
+      yearTo: currentYear + 1,
       priceFrom: 0,
-      priceTo: currentMaximumPrice,
+      priceTo: maximumPrice,
       unboundedPriceTo: true,
       mileageFrom: 0,
       mileageTo: 1_000_000,
-    });
+    };
+  }
+
+  splitPartition(
+    partition: VehicleSearchPartition,
+  ): readonly VehicleSearchPartition[] {
+    if (partition.yearFrom < partition.yearTo) {
+      const middle = midpoint(partition.yearFrom, partition.yearTo);
+      return [
+        { ...partition, yearFrom: middle + 1 },
+        { ...partition, yearTo: middle },
+      ];
+    }
+
+    if (partition.priceFrom < partition.priceTo) {
+      const middle = midpoint(partition.priceFrom, partition.priceTo);
+      return [
+        { ...partition, priceFrom: middle + 1 },
+        { ...partition, priceTo: middle, unboundedPriceTo: false },
+      ];
+    }
+
+    if (partition.mileageFrom < partition.mileageTo) {
+      const middle = midpoint(partition.mileageFrom, partition.mileageTo);
+      return [
+        { ...partition, mileageFrom: middle + 1 },
+        { ...partition, mileageTo: middle },
+      ];
+    }
+
+    throw new Error(
+      `Kunde inte dela en överfull sökpartition (${partition.yearFrom}, ${partition.priceFrom} kr, ${partition.mileageFrom} mil).`,
+    );
   }
 }

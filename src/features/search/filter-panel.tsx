@@ -1,11 +1,10 @@
 import type { BodyStyle, FuelType, TransmissionType } from "@/domain/vehicle";
+import { useState } from "react";
 import { BrandLogo } from "./brand-logo";
-import { CompactDropdown } from "./compact-dropdown";
 import { uiCopy, type Locale } from "./copy";
 import {
   AllOptionsIcon,
   AutomaticTransmissionIcon,
-  CalendarFilterIcon,
   DieselFuelIcon,
   ElectricFuelIcon,
   EstateBodyIcon,
@@ -13,24 +12,23 @@ import {
   HybridFuelIcon,
   ManualTransmissionIcon,
   ManufacturerIcon,
-  OdometerIcon,
   PetrolFuelIcon,
   PlugInFuelIcon,
   SedanBodyIcon,
   SuvBodyIcon,
   VehicleModelIcon,
+  ChevronDownIcon,
 } from "./icons";
-import type { SearchFilters } from "./types";
+import { MultiChoiceDropdown } from "./multi-choice-dropdown";
+import type { SearchFilters, VehicleFilterOption } from "./types";
 
 interface FilterPanelProps {
   locale: Locale;
   filters: SearchFilters;
-  brands: readonly string[];
-  models: readonly string[];
-  budgetRange: {
-    minimum: number;
-    maximum: number;
-  };
+  brands: readonly VehicleFilterOption<string>[];
+  models: readonly VehicleFilterOption<string>[];
+  years: readonly VehicleFilterOption<number>[];
+  resultCount: number;
   onChange: (filters: SearchFilters) => void;
   onReset: () => void;
 }
@@ -46,6 +44,11 @@ const fuels = [
 const transmissions = ["automatic", "manual"] as const satisfies readonly TransmissionType[];
 const bodyStyles = ["estate", "suv", "sedan", "hatchback"] as const satisfies readonly BodyStyle[];
 const budgetSliderMaximum = 1_000;
+const maximumBudget = 500_000;
+const maximumMileageMil = 30_000;
+const mileageStepMil = 100;
+const mileageSliderMaximum = maximumMileageMil / mileageStepMil;
+const minimumModelYear = 1990;
 
 function budgetIncrement(maximum: number) {
   if (maximum <= 1_000_000) return 5_000;
@@ -86,7 +89,7 @@ function FilterGroup({
 
 function isSelected(selected: boolean) {
   return selected
-    ? "border-[#264b36] bg-[#254934] text-white shadow-sm"
+    ? "border-[#a9bcae] bg-[#eaf2ed] text-[#214b36] shadow-sm"
     : "border-[#dde0da] bg-white hover:border-[#aebdb2] hover:bg-[#f8faf7]";
 }
 
@@ -187,19 +190,26 @@ export function FilterPanel({
   filters,
   brands,
   models,
-  budgetRange,
+  years,
+  resultCount,
   onChange,
   onReset,
 }: FilterPanelProps) {
   const copy = uiCopy[locale].filters;
+  const advancedFilterCount = [
+    filters.fuelType,
+    filters.transmission,
+    filters.bodyStyle,
+  ].filter(Boolean).length;
+  const advancedFiltersActive = advancedFilterCount > 0;
+  const [showMoreFilters, setShowMoreFilters] = useState(advancedFiltersActive);
   const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
   const hasActiveFilters = Object.entries(filters).some(
-    ([key, value]) => key !== "query" && value !== "" && value !== null,
+    ([key, value]) =>
+      key !== "query" &&
+      (Array.isArray(value) ? value.length > 0 : value !== "" && value !== null),
   );
-  const maxBudget = Math.max(
-    100_000,
-    Math.ceil(budgetRange.maximum / 100_000) * 100_000,
-  );
+  const maxBudget = maximumBudget;
   const selectedMinimum = filters.minPrice ?? 0;
   const selectedMaximum = filters.maxPrice ?? maxBudget;
   const minimumPosition = sliderPositionForPrice(selectedMinimum, maxBudget);
@@ -212,34 +222,54 @@ export function FilterPanel({
     filters.maxPrice !== null
       ? `${filters.maxPrice.toLocaleString(formatLocale)} SEK`
       : copy.noMaximum;
-  const brandOptions = [
-    { value: "", label: copy.allMakes },
-    ...brands.map((brand) => ({ value: brand, label: brand })),
-  ];
-  const modelOptions = [
-    { value: "", label: copy.allModels },
-    ...models.map((model) => ({ value: model, label: model })),
-  ];
-  const yearOptions = [
-    { value: "", label: copy.anyYear },
-    ...[2023, 2022, 2021, 2020, 2019].map((year) => ({
-      value: year.toString(),
-      label: year.toString(),
-    })),
-  ];
-  const mileageOptions = [
-    { value: "", label: copy.anyMileage },
-    { value: "5000", label: locale === "en" ? "50,000 km" : "5 000 mil" },
-    { value: "7500", label: locale === "en" ? "75,000 km" : "7 500 mil" },
-    { value: "10000", label: locale === "en" ? "100,000 km" : "10 000 mil" },
-  ];
+  const minimumMileagePosition =
+    filters.minMileageMil === null
+      ? 0
+      : Math.max(0, Math.round(filters.minMileageMil / mileageStepMil));
+  const maximumMileagePosition =
+    filters.maxMileageMil === null
+      ? mileageSliderMaximum
+      : Math.min(
+          mileageSliderMaximum,
+          Math.round(filters.maxMileageMil / mileageStepMil),
+        );
+  const selectedMinimumMileageLabel =
+    filters.minMileageMil === null
+      ? "0 mil"
+      : `${filters.minMileageMil.toLocaleString(formatLocale)} mil`;
+  const selectedMaximumMileageLabel =
+    filters.maxMileageMil === null
+      ? "30 000 mil+"
+      : `${filters.maxMileageMil.toLocaleString(formatLocale)} mil`;
+  const brandOptions = brands.map(({ value, count }) => ({
+    value,
+    label: value,
+    count,
+  }));
+  const modelOptions = models.map(({ value, count }) => ({
+    value,
+    label: value,
+    count,
+  }));
+  const availableYears = years.map(({ value }) => value);
+  const earliestYear = minimumModelYear;
+  const latestYear = availableYears.length
+    ? Math.max(...availableYears)
+    : new Date().getFullYear();
+  const selectedMinimumYear = Math.max(filters.minYear ?? earliestYear, earliestYear);
+  const selectedMaximumYear = filters.maxYear ?? latestYear;
 
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-base font-semibold tracking-[-0.02em] text-[#18231d]">
-          {copy.title}
-        </h2>
+        <div>
+          <h2 className="text-base font-semibold tracking-[-0.02em] text-[#18231d]">
+            {copy.title}
+          </h2>
+          <p className="mt-0.5 text-[11px] text-[#818a84]">
+            {copy.resultCount(resultCount)}
+          </p>
+        </div>
         <button
           className="rounded-full border border-transparent px-2.5 py-1.5 text-xs font-semibold text-[#59665e] transition hover:border-[#d9ddd7] hover:bg-[#f6f7f3] hover:text-[#18231d] disabled:cursor-not-allowed disabled:opacity-35"
           disabled={!hasActiveFilters}
@@ -250,31 +280,9 @@ export function FilterPanel({
         </button>
       </div>
 
-      <div className="space-y-5">
-        <FilterGroup label={copy.budget}>
-          <div className="rounded-2xl border border-[#e0e2dc] bg-[#f8f8f5] px-3.5 py-3">
-            <div className="mb-2.5 grid grid-cols-2 items-center gap-3 text-xs">
-              <button
-                className="min-w-0 truncate text-left font-semibold text-[#26372d] underline-offset-2 hover:underline"
-                onClick={() => onChange({ ...filters, minPrice: null })}
-                type="button"
-              >
-                <span className="block text-[9px] font-bold uppercase tracking-[0.08em] text-[#8a938d]">
-                  {copy.minimum}
-                </span>
-                {selectedMinimumLabel}
-              </button>
-              <button
-                className="min-w-0 truncate text-right font-semibold text-[#26372d] underline-offset-2 hover:underline"
-                onClick={() => onChange({ ...filters, maxPrice: null })}
-                type="button"
-              >
-                <span className="block text-[9px] font-bold uppercase tracking-[0.08em] text-[#8a938d]">
-                  {copy.maximum}
-                </span>
-                {selectedMaximumLabel}
-              </button>
-            </div>
+      <div className="flex flex-col gap-4">
+        <FilterGroup className="order-2" label={copy.budget}>
+          <div className="rounded-2xl border border-[#eaebe7] bg-[#f8f8f5] px-3.5 py-2.5">
             <div
               className="budget-range"
               style={{
@@ -315,40 +323,63 @@ export function FilterPanel({
                 value={maximumPosition}
               />
             </div>
+            <div className="mt-1 flex justify-between gap-3 text-xs font-semibold tabular-nums text-[#56635b]">
+              <span>{selectedMinimumLabel}</span>
+              <span className="text-right">{selectedMaximumLabel}</span>
+            </div>
           </div>
         </FilterGroup>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          <CompactDropdown
+        <div className="order-1 space-y-3">
+          <MultiChoiceDropdown
+            clearLabel={copy.clearSelection}
+            doneLabel={copy.done}
             label={copy.make}
+            menuHeight={520}
             noResultsLabel={copy.noMatches}
-            onChange={(brand) => onChange({ ...filters, brand, model: "" })}
+            onChange={(brands) => onChange({ ...filters, brands, models: [] })}
             options={brandOptions}
+            placeholder={copy.allMakes}
             renderIcon={(brand) =>
               brand ? (
-                <BrandLogo className="size-4.5" make={brand} />
+                <BrandLogo className="size-6.5" make={brand} />
               ) : (
                 <ManufacturerIcon className="size-3.5" />
               )
             }
             searchable
             searchPlaceholder={copy.searchMakes}
-            value={filters.brand}
+            selectedCountLabel={copy.selected}
+            values={filters.brands}
           />
-          <CompactDropdown
+          <MultiChoiceDropdown
+            clearLabel={copy.clearSelection}
             disabled={models.length === 0}
+            doneLabel={copy.done}
             label={copy.model}
             noResultsLabel={copy.noMatches}
-            onChange={(model) => onChange({ ...filters, model })}
+            onChange={(models) => onChange({ ...filters, models })}
             options={modelOptions}
+            placeholder={copy.allModels}
             renderIcon={() => <VehicleModelIcon className="size-3.5" />}
             searchable
             searchPlaceholder={copy.searchModels}
-            value={filters.model}
+            selectedCountLabel={copy.selected}
+            values={filters.models}
           />
         </div>
 
-        <FilterGroup label={copy.fuel}>
+        <button
+          aria-expanded={showMoreFilters}
+          className="sticky bottom-0 z-20 order-5 flex h-10 w-full items-center justify-between rounded-xl border border-[#dde1db] bg-[#f7f8f5]/95 px-3 text-xs font-semibold text-[#344239] shadow-[0_4px_14px_rgba(26,35,29,0.08)] backdrop-blur-sm transition hover:border-[#b8c2ba] hover:bg-[#f1f4f0]"
+          onClick={() => setShowMoreFilters((current) => !current)}
+          type="button"
+        >
+          <span>{copy.moreFilters}{advancedFiltersActive ? ` · ${advancedFilterCount}` : ""}</span>
+          <ChevronDownIcon className={`size-3.5 transition-transform ${showMoreFilters ? "rotate-180" : ""}`} />
+        </button>
+
+        <FilterGroup className={`order-7 ${showMoreFilters ? "" : "hidden"}`} label={copy.fuel}>
           <div className="grid grid-cols-6 gap-1">
             <IconChoiceButton
               label={copy.any}
@@ -371,7 +402,7 @@ export function FilterPanel({
           </div>
         </FilterGroup>
 
-        <FilterGroup label={copy.transmission}>
+        <FilterGroup className={`order-8 ${showMoreFilters ? "" : "hidden"}`} label={copy.transmission}>
           <div className="grid grid-cols-3 gap-1.5">
             <IconChoiceButton
               label={copy.any}
@@ -394,33 +425,65 @@ export function FilterPanel({
           </div>
         </FilterGroup>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          <CompactDropdown
-            label={copy.year}
-            noResultsLabel={copy.noMatches}
-            onChange={(year) =>
-              onChange({ ...filters, minYear: year ? Number(year) : null })
-            }
-            options={yearOptions}
-            renderIcon={() => <CalendarFilterIcon className="size-3.5" />}
-            value={filters.minYear?.toString() ?? ""}
-          />
-          <CompactDropdown
-            label={copy.mileage}
-            noResultsLabel={copy.noMatches}
-            onChange={(mileage) =>
-              onChange({
-                ...filters,
-                maxMileageMil: mileage ? Number(mileage) : null,
-              })
-            }
-            options={mileageOptions}
-            renderIcon={() => <OdometerIcon className="size-3.5" />}
-            value={filters.maxMileageMil?.toString() ?? ""}
-          />
-        </div>
+        <FilterGroup className="order-3" label={copy.year}>
+          <div className="rounded-2xl border border-[#eaebe7] bg-[#f8f8f5] px-3.5 py-2.5">
+            <div className="budget-range" style={{ "--budget-start": `${((selectedMinimumYear - earliestYear) / Math.max(1, latestYear - earliestYear)) * 100}%`, "--budget-end": `${((selectedMaximumYear - earliestYear) / Math.max(1, latestYear - earliestYear)) * 100}%` } as React.CSSProperties}>
+              <span aria-hidden="true" className="budget-range-track" />
+              <input aria-label={`${copy.minimum} ${copy.year}`} max={latestYear} min={earliestYear} onChange={(event) => { const value = Math.min(Number(event.target.value), selectedMaximumYear); onChange({ ...filters, minYear: value === earliestYear ? null : value }); }} step={1} type="range" value={selectedMinimumYear} />
+              <input aria-label={`${copy.maximum} ${copy.year}`} max={latestYear} min={earliestYear} onChange={(event) => { const value = Math.max(Number(event.target.value), selectedMinimumYear); onChange({ ...filters, maxYear: value === latestYear ? null : value }); }} step={1} type="range" value={selectedMaximumYear} />
+            </div>
+            <div className="mt-1 flex justify-between text-xs font-semibold tabular-nums text-[#56635b]"><span>{selectedMinimumYear}</span><span>{selectedMaximumYear}</span></div>
+          </div>
+        </FilterGroup>
 
-        <FilterGroup label={copy.body}>
+        <FilterGroup className="order-4" label={copy.mileage}>
+          <div className="rounded-2xl border border-[#eaebe7] bg-[#f8f8f5] px-3.5 py-2.5">
+            <div
+              className="budget-range"
+              style={{
+                "--budget-start": `${(minimumMileagePosition / mileageSliderMaximum) * 100}%`,
+                "--budget-end": `${(maximumMileagePosition / mileageSliderMaximum) * 100}%`,
+              } as React.CSSProperties}
+            >
+              <span aria-hidden="true" className="budget-range-track" />
+              <input
+                aria-label={`${copy.minimum} ${copy.mileage}`}
+                aria-valuetext={selectedMinimumMileageLabel}
+                max={mileageSliderMaximum}
+                min={0}
+                onChange={(event) => {
+                  const position = Math.min(Number(event.target.value), maximumMileagePosition);
+                  onChange({
+                    ...filters,
+                    minMileageMil: position === 0 ? null : position * mileageStepMil,
+                  });
+                }}
+                step={1}
+                type="range"
+                value={minimumMileagePosition}
+              />
+              <input
+                aria-label={`${copy.maximum} ${copy.mileage}`}
+                aria-valuetext={selectedMaximumMileageLabel}
+                max={mileageSliderMaximum}
+                min={0}
+                onChange={(event) => {
+                  const position = Math.max(Number(event.target.value), minimumMileagePosition);
+                  onChange({ ...filters, maxMileageMil: position === mileageSliderMaximum ? null : position * mileageStepMil });
+                }}
+                step={1}
+                type="range"
+                value={maximumMileagePosition}
+              />
+            </div>
+            <div className="mt-1 flex justify-between text-xs font-semibold tabular-nums text-[#56635b]">
+              <span>{selectedMinimumMileageLabel}</span>
+              <span>{selectedMaximumMileageLabel}</span>
+            </div>
+          </div>
+        </FilterGroup>
+
+        <FilterGroup className={`order-6 ${showMoreFilters ? "" : "hidden"}`} label={copy.body}>
           <div className="grid grid-cols-4 gap-1.5">
             {bodyStyles.map((bodyStyle) => (
               <IconChoiceButton

@@ -79,6 +79,15 @@ export function CloseIcon(props: IconProps) {
   );
 }
 
+export function RefreshIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M20 7v5h-5" />
+      <path d="M18.4 15.5A7.5 7.5 0 1 1 19 7l1 5" />
+    </svg>
+  );
+}
+
 export function SearchEmptyIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>

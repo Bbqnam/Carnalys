@@ -52,15 +52,23 @@ export function parseBlocketSearchResponse(payload: unknown): {
 
     const price = isRecord(candidate.price) ? candidate.price : undefined;
     const image = isRecord(candidate.image) ? candidate.image : undefined;
+    const coordinates = isRecord(candidate.coordinates)
+      ? candidate.coordinates
+      : undefined;
     const id = stringValue(candidate.id) ?? numberValue(candidate.ad_id)?.toString();
     const heading = stringValue(candidate.heading);
     const canonicalUrl = stringValue(candidate.canonical_url);
     const location = stringValue(candidate.location);
     const priceAmount = numberValue(price?.amount);
     const year = numberValue(candidate.year);
-    const mileageMil = numberValue(candidate.mileage);
+    // New and pre-registration dealer cars commonly omit mileage entirely.
+    // Treat that source shape as zero mileage instead of dropping the ad.
+    const mileageMil = numberValue(candidate.mileage) ?? 0;
     const make = stringValue(candidate.make);
-    const model = stringValue(candidate.model);
+    const model =
+      stringValue(candidate.model) ??
+      stringValue(candidate.model_specification) ??
+      heading;
 
     if (
       !id ||
@@ -69,9 +77,7 @@ export function parseBlocketSearchResponse(payload: unknown): {
       !location ||
       !priceAmount ||
       !year ||
-      mileageMil === undefined ||
-      !make ||
-      !model
+      !make
     ) {
       rejectedCount += 1;
       return [];
@@ -88,6 +94,14 @@ export function parseBlocketSearchResponse(payload: unknown): {
         heading,
         canonicalUrl,
         location,
+        coordinates:
+          numberValue(coordinates?.lat) !== undefined &&
+          numberValue(coordinates?.lon) !== undefined
+            ? {
+                latitude: numberValue(coordinates?.lat) as number,
+                longitude: numberValue(coordinates?.lon) as number,
+              }
+            : undefined,
         timestamp: parseTimestamp(candidate.timestamp),
         priceAmount: Math.round(priceAmount),
         organisationName: stringValue(candidate.organisation_name),
@@ -97,7 +111,7 @@ export function parseBlocketSearchResponse(payload: unknown): {
         registrationNumber: stringValue(candidate.regno),
         vin: stringValue(candidate.chassis_number),
         make,
-        model,
+        model: model ?? heading,
         variant: stringValue(candidate.model_specification),
         transmission: stringValue(candidate.transmission),
         fuel: stringValue(candidate.fuel),

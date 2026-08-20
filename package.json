@@ -12,7 +12,12 @@
     "db:deploy": "node scripts/ensure-local-database.mjs && prisma migrate deploy",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "data:sync": "npm run db:deploy && tsx src/scripts/sync-vehicle-listings.ts"
+    "data:sync": "npm run data:sync:incremental",
+    "data:sync:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental",
+    "data:sync:full": "tsx src/scripts/sync-vehicle-listings.ts full",
+    "data:sync:resume": "tsx src/scripts/sync-vehicle-listings.ts resume",
+    "data:sync:watch": "tsx src/scripts/sync-vehicle-listings.ts watch",
+    "data:analyze": "tsx src/scripts/analyze-vehicle-listings.ts"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.9.1",

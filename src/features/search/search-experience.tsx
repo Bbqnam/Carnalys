@@ -6,31 +6,58 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { uiCopy, type Locale } from "./copy";
 import { FilterPanel } from "./filter-panel";
-import { ChevronDownIcon, CloseIcon, SearchEmptyIcon, SlidersIcon } from "./icons";
+import {
+  ChevronDownIcon,
+  CloseIcon,
+  MapPinIcon,
+  SearchEmptyIcon,
+  SlidersIcon,
+} from "./icons";
 import { SearchHero } from "./search-hero";
+import { SynchronizationButton } from "./synchronization-button";
 import { defaultSearchFilters, vehicleSearchUrl } from "./search-state";
-import type { SearchFilters, SearchSort, VehicleSearchResult } from "./types";
+import type {
+  AvailableVehicleFilters,
+  SearchFilters,
+  SearchSort,
+  VehiclePageSize,
+  VehicleSearchResult,
+} from "./types";
+import { vehiclePageSizes } from "./types";
 import { VehicleCard } from "./vehicle-card";
 
+const savedSearchKey = "car-finder:search-state:v1";
+
+function saveSearchState(url: string) {
+  try {
+    window.localStorage.setItem(savedSearchKey, url);
+  } catch {
+    // Search still works when storage is unavailable or disabled.
+  }
+}
+
 interface SearchExperienceProps {
+  activeSynchronization?: {
+    mode: string;
+    fetchedCount: number;
+  };
+  allowManualSynchronization: boolean;
   listings: readonly VehicleSearchResult[];
   initialFilters: SearchFilters;
   initialSort: SearchSort;
   lastSynchronizedAt?: string;
-  availableFilters: {
-    brands: readonly string[];
-    models: readonly string[];
-    priceRange: { minimum: number; maximum: number };
-  };
+  availableFilters: AvailableVehicleFilters;
   pagination: {
     page: number;
-    pageSize: number;
+    pageSize: VehiclePageSize;
     totalListings: number;
     totalPages: number;
   };
 }
 
 type PaginationItem = number | `ellipsis-${"start" | "end"}`;
+type UserLocation = { latitude: number; longitude: number };
+type LocationStatus = "idle" | "locating" | "ready" | "unavailable";
 
 function paginationItems(currentPage: number, totalPages: number): PaginationItem[] {
   if (totalPages <= 7) {
@@ -59,7 +86,25 @@ function paginationItems(currentPage: number, totalPages: number): PaginationIte
   return items;
 }
 
+function formatSynchronizedAt(value: string, locale: Locale) {
+  const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
+  const parts = new Intl.DateTimeFormat(formatLocale, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Europe/Stockholm",
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+
+  return `${part("day")} ${part("month")} ${part("hour")}:${part("minute")}`;
+}
+
 export function SearchExperience({
+  activeSynchronization,
+  allowManualSynchronization,
   availableFilters,
   initialFilters,
   initialSort,
@@ -75,10 +120,13 @@ export function SearchExperience({
     filters: initialFilters,
     sort: initialSort,
     page: 1,
+    pageSize: pagination.pageSize,
   });
   const [renderedSearchState, setRenderedSearchState] = useState(incomingSearchState);
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set());
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [userLocation, setUserLocation] = useState<UserLocation>();
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [isUpdating, startTransition] = useTransition();
   const closeFiltersRef = useRef<HTMLButtonElement>(null);
   const navigationTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -91,19 +139,36 @@ export function SearchExperience({
     setSort(initialSort);
   }
 
-  const suggestions = useMemo(
-    () =>
-      listings.slice(0, 3).map(
-        ({ vehicle }) => `${vehicle.identity.make} ${vehicle.identity.model}`,
-      ),
-    [listings],
-  );
+  const results = useMemo(() => {
+    if (sort === "deal_score") {
+      return listings.toSorted(
+        (left, right) => right.analysis.dealScore.value - left.analysis.dealScore.value,
+      );
+    }
+    if (sort === "buy_confidence") {
+      return listings.toSorted(
+        (left, right) =>
+          right.analysis.buyConfidenceScore.value -
+          left.analysis.buyConfidenceScore.value,
+      );
+    }
+    return listings;
+  }, [listings, sort]);
 
-  const results = listings;
-
-  const activeFilterCount = Object.entries(filters).filter(
-    ([key, value]) => key !== "query" && value !== "" && value !== null,
-  ).length;
+  const activeFilterCount =
+    filters.brands.length +
+    filters.models.length +
+    [
+      filters.minPrice,
+      filters.maxPrice,
+      filters.minYear,
+      filters.maxYear,
+      filters.fuelType,
+      filters.transmission,
+      filters.minMileageMil,
+      filters.maxMileageMil,
+      filters.bodyStyle,
+    ].filter((value) => value !== "" && value !== null).length;
   const firstListingNumber =
     pagination.totalListings === 0
       ? 0
@@ -118,45 +183,88 @@ export function SearchExperience({
   );
 
   const activeFilters = useMemo(() => {
-    const labels: { key: keyof SearchFilters; label: string }[] = [];
+    const labels: {
+      id: string;
+      key: keyof SearchFilters;
+      label: string;
+      value?: string | number;
+    }[] = [];
 
     if (filters.minPrice !== null) {
       labels.push({
+        id: "minPrice",
         key: "minPrice",
         label: `${copy.filterLabels.from} ${filters.minPrice.toLocaleString(formatLocale)} SEK`,
       });
     }
     if (filters.maxPrice !== null) {
       labels.push({
+        id: "maxPrice",
         key: "maxPrice",
         label: `${copy.filterLabels.max} ${filters.maxPrice.toLocaleString(formatLocale)} SEK`,
       });
     }
-    if (filters.brand) labels.push({ key: "brand", label: filters.brand });
-    if (filters.model) labels.push({ key: "model", label: filters.model });
+    filters.brands.forEach((brand) =>
+      labels.push({ id: `brand-${brand}`, key: "brands", label: brand, value: brand }),
+    );
+    filters.models.forEach((model) =>
+      labels.push({ id: `model-${model}`, key: "models", label: model, value: model }),
+    );
     if (filters.fuelType) {
-      labels.push({ key: "fuelType", label: copy.filters.fuels[filters.fuelType] });
+      labels.push({
+        id: "fuelType",
+        key: "fuelType",
+        label: copy.filters.fuels[filters.fuelType],
+      });
     }
     if (filters.transmission && filters.transmission !== "other") {
       labels.push({
+        id: "transmission",
         key: "transmission",
         label: copy.filters.transmissions[filters.transmission],
       });
     }
-    if (filters.minYear) {
-      labels.push({ key: "minYear", label: `${copy.filterLabels.from} ${filters.minYear}` });
+    if (filters.minYear !== null) {
+      labels.push({
+        id: "minYear",
+        key: "minYear",
+        label: `${copy.filterLabels.from} ${filters.minYear}`,
+      });
+    }
+    if (filters.maxYear !== null) {
+      labels.push({
+        id: "maxYear",
+        key: "maxYear",
+        label:
+          filters.maxYear === 1990
+            ? locale === "en"
+              ? "1990 or older"
+              : "1990 eller äldre"
+            : `${copy.filterLabels.max} ${filters.maxYear}`,
+      });
+    }
+    if (filters.minMileageMil) {
+      labels.push({
+        id: "minMileageMil",
+        key: "minMileageMil",
+        label:
+          `${copy.filterLabels.from} ${filters.minMileageMil.toLocaleString(formatLocale)} mil`,
+      });
     }
     if (filters.maxMileageMil) {
       labels.push({
+        id: "maxMileageMil",
         key: "maxMileageMil",
         label:
-          locale === "en"
-            ? `${copy.filterLabels.max} ${(filters.maxMileageMil * 10).toLocaleString(formatLocale)} km`
-            : `${copy.filterLabels.max} ${filters.maxMileageMil.toLocaleString(formatLocale)} mil`,
+          `${copy.filterLabels.max} ${filters.maxMileageMil.toLocaleString(formatLocale)} mil`,
       });
     }
     if (filters.bodyStyle) {
-      labels.push({ key: "bodyStyle", label: copy.filters.bodies[filters.bodyStyle] });
+      labels.push({
+        id: "bodyStyle",
+        key: "bodyStyle",
+        label: copy.filters.bodies[filters.bodyStyle],
+      });
     }
 
     return labels;
@@ -168,6 +276,24 @@ export function SearchExperience({
     },
     [],
   );
+
+  useEffect(() => {
+    const currentUrl = `${window.location.pathname}${window.location.search}#cars`;
+
+    if (window.location.search) {
+      saveSearchState(currentUrl);
+      return;
+    }
+
+    try {
+      const savedUrl = window.localStorage.getItem(savedSearchKey);
+      if (savedUrl && savedUrl !== "/#cars") {
+        router.replace(savedUrl, { scroll: false });
+      }
+    } catch {
+      // Keep the server-provided defaults if storage cannot be read.
+    }
+  }, [router]);
 
   useEffect(() => {
     if (!showMobileFilters) return;
@@ -215,14 +341,19 @@ export function SearchExperience({
     nextFilters: SearchFilters,
     nextSort: SearchSort,
     delay = 0,
+    nextPageSize = pagination.pageSize,
   ) {
     if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
+    const nextUrl = vehicleSearchUrl({
+      filters: nextFilters,
+      sort: nextSort,
+      page: 1,
+      pageSize: nextPageSize,
+    });
+    saveSearchState(nextUrl);
     navigationTimerRef.current = setTimeout(() => {
       startTransition(() => {
-        router.replace(
-          vehicleSearchUrl({ filters: nextFilters, sort: nextSort, page: 1 }),
-          { scroll: false },
-        );
+        router.replace(nextUrl, { scroll: false });
       });
     }, delay);
   }
@@ -237,11 +368,53 @@ export function SearchExperience({
     navigateToSearch(filters, nextSort);
   }
 
+  function changePageSize(nextPageSize: VehiclePageSize) {
+    navigateToSearch(filters, sort, 0, nextPageSize);
+  }
+
+  function requestCurrentLocation() {
+    if (!navigator.geolocation) {
+      setLocationStatus("unavailable");
+      return;
+    }
+
+    setLocationStatus("locating");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setUserLocation({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        });
+        setLocationStatus("ready");
+      },
+      () => setLocationStatus("unavailable"),
+      { enableHighAccuracy: false, maximumAge: 300_000, timeout: 10_000 },
+    );
+  }
+
   function resetFilters() {
     changeFilters({ ...defaultSearchFilters, query: filters.query }, 0);
   }
 
-  function removeFilter(key: keyof SearchFilters) {
+  function removeFilter(key: keyof SearchFilters, value?: string | number) {
+    if (key === "brands" && typeof value === "string") {
+      changeFilters(
+        {
+          ...filters,
+          brands: filters.brands.filter((brand) => brand !== value),
+          models: [],
+        },
+        0,
+      );
+      return;
+    }
+    if (key === "models" && typeof value === "string") {
+      changeFilters(
+        { ...filters, models: filters.models.filter((model) => model !== value) },
+        0,
+      );
+      return;
+    }
     changeFilters({ ...filters, [key]: defaultSearchFilters[key] }, 0);
   }
 
@@ -258,11 +431,6 @@ export function SearchExperience({
     document.getElementById("cars")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function selectSuggestion(suggestion: string) {
-    changeFilters({ ...filters, query: suggestion }, 0);
-    requestAnimationFrame(scrollToResults);
-  }
-
   return (
     <main>
       <SearchHero
@@ -270,10 +438,8 @@ export function SearchExperience({
         onLocaleChange={changeLocale}
         onQueryChange={(query) => changeFilters({ ...filters, query }, 300)}
         onSearch={scrollToResults}
-        onSuggestionSelect={selectSuggestion}
         query={filters.query}
         savedCount={favorites.size}
-        suggestions={suggestions}
         totalListings={pagination.totalListings}
       />
 
@@ -301,19 +467,19 @@ export function SearchExperience({
                 </p>
                 {lastSynchronizedAt ? (
                   <p className="text-xs text-[#8a928d]">
-                    {copy.results.synchronized} {new Intl.DateTimeFormat(formatLocale, {
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      timeZone: "Europe/Stockholm",
-                    }).format(new Date(lastSynchronizedAt))}
+                    {copy.results.synchronized} {formatSynchronizedAt(lastSynchronizedAt, locale)}
                   </p>
                 ) : null}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              {allowManualSynchronization ? (
+                <SynchronizationButton
+                  activeSynchronization={activeSynchronization}
+                  locale={locale}
+                />
+              ) : null}
               <button
                 aria-controls="mobile-filters"
                 aria-expanded={showMobileFilters}
@@ -329,39 +495,83 @@ export function SearchExperience({
                   </span>
                 ) : null}
               </button>
-              <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
-                <span className="hidden text-xs font-medium text-[#7a837d] sm:inline">
-                  {copy.results.sortLabel}:
+              <button
+                aria-live="polite"
+                className={`flex h-11 items-center gap-2 rounded-xl border px-3 text-sm font-semibold shadow-sm transition active:scale-[0.98] ${
+                  locationStatus === "ready"
+                    ? "border-[#adc2b3] bg-[#edf5ef] text-[#28543a]"
+                    : "border-[#dedfd9] bg-white text-[#526058] hover:border-[#c6cbc4] hover:text-[#28332c] hover:shadow-md"
+                }`}
+                disabled={locationStatus === "locating"}
+                onClick={requestCurrentLocation}
+                type="button"
+              >
+                <MapPinIcon className="size-4" />
+                <span className="hidden lg:inline">
+                  {locationStatus === "locating"
+                    ? copy.results.locating
+                    : locationStatus === "ready"
+                      ? copy.results.locationOn
+                      : locationStatus === "unavailable"
+                        ? copy.results.locationUnavailable
+                        : copy.results.useCurrentLocation}
                 </span>
-                <select
-                  aria-label={copy.results.sortAria}
-                  className="h-full appearance-none bg-transparent py-0 pl-0 pr-9 text-sm font-semibold text-[#28332c] outline-none"
-                  onChange={(event) => changeSort(event.target.value as SearchSort)}
-                  value={sort}
-                >
-                  {(Object.keys(copy.results.sorts) as SearchSort[]).map((sortValue) => (
-                    <option key={sortValue} value={sortValue}>
-                      {copy.results.sorts[sortValue]}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-[#78817b]" />
-              </label>
+              </button>
+              <div className="flex items-center gap-2">
+                <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
+                  <span className="hidden text-xs font-medium text-[#7a837d] sm:inline">
+                    {copy.results.sortLabel}:
+                  </span>
+                  <select
+                    aria-label={copy.results.sortAria}
+                    className="h-full appearance-none bg-transparent py-0 pl-0 pr-9 text-sm font-semibold text-[#28332c] outline-none"
+                    onChange={(event) => changeSort(event.target.value as SearchSort)}
+                    value={sort}
+                  >
+                    {(Object.keys(copy.results.sorts) as SearchSort[]).map((sortValue) => (
+                      <option key={sortValue} value={sortValue}>
+                        {copy.results.sorts[sortValue]}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-[#78817b]" />
+                </label>
+                <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
+                  <span className="hidden text-xs font-medium text-[#7a837d] xl:inline">
+                    {copy.results.pageSizeLabel}:
+                  </span>
+                  <select
+                    aria-label={copy.results.pageSizeAria}
+                    className="h-full appearance-none bg-transparent py-0 pl-0 pr-8 text-sm font-semibold tabular-nums text-[#28332c] outline-none"
+                    onChange={(event) =>
+                      changePageSize(Number(event.target.value) as VehiclePageSize)
+                    }
+                    value={pagination.pageSize}
+                  >
+                    {vehiclePageSizes.map((pageSize) => (
+                      <option key={pageSize} value={pageSize}>
+                        {pageSize}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-[#78817b]" />
+                </label>
+              </div>
             </div>
           </div>
 
-          <div className="mb-5 h-9">
-            {activeFilters.length > 0 ? (
+          {activeFilters.length > 0 ? (
+            <div className="mb-5 min-h-9">
               <div
-                className="flex h-9 items-start gap-2 overflow-x-auto pb-1"
+                className="flex min-h-9 items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 aria-label={copy.results.activeFilters}
               >
                 {activeFilters.map((filter) => (
                   <button
                     aria-label={copy.results.removeFilter(filter.label)}
                     className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#ccd5ce] bg-[#f0f5f1] px-3 py-1.5 text-xs font-semibold text-[#354c3e] transition hover:border-[#9fb0a4] hover:bg-white hover:text-[#17211b]"
-                    key={filter.key}
-                    onClick={() => removeFilter(filter.key)}
+                    key={filter.id}
+                    onClick={() => removeFilter(filter.key, filter.value)}
                     type="button"
                   >
                     {filter.label}
@@ -376,20 +586,21 @@ export function SearchExperience({
                   {copy.filters.resetAll}
                 </button>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           <div className="grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-8">
             <aside className="hidden min-w-0 self-stretch md:block">
-              <div className="sticky top-4 z-10 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#e2e2dc] bg-white p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)]">
+              <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#e2e2dc] bg-white p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <FilterPanel
                   brands={availableFilters.brands}
-                  budgetRange={availableFilters.priceRange}
                   filters={filters}
                   locale={locale}
                   models={availableFilters.models}
                   onChange={changeFilters}
                   onReset={resetFilters}
+                  resultCount={pagination.totalListings}
+                  years={availableFilters.years}
                 />
               </div>
             </aside>
@@ -410,6 +621,7 @@ export function SearchExperience({
                           transition={{ duration: 0.2, ease: "easeOut" }}
                         >
                           <VehicleCard
+                            currentLocation={userLocation}
                             isFavorite={favorites.has(result.listing.id)}
                             locale={locale}
                             onToggleFavorite={() => toggleFavorite(result.listing.id)}
@@ -438,6 +650,7 @@ export function SearchExperience({
                               filters,
                               sort,
                               page: pagination.page - 1,
+                              pageSize: pagination.pageSize,
                             })}
                             prefetch={false}
                           >
@@ -469,7 +682,12 @@ export function SearchExperience({
                                 <Link
                                   aria-label={copy.results.goToPage(item)}
                                   className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-[#526058] transition hover:bg-[#edf2ee] hover:text-[#17211b] active:scale-[0.96]"
-                                  href={vehicleSearchUrl({ filters, sort, page: item })}
+                                  href={vehicleSearchUrl({
+                                    filters,
+                                    sort,
+                                    page: item,
+                                    pageSize: pagination.pageSize,
+                                  })}
                                   key={item}
                                   prefetch={false}
                                 >
@@ -496,6 +714,7 @@ export function SearchExperience({
                               filters,
                               sort,
                               page: pagination.page + 1,
+                              pageSize: pagination.pageSize,
                             })}
                             prefetch={false}
                           >
@@ -595,12 +814,13 @@ export function SearchExperience({
               </div>
               <FilterPanel
                 brands={availableFilters.brands}
-                budgetRange={availableFilters.priceRange}
                 filters={filters}
                 locale={locale}
                 models={availableFilters.models}
                 onChange={changeFilters}
                 onReset={resetFilters}
+                resultCount={pagination.totalListings}
+                years={availableFilters.years}
               />
               <button
                 className="sticky bottom-0 mt-7 h-13 w-full rounded-full bg-[#17221c] text-sm font-semibold text-white shadow-[0_10px_30px_rgba(23,34,28,0.24)] transition hover:bg-[#2b3b32] active:scale-[0.99]"

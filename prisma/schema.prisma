@@ -8,9 +8,9 @@ datasource db {
 }
 
 model VehicleRecord {
-  id                 String   @id
-  vin                String?  @unique
-  registrationNumber String?  @unique
+  id                 String          @id
+  vin                String?         @unique
+  registrationNumber String?         @unique
   make               String
   model              String
   variant            String?
@@ -24,8 +24,8 @@ model VehicleRecord {
   engineDescription  String?
   engineDisplacement Int?
   firstRegistration  DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
   listings           ListingRecord[]
 
   @@index([make, model])
@@ -33,45 +33,73 @@ model VehicleRecord {
 }
 
 model ListingRecord {
-  id                   String   @id
-  provider             String
-  sourceScope          String   @default("default")
-  externalId           String
-  vehicleId            String
-  listingUrl            String
-  sellerName           String?
-  sellerType           String
-  priceAmount          Int
-  previousPriceAmount  Int?
-  monthlyCostAmount    Int?
-  currency             String   @default("SEK")
-  mileageKm            Int
-  location             String
-  municipality         String
-  description          String?
-  serviceHistory       String   @default("unknown")
-  status               String   @default("active")
-  publishedAt          DateTime?
-  sourceUpdatedAt      DateTime?
-  firstSeenAt          DateTime
-  lastSeenAt           DateTime
-  synchronizedAt       DateTime
-  removedAt            DateTime?
-  rawPayload           Json?
-  vehicle              VehicleRecord @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  images               ListingImageRecord[]
-  equipment            ListingEquipmentRecord[]
+  id                         String                   @id
+  provider                   String
+  sourceScope                String                   @default("default")
+  externalId                 String
+  vehicleId                  String
+  listingUrl                 String
+  sellerName                 String?
+  sellerType                 String
+  priceAmount                Int
+  previousPriceAmount        Int?
+  monthlyCostAmount          Int?
+  currency                   String                   @default("SEK")
+  mileageKm                  Int
+  location                   String
+  municipality               String
+  latitude                   Float?
+  longitude                  Float?
+  description                String?
+  serviceHistory             String                   @default("unknown")
+  status                     String                   @default("active")
+  publishedAt                DateTime?
+  sourceUpdatedAt            DateTime?
+  firstSeenAt                DateTime
+  lastSeenAt                 DateTime
+  synchronizedAt             DateTime
+  removedAt                  DateTime?
+  rawPayload                 Json?
+  contentHash                String?
+  imageHash                  String?
+  equipmentHash              String?
+  missingReconciliationCount Int                      @default(0)
+  vehicle                    VehicleRecord            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  images                     ListingImageRecord[]
+  equipment                  ListingEquipmentRecord[]
+  analysis                   ListingAnalysisRecord?
 
   @@unique([provider, externalId])
   @@index([provider, sourceScope, status])
   @@index([vehicleId])
+  @@index([vehicleId, status])
   @@index([status, priceAmount])
+  @@index([status, publishedAt, synchronizedAt, id])
+  @@index([provider, sourceScope, status, lastSeenAt])
   @@index([mileageKm])
   @@index([lastSeenAt])
 }
 
+model ListingAnalysisRecord {
+  listingId            String        @id
+  marketValueAmount    Int
+  marketValueMinimum   Int
+  marketValueMaximum   Int
+  comparableCount      Int
+  confidence           String
+  dealScore            Int
+  buyConfidenceScore   Int
+  annualOwnershipCost  Int
+  methodologyVersion   String
+  calculatedAt         DateTime
+  sourceSynchronizedAt DateTime
+  listing              ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([calculatedAt])
+}
+
 model ListingImageRecord {
-  id           Int    @id @default(autoincrement())
+  id           Int           @id @default(autoincrement())
   listingId    String
   url          String
   thumbnailUrl String?
@@ -86,7 +114,7 @@ model ListingImageRecord {
 }
 
 model ListingEquipmentRecord {
-  id        Int    @id @default(autoincrement())
+  id        Int           @id @default(autoincrement())
   listingId String
   label     String
   listing   ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -95,17 +123,122 @@ model ListingEquipmentRecord {
 }
 
 model ImportRun {
-  id             String   @id
-  provider       String
-  sourceScope    String
-  status         String
-  startedAt      DateTime
-  completedAt    DateTime?
-  fetchedCount   Int      @default(0)
-  importedCount  Int      @default(0)
-  failedCount    Int      @default(0)
-  removedCount   Int      @default(0)
-  errorMessage   String?
+  id                  String               @id
+  provider            String
+  sourceScope         String
+  mode                String               @default("incremental")
+  phase               String               @default("starting")
+  status              String
+  startedAt           DateTime
+  completedAt         DateTime?
+  heartbeatAt         DateTime?
+  resumedCount        Int                  @default(0)
+  pagesProcessed      Int                  @default(0)
+  partitionsProcessed Int                  @default(0)
+  fetchedCount        Int                  @default(0)
+  importedCount       Int                  @default(0)
+  createdCount        Int                  @default(0)
+  updatedCount        Int                  @default(0)
+  unchangedCount      Int                  @default(0)
+  failedCount         Int                  @default(0)
+  removedCount        Int                  @default(0)
+  cleanupEligible     Boolean              @default(false)
+  cleanupAppliedAt    DateTime?
+  stopReason          String?
+  errorMessage        String?
+  checkpoints         ImportCheckpoint[]
+  errors              ImportRunError[]
+  lock                SynchronizationLock?
 
   @@index([provider, startedAt])
+  @@index([provider, sourceScope, mode, status, startedAt])
+  @@index([status, heartbeatAt])
+}
+
+model ImportCheckpoint {
+  id                      String    @id
+  runId                   String
+  sequence                String
+  status                  String    @default("pending")
+  yearFrom                Int
+  yearTo                  Int
+  priceFrom               Int
+  priceTo                 Int
+  unboundedPriceTo        Boolean   @default(false)
+  mileageFrom             Int
+  mileageTo               Int
+  nextPage                Int       @default(1)
+  lastPage                Int?
+  totalMatches            Int?
+  processedCount          Int       @default(0)
+  createdCount            Int       @default(0)
+  updatedCount            Int       @default(0)
+  unchangedCount          Int       @default(0)
+  rejectedCount           Int       @default(0)
+  errorCount              Int       @default(0)
+  lastProcessedExternalId String?
+  startedAt               DateTime?
+  completedAt             DateTime?
+  heartbeatAt             DateTime?
+  lastError               String?
+  run                     ImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, sequence])
+  @@index([runId, status, sequence])
+}
+
+model ImportRunError {
+  id                String    @id
+  runId             String
+  checkpointId      String?
+  phase             String
+  page              Int?
+  attempt           Int?
+  httpStatus        Int?
+  message           String
+  requestParameters Json?
+  createdAt         DateTime  @default(now())
+  run               ImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, createdAt])
+}
+
+model SynchronizationLock {
+  provider    String    @id
+  runId       String    @unique
+  mode        String
+  acquiredAt  DateTime
+  heartbeatAt DateTime
+  run         ImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model CatalogMakeFacet {
+  make      String   @id
+  count     Int
+  updatedAt DateTime
+}
+
+model CatalogModelFacet {
+  make      String
+  model     String
+  count     Int
+  updatedAt DateTime
+
+  @@id([make, model])
+  @@index([model])
+}
+
+model CatalogYearFacet {
+  modelYear Int      @id
+  count     Int
+  updatedAt DateTime
+}
+
+model CatalogSummary {
+  id                 String    @id
+  activeListingCount Int
+  minimumPrice       Int
+  maximumPrice       Int
+  lastSynchronizedAt DateTime?
+  facetsUpdatedAt    DateTime
 }

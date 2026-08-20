@@ -8,13 +8,25 @@ const databaseUrl =
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
+  prismaInitialization?: Promise<void>;
 };
 
 function createPrismaClient() {
-  const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
+  const adapter = new PrismaBetterSqlite3({ url: databaseUrl, timeout: 10_000 });
   return new PrismaClient({ adapter });
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+export function initializeDatabase() {
+  if (!globalForPrisma.prismaInitialization) {
+    globalForPrisma.prismaInitialization = (async () => {
+      await prisma.$queryRawUnsafe("PRAGMA journal_mode = WAL");
+      await prisma.$queryRawUnsafe("PRAGMA busy_timeout = 10000");
+      await prisma.$queryRawUnsafe("PRAGMA synchronous = NORMAL");
+    })();
+  }
+  return globalForPrisma.prismaInitialization;
+}
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

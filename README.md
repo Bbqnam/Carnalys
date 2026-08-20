@@ -12,7 +12,7 @@ analysis, and UI concerns separate.
 
 ## Getting started
 
-Install dependencies, migrate the local database, and import current listings:
+Install dependencies, migrate the local database, and refresh recent listings:
 
 ```bash
 npm install
@@ -22,21 +22,38 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-The UI reads only from the local database. `npm run data:sync` is the only
-command that contacts the configured marketplace adapter, so a source outage
-does not remove previously cached listings.
+The UI reads only from the local database. Synchronization runs outside the
+request path, so a source outage does not stop the site from serving its last
+known catalog.
 
 ## Data commands
 
 ```bash
-npm run data:sync    # import/update listings and mark missing ones removed
-npm run db:studio    # inspect normalized records
-npm run db:generate  # regenerate the typed Prisma client
-npm run db:migrate   # create a development migration after schema changes
+npm run data:sync              # alias for the quick incremental refresh
+npm run data:sync:incremental  # newest listings first; never removes listings
+npm run data:sync:full         # start or automatically resume reconciliation
+npm run data:sync:resume       # resume only; error if no interrupted run exists
+npm run data:sync:watch        # optional non-overlapping local refresh loop
+npm run data:analyze           # finish stored market-analysis backlog
+npm run db:studio              # inspect normalized records and run progress
 ```
 
-Copy `.env.example` to `.env` to change the importer query, import limit, API
-base URL, or database URL.
+A full reconciliation can take a long time, but its partition and next page are
+persisted. It is safe to stop and rerun the command. Do not add the full command
+to `npm run dev`; use the lightweight watch command in a separate terminal
+when automatic local freshness is useful.
+
+Run `npm run db:deploy` once after pulling schema changes. Synchronization
+commands deliberately do not run migrations themselves, allowing the optional
+watch process to run alongside the development server without requesting an
+exclusive SQLite schema lock.
+
+In local development, the results toolbar also includes an **Update listings**
+button for an on-demand incremental refresh. It is deliberately unavailable in
+production until the project has authentication and an authorized admin role.
+
+Copy `.env.example` to `.env` to adjust the incremental lookback, page cap,
+watch interval, API base URL, query scope, or database URL.
 
 ## Important source notice
 
