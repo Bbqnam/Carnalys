@@ -373,10 +373,10 @@ function buildListingWhere(
     ...(query
       ? {
           OR: [
-            { sellerName: { contains: query } },
-            { vehicle: { is: { make: { contains: query } } } },
-            { vehicle: { is: { model: { contains: query } } } },
-            { vehicle: { is: { variant: { contains: query } } } },
+            { sellerName: { contains: query, mode: "insensitive" } },
+            { vehicle: { is: { make: { contains: query, mode: "insensitive" } } } },
+            { vehicle: { is: { model: { contains: query, mode: "insensitive" } } } },
+            { vehicle: { is: { variant: { contains: query, mode: "insensitive" } } } },
           ],
         }
       : {}),
