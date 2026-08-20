@@ -35,7 +35,7 @@ export class BlocketUnofficialClient {
     const response = await fetch(new URL(path, this.baseUrl), {
       headers: {
         Accept: "application/json",
-        "User-Agent": "CarFinderDevelopmentImporter/1.0",
+        "User-Agent": "CarnalysisDevelopmentImporter/1.0",
       },
       signal: AbortSignal.timeout(15_000),
     });

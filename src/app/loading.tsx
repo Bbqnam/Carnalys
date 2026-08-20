@@ -2,7 +2,7 @@ const cards = Array.from({ length: 6 }, (_, index) => index);
 
 export default function Loading() {
   return (
-    <main aria-busy="true" aria-label="Loading Car Finder">
+    <main aria-busy="true" aria-label="Loading Carnalysis">
       <section className="bg-[#f4f1ea] px-5 pb-11 pt-24 sm:px-8 sm:pt-28 lg:px-12">
         <div className="mx-auto max-w-[1440px]">
           <div className="skeleton-shimmer h-3 w-52 rounded-full" />

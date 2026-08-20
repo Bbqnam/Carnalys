@@ -33,11 +33,11 @@ export function SearchHero({
             className="size-9 object-contain transition-transform duration-300 group-hover:scale-105"
             height={36}
             priority
-            src="/brand/car-finder-mark.png"
+            src="/brand/carnalysis-mark.png"
             width={36}
           />
           <span className="text-[17px] font-semibold tracking-[-0.035em] text-[#17221c]">
-            Car Finder
+            Carnalysis
           </span>
         </a>
 

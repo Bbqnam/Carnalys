@@ -1,8 +1,8 @@
-Car Finder
+Carnalysis
 
 Project Vision
 
-Car Finder is a premium SaaS platform that helps people make smarter used car buying decisions in Sweden.
+Carnalysis is a premium SaaS platform that helps people make smarter used car buying decisions in Sweden.
 
 This is not a classifieds website and not another Blocket clone.
 
@@ -38,7 +38,7 @@ The product should feel closer to Apple, Linear, Stripe, and Tesla than to a tra
 
 Core Product
 
-Car Finder should eventually become the smartest place in Sweden to evaluate used cars.
+Carnalysis should eventually become the smartest place in Sweden to evaluate used cars.
 
 The core experience is:
 
@@ -60,7 +60,7 @@ The application should help users understand:
 
 Signature Features
 
-These are the features that make Car Finder different.
+These are the features that make Carnalysis different.
 
 Deal Score
 
@@ -434,7 +434,7 @@ Do not continue beyond Step 1 until explicitly instructed.
 
 Success Criteria
 
-Car Finder should become the most trusted platform in Sweden for evaluating used cars.
+Carnalysis should become the most trusted platform in Sweden for evaluating used cars.
 
 Every decision should optimize for:
 

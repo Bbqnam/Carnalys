@@ -8,7 +8,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Car Finder",
+  title: "Carnalysis",
   description:
     "Compare used cars in Sweden by market value, Deal Score, buy confidence and estimated ownership cost.",
   icons: {

@@ -5,7 +5,7 @@ export const uiCopy = {
     languageName: "English",
     languageSwitchLabel: "Change language",
     nav: {
-      home: "Car Finder home",
+      home: "Carnalysis home",
       findCars: "Find a car",
       howItWorks: "How it works",
       saved: "Saved",
@@ -13,7 +13,7 @@ export const uiCopy = {
     },
     hero: {
       eyebrow: "Smarter car buying starts here",
-      title: "Car Finder",
+      title: "Carnalysis",
       description:
         "We compare market value, ownership cost and reliability so you can find the best buys—not just more listings.",
       searchLabel: "Search by make or model",
@@ -169,7 +169,7 @@ export const uiCopy = {
     languageName: "Svenska",
     languageSwitchLabel: "Byt språk",
     nav: {
-      home: "Car Finder hem",
+      home: "Carnalysis hem",
       findCars: "Hitta bil",
       howItWorks: "Så fungerar det",
       saved: "Sparade",
@@ -177,7 +177,7 @@ export const uiCopy = {
     },
     hero: {
       eyebrow: "Smartare bilköp börjar här",
-      title: "Car Finder",
+      title: "Carnalysis",
       description:
         "Vi jämför marknadsvärde, ägandekostnad och tillförlitlighet så att du hittar de bästa köpen — inte bara fler annonser.",
       searchLabel: "Sök efter märke eller modell",

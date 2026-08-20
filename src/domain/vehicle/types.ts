@@ -7,7 +7,7 @@ export type ISODateTime = string;
 export type VehicleId = string;
 export type ListingId = string;
 
-/** ISO 4217 currency code. Car Finder currently expects `SEK`. */
+/** ISO 4217 currency code. Carnalysis currently expects `SEK`. */
 export type CurrencyCode = "SEK";
 
 export interface Money {
