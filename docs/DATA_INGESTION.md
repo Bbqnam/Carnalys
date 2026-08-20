@@ -5,7 +5,7 @@
 The development adapter uses `blocket-api.se`, an unofficial third-party API
 that exposes current Blocket vehicle-search records without credentials. The
 browser never contacts it. The application always reads the last durable
-SQLite snapshot, so an importer or network failure does not make the catalog
+database snapshot, so an importer or network failure does not make the catalog
 unavailable.
 
 Before commercial production, replace this adapter with a licensed marketplace,
@@ -89,7 +89,7 @@ first. It is marked removed only after a second complete reconciliation also
 misses it. Listings observed in between reset the count. This guards against
 temporary API gaps and records moving between live partitions.
 
-## Write and SQLite behavior
+## Write behavior
 
 The write repository loads existing hashes for a page in one query and uses a
 bounded transaction. Unchanged ads update only observation timestamps. Vehicle
@@ -97,11 +97,10 @@ and listing values are upserted only when content changed; images and equipment
 are rebuilt only when their own hashes changed. Raw source JSON is not rewritten
 for unchanged records.
 
-Local SQLite connections use WAL journaling, a ten-second busy timeout,
-`synchronous=NORMAL`, and bounded page transactions. WAL allows readers to
-continue while ingestion commits. Synchronization state remains relational and
-portable; the PRAGMAs are the only SQLite-specific part, which keeps a later
-PostgreSQL move straightforward.
+The application connects to PostgreSQL through `@prisma/adapter-pg`, using the
+pooled `DATABASE_URL` at runtime and the direct `DIRECT_URL` for migrations and
+admin tooling. PostgreSQL's MVCC lets readers and the ingestion writer proceed
+concurrently without the manual journaling tuning SQLite required.
 
 ## Listing-page and analysis behavior
 

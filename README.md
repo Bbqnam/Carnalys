@@ -12,17 +12,20 @@ analysis, and UI concerns separate.
 
 ## Getting started
 
-Install dependencies, migrate the local database, and refresh recent listings:
+Copy `.env.example` to `.env` and set `DATABASE_URL` (pooled) and `DIRECT_URL`
+(direct) to a PostgreSQL database, then install dependencies, apply the
+schema, and refresh recent listings:
 
 ```bash
 npm install
+npm run db:deploy
 npm run data:sync
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-The UI reads only from the local database. Synchronization runs outside the
+The UI reads only from the database. Synchronization runs outside the
 request path, so a source outage does not stop the site from serving its last
 known catalog.
 
@@ -44,16 +47,16 @@ to `npm run dev`; use the lightweight watch command in a separate terminal
 when automatic local freshness is useful.
 
 Run `npm run db:deploy` once after pulling schema changes. Synchronization
-commands deliberately do not run migrations themselves, allowing the optional
-watch process to run alongside the development server without requesting an
-exclusive SQLite schema lock.
+commands deliberately do not run migrations themselves, so the optional watch
+process can run alongside the development server without racing a concurrent
+schema migration.
 
 In local development, the results toolbar also includes an **Update listings**
 button for an on-demand incremental refresh. It is deliberately unavailable in
 production until the project has authentication and an authorized admin role.
 
-Copy `.env.example` to `.env` to adjust the incremental lookback, page cap,
-watch interval, API base URL, query scope, or database URL.
+See `.env.example` for the incremental lookback, page cap, watch interval,
+API base URL, and query scope variables.
 
 ## Important source notice
 
