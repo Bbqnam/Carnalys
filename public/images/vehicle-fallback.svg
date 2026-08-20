@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Fordonsbild saknas">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8e9e4"/>
+      <stop offset="1" stop-color="#dfe3dd"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#background)"/>
+  <g fill="none" stroke="#7d8981" stroke-linecap="round" stroke-linejoin="round" stroke-width="18" opacity=".72">
+    <path d="M290 495h620l-42-116c-13-36-47-60-85-60H443c-35 0-67 20-82 52l-71 124Z"/>
+    <path d="M340 495v73M860 495v73M414 319l-55 176M786 319l55 176"/>
+    <circle cx="405" cy="550" r="57" fill="#e5e7e2"/>
+    <circle cx="795" cy="550" r="57" fill="#e5e7e2"/>
+    <path d="M293 495h-35M942 495h-35"/>
+  </g>
+  <text x="600" y="685" fill="#68746d" font-family="Arial, sans-serif" font-size="28" text-anchor="middle">Fordonsbild saknas</text>
+</svg>

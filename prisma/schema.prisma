@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model VehicleRecord {
+  id                 String   @id
+  vin                String?  @unique
+  registrationNumber String?  @unique
+  make               String
+  model              String
+  variant            String?
+  modelYear          Int
+  registrationYear   Int?
+  bodyStyle          String
+  fuelType           String
+  transmission       String
+  drivetrain         String?
+  horsepower         Int?
+  engineDescription  String?
+  engineDisplacement Int?
+  firstRegistration  DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  listings           ListingRecord[]
+
+  @@index([make, model])
+  @@index([modelYear])
+}
+
+model ListingRecord {
+  id                   String   @id
+  provider             String
+  sourceScope          String   @default("default")
+  externalId           String
+  vehicleId            String
+  listingUrl            String
+  sellerName           String?
+  sellerType           String
+  priceAmount          Int
+  previousPriceAmount  Int?
+  monthlyCostAmount    Int?
+  currency             String   @default("SEK")
+  mileageKm            Int
+  location             String
+  municipality         String
+  description          String?
+  serviceHistory       String   @default("unknown")
+  status               String   @default("active")
+  publishedAt          DateTime?
+  sourceUpdatedAt      DateTime?
+  firstSeenAt          DateTime
+  lastSeenAt           DateTime
+  synchronizedAt       DateTime
+  removedAt            DateTime?
+  rawPayload           Json?
+  vehicle              VehicleRecord @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  images               ListingImageRecord[]
+  equipment            ListingEquipmentRecord[]
+
+  @@unique([provider, externalId])
+  @@index([provider, sourceScope, status])
+  @@index([vehicleId])
+  @@index([status, priceAmount])
+  @@index([mileageKm])
+  @@index([lastSeenAt])
+}
+
+model ListingImageRecord {
+  id           Int    @id @default(autoincrement())
+  listingId    String
+  url          String
+  thumbnailUrl String?
+  alt          String?
+  position     Int
+  width        Int?
+  height       Int?
+  listing      ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, url])
+  @@index([listingId, position])
+}
+
+model ListingEquipmentRecord {
+  id        Int    @id @default(autoincrement())
+  listingId String
+  label     String
+  listing   ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, label])
+}
+
+model ImportRun {
+  id             String   @id
+  provider       String
+  sourceScope    String
+  status         String
+  startedAt      DateTime
+  completedAt    DateTime?
+  fetchedCount   Int      @default(0)
+  importedCount  Int      @default(0)
+  failedCount    Int      @default(0)
+  removedCount   Int      @default(0)
+  errorMessage   String?
+
+  @@index([provider, startedAt])
+}

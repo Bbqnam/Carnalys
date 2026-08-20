@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 160" role="img" aria-labelledby="title">
+  <title id="title">Elaris emblem</title>
+  <g
+    fill="none"
+    stroke="#FFB300"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="5"
+  >
+    <path d="M64 7 C56 27 48 46 38 67 C25 95 21 115 28 126 C36 139 52 145 64 151" />
+    <path d="M64 7 C58 27 52 47 45 69 C36 96 35 115 41 128 C47 140 56 146 64 151" />
+    <path d="M64 7 C61 26 58 46 56 66 C54 93 55 113 58 128 C60 139 62 146 64 151" />
+    <path d="M64 7 L64 151" />
+    <path d="M64 7 C67 26 70 46 72 66 C74 93 73 113 70 128 C68 139 66 146 64 151" />
+    <path d="M64 7 C70 27 76 47 83 69 C92 96 93 115 87 128 C81 140 72 146 64 151" />
+    <path d="M64 7 C72 27 80 46 90 67 C103 95 107 115 100 126 C92 139 76 145 64 151" />
+  </g>
+  <rect x="60" y="142" width="8" height="16" rx="1.5" fill="#FFB300" />
+</svg>
