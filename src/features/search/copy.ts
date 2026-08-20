@@ -143,6 +143,9 @@ export const uiCopy = {
       belowMarket: (percent: number) => `${percent}% below market`,
       aboveMarket: (percent: number) => `${percent}% above market`,
       atMarket: "At estimated market value",
+      marketEstimatePending: "Market estimate pending",
+      insufficientMarketData: (count: number) =>
+        `${count} comparable ${count === 1 ? "car" : "cars"}; at least 3 required`,
       dealScoreHelp: "Price attractiveness compared with similar cars.",
       confidenceHelp: "Overall purchase quality, ownership cost and risk.",
       financingFrom: "Financing from",
@@ -304,6 +307,9 @@ export const uiCopy = {
       belowMarket: (percent: number) => `${percent}% under marknaden`,
       aboveMarket: (percent: number) => `${percent}% över marknaden`,
       atMarket: "Vid uppskattat marknadsvärde",
+      marketEstimatePending: "Marknadsestimat inväntas",
+      insufficientMarketData: (count: number) =>
+        `${count} jämförbara ${count === 1 ? "bil" : "bilar"}; minst 3 krävs`,
       dealScoreHelp: "Prisets attraktivitet jämfört med liknande bilar.",
       confidenceHelp: "Helhetsbedömning av kvalitet, ägandekostnad och risk.",
       financingFrom: "Finansiering från",

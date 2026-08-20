@@ -92,6 +92,7 @@ export function VehicleCard({
   const { identity, specification } = vehicle;
   const askingPrice = listing.price.askingPrice.amount;
   const marketValue = analysis.marketValue.value.amount;
+  const hasMarketEstimate = analysis.marketValue.comparableListingCount >= 3;
   const priceDifference = marketValue - askingPrice;
   const savings = Math.max(0, marketValue - askingPrice);
   const marketDifferencePercent =
@@ -215,11 +216,19 @@ export function VehicleCard({
             {moneyFormatter.format(askingPrice)}
           </p>
           <span
-            aria-label={`${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`}
+            aria-label={
+              hasMarketEstimate
+                ? `${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`
+                : copy.card.marketEstimatePending
+            }
             className="group/market relative min-w-0 cursor-help rounded-md text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#708b79] focus-visible:ring-offset-2"
             tabIndex={0}
           >
-            {savings > 0 ? (
+            {!hasMarketEstimate ? (
+              <span className="block text-xs font-medium text-[#647068]">
+                {copy.card.marketEstimatePending}
+              </span>
+            ) : savings > 0 ? (
               <>
                 <strong className="block text-xs font-semibold text-[#2b6a45]">
                   {copy.card.save} {moneyFormatter.format(savings)}
@@ -246,7 +255,11 @@ export function VehicleCard({
               className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] right-0 z-20 w-max max-w-56 translate-y-1 rounded-lg bg-[#17221c] px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-lg transition duration-150 group-hover/market:translate-y-0 group-hover/market:opacity-100 group-focus-visible/market:translate-y-0 group-focus-visible/market:opacity-100"
               role="tooltip"
             >
-              {copy.card.marketValue}: {moneyFormatter.format(marketValue)}
+              {hasMarketEstimate
+                ? `${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`
+                : copy.card.insufficientMarketData(
+                    analysis.marketValue.comparableListingCount,
+                  )}
             </span>
           </span>
         </div>
