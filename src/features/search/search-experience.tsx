@@ -42,7 +42,6 @@ interface SearchExperienceProps {
     mode: string;
     fetchedCount: number;
   };
-  allowManualSynchronization: boolean;
   initialLocale: Locale;
   listings: readonly VehicleSearchResult[];
   initialFilters: SearchFilters;
@@ -106,7 +105,6 @@ function formatSynchronizedAt(value: string, locale: Locale) {
 
 export function SearchExperience({
   activeSynchronization,
-  allowManualSynchronization,
   availableFilters,
   initialLocale,
   initialFilters,
@@ -480,12 +478,10 @@ export function SearchExperience({
             </div>
 
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-              {allowManualSynchronization ? (
-                <SynchronizationButton
-                  activeSynchronization={activeSynchronization}
-                  locale={locale}
-                />
-              ) : null}
+              <SynchronizationButton
+                activeSynchronization={activeSynchronization}
+                locale={locale}
+              />
               <button
                 aria-controls="mobile-filters"
                 aria-expanded={showMobileFilters}

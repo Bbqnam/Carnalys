@@ -88,15 +88,11 @@ export function SynchronizationButton({
           ? english
             ? "Another synchronization is already running."
             : "En annan synkronisering körs redan."
-          : state.outcome === "forbidden"
+          : state.outcome === "failed"
             ? english
-              ? "Manual updates are available only on local development."
-              : "Manuell uppdatering är endast tillgänglig lokalt."
-            : state.outcome === "failed"
-              ? english
-                ? "The update failed. Existing listings are unchanged."
-                : "Uppdateringen misslyckades. Befintliga annonser är kvar."
-              : undefined;
+              ? "The update failed. Existing listings are unchanged."
+              : "Uppdateringen misslyckades. Befintliga annonser är kvar."
+            : undefined;
   const busyDescription = initiallyBusy
     ? english
       ? `${activeSynchronization?.fetchedCount.toLocaleString("en-SE")} ads processed so far.`

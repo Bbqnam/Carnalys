@@ -32,7 +32,6 @@ export default async function Home({ searchParams }: HomeProps) {
       listings={catalog.listings}
       pagination={catalog.pagination}
       activeSynchronization={activeSynchronization}
-      allowManualSynchronization={process.env.NODE_ENV !== "production"}
     />
   );
 }

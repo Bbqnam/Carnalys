@@ -50,9 +50,10 @@ commands deliberately do not run migrations themselves, so the optional watch
 process can run alongside the development server without racing a concurrent
 schema migration.
 
-In local development, the results toolbar also includes an **Update listings**
-button for an on-demand incremental refresh. It is deliberately unavailable in
-production until the project has authentication and an authorized admin role.
+The results toolbar also includes an **Update listings** button for an
+on-demand incremental refresh. It has no authentication check, so anyone with
+access to the site can trigger it — acceptable for now, but revisit before
+this needs to be restricted to an authorized admin role.
 
 See `.env.example` for the incremental lookback, page cap, watch interval,
 API base URL, and query scope variables.

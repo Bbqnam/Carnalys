@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { synchronizeMarketplace } from "@/application/ingestion/synchronize-marketplace";
 import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
 import {
@@ -11,7 +10,7 @@ import { getListingsByIds } from "@/infrastructure/database/vehicle-listing-repo
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
 
 export interface ManualSynchronizationState {
-  outcome: "idle" | "completed" | "warning" | "busy" | "forbidden" | "failed";
+  outcome: "idle" | "completed" | "warning" | "busy" | "failed";
   createdCount?: number;
   updatedCount?: number;
   unchangedCount?: number;
@@ -20,28 +19,10 @@ export interface ManualSynchronizationState {
   activeMode?: string;
 }
 
-async function isLocalDevelopmentRequest() {
-  if (process.env.NODE_ENV === "production") return false;
-  const requestHeaders = await headers();
-  const host =
-    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "";
-  return (
-    host === "localhost" ||
-    host.startsWith("localhost:") ||
-    host === "127.0.0.1" ||
-    host.startsWith("127.0.0.1:") ||
-    host === "[::1]" ||
-    host.startsWith("[::1]:")
-  );
-}
-
 export async function synchronizeLatestListings(
   _previousState: ManualSynchronizationState,
 ): Promise<ManualSynchronizationState> {
   void _previousState;
-  if (!(await isLocalDevelopmentRequest())) {
-    return { outcome: "forbidden" };
-  }
 
   try {
     const result = await synchronizeMarketplace(
