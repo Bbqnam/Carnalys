@@ -540,8 +540,8 @@ export function SearchExperience({
             </div>
           </div>
 
-          {activeFilters.length > 0 ? (
-            <div className="mb-5 min-h-9">
+          <div className="mb-5 min-h-9">
+            {activeFilters.length > 0 ? (
               <div
                 className="flex min-h-9 items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 aria-label={copy.results.activeFilters}
@@ -566,8 +566,8 @@ export function SearchExperience({
                   {copy.filters.resetAll}
                 </button>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
 
           <div className="grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-8">
             <aside className="hidden min-w-0 self-stretch md:block">
