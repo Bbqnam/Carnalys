@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { synchronizeMarketplace } from "@/application/ingestion/synchronize-marketplace";
+import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
 import {
   SynchronizationAlreadyRunningError,
 } from "@/infrastructure/database/synchronization-state-repository";
+import { getListingsByIds } from "@/infrastructure/database/vehicle-listing-repository";
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
 
 export interface ManualSynchronizationState {
@@ -43,8 +45,22 @@ export async function synchronizeLatestListings(
 
   try {
     const result = await synchronizeMarketplace(
-      new BlocketUnofficialImporter(),
-      { mode: "incremental" },
+      new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
+      {
+        mode: "incremental",
+        // Interactive button click: stop as soon as a page is both fully
+        // known and older than the (short) lookback window, instead of the
+        // cron's 72h window — otherwise every click walks the full page cap
+        // even when nothing new was posted, since "oldest listing on this
+        // page is over 72h old" almost never becomes true within a handful
+        // of pages on an active marketplace. Detail fetches are skipped
+        // entirely for already-known, already-enriched listings (reused
+        // from cached data), so this only pays the network cost for
+        // genuinely new listings.
+        incrementalLookbackHours: 2,
+        incrementalKnownPageThreshold: 1,
+        incrementalMaximumPages: 4,
+      },
     );
     revalidatePath("/");
     return {
@@ -62,4 +78,8 @@ export async function synchronizeLatestListings(
     console.error("Manuell inkrementell synkronisering misslyckades.", error);
     return { outcome: "failed" };
   }
+}
+
+export async function getSavedListings(listingIds: readonly string[]) {
+  return getListingsByIds(listingIds.slice(0, 200));
 }

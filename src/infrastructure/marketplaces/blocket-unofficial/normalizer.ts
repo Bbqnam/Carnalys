@@ -73,6 +73,7 @@ export function normalizeBlocketListing(
   const firstRegistration = parseDate(specifications.Registreringsdatum);
   const engineLiters = parseFirstNumber(specifications.Motorvolym);
   const horsepower = parseFirstNumber(specifications.Effekt);
+  const ownerCount = parseFirstNumber(specifications["Antal ägare"]);
   const seenAt = new Date();
 
   return {
@@ -117,6 +118,7 @@ export function normalizeBlocketListing(
       longitude: document.coordinates?.longitude,
       description: detail?.description,
       serviceHistory: "unknown",
+      ownerCount: ownerCount ? Math.round(ownerCount) : undefined,
       equipment: detail?.equipment ?? [],
       // Keep a useful gallery without multiplying storage by every source
       // image across a six-figure catalog. The original listing retains the

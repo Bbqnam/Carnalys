@@ -52,6 +52,7 @@ model ListingRecord {
   longitude                  Float?
   description                String?
   serviceHistory             String                   @default("unknown")
+  ownerCount                 Int?
   status                     String                   @default("active")
   publishedAt                DateTime?
   sourceUpdatedAt            DateTime?
@@ -88,14 +89,19 @@ model ListingAnalysisRecord {
   comparableCount      Int
   confidence           String
   dealScore            Int
+  dealScoreFactors     Json          @default("[]")
   buyConfidenceScore   Int
+  buyConfidenceFactors Json          @default("[]")
   annualOwnershipCost  Int
+  ownershipCostItems   Json          @default("[]")
   methodologyVersion   String
   calculatedAt         DateTime
   sourceSynchronizedAt DateTime
   listing              ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@index([calculatedAt])
+  @@index([dealScore])
+  @@index([buyConfidenceScore])
 }
 
 model ListingImageRecord {

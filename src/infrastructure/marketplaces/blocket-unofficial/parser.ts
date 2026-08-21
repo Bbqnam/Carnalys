@@ -22,6 +22,34 @@ function parseTimestamp(value: unknown) {
   return Number.isNaN(date.valueOf()) ? undefined : date;
 }
 
+// Blocket buckets rare/exotic models (e.g. Ferrari Lusso) under a generic
+// catch-all category instead of a real model name. When that happens, the
+// actual model is only present in the free-text ad heading (e.g.
+// "Ferrari Lusso"), so derive it from there instead of showing "Övriga".
+const genericModelValues = new Set(["övriga", "annat", "annan"]);
+
+function stripPrefix(text: string, prefix: string) {
+  return text.toLocaleLowerCase("sv-SE").startsWith(prefix.toLocaleLowerCase("sv-SE"))
+    ? text.slice(prefix.length).trim()
+    : text;
+}
+
+function stripSuffix(text: string, suffix: string) {
+  return text.toLocaleLowerCase("sv-SE").endsWith(suffix.toLocaleLowerCase("sv-SE"))
+    ? text.slice(0, text.length - suffix.length).trim()
+    : text;
+}
+
+function deriveModelFromHeading(
+  heading: string,
+  make: string,
+  modelSpecification: string | undefined,
+) {
+  let remainder = stripPrefix(heading, make);
+  if (modelSpecification) remainder = stripSuffix(remainder, modelSpecification);
+  return remainder || undefined;
+}
+
 export function parseBlocketSearchResponse(payload: unknown): {
   documents: readonly BlocketSearchDocument[];
   rejectedCount: number;
@@ -65,9 +93,14 @@ export function parseBlocketSearchResponse(payload: unknown): {
     // Treat that source shape as zero mileage instead of dropping the ad.
     const mileageMil = numberValue(candidate.mileage) ?? 0;
     const make = stringValue(candidate.make);
+    const modelSpecification = stringValue(candidate.model_specification);
+    const rawModel = stringValue(candidate.model);
+    const isGenericModel =
+      rawModel !== undefined && genericModelValues.has(rawModel.toLocaleLowerCase("sv-SE"));
     const model =
-      stringValue(candidate.model) ??
-      stringValue(candidate.model_specification) ??
+      (!isGenericModel ? rawModel : undefined) ??
+      (heading && make ? deriveModelFromHeading(heading, make, modelSpecification) : undefined) ??
+      modelSpecification ??
       heading;
 
     if (
@@ -112,7 +145,7 @@ export function parseBlocketSearchResponse(payload: unknown): {
         vin: stringValue(candidate.chassis_number),
         make,
         model: model ?? heading,
-        variant: stringValue(candidate.model_specification),
+        variant: modelSpecification,
         transmission: stringValue(candidate.transmission),
         fuel: stringValue(candidate.fuel),
         imageUrls: imageUrls.length > 0 ? imageUrls : thumbnailUrl ? [thumbnailUrl] : [],

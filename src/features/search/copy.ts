@@ -1,4 +1,120 @@
+import type { ScoreFactor } from "@/domain/vehicle";
+
 export type Locale = "en" | "sv";
+
+export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
+  const numberLocale = locale === "en" ? "en-SE" : "sv-SE";
+  const legacyFactor = factor as ScoreFactor & {
+    label?: string;
+    explanation?: string;
+  };
+  const value = (key: string) => factor.params?.[key];
+  const labels = {
+    en: {
+      price_vs_market: "Price vs market",
+      vehicle_age: "Vehicle age",
+      mileage: "Mileage",
+      affordability: "Price bracket",
+      condition: "Condition and reliability",
+      ownership_history: "Ownership history",
+    },
+    sv: {
+      price_vs_market: "Pris jämfört med marknaden",
+      vehicle_age: "Fordonets ålder",
+      mileage: "Miltal",
+      affordability: "Prisklass",
+      condition: "Skick och tillförlitlighet",
+      ownership_history: "Ägarhistorik",
+    },
+  } as const;
+
+  if (!factor.params && legacyFactor.label && legacyFactor.explanation) {
+    return {
+      label: legacyFactor.label,
+      explanation: legacyFactor.explanation,
+    };
+  }
+
+  let explanation: string;
+  switch (factor.key) {
+    case "price_vs_market":
+      explanation =
+        value("percent") === undefined
+          ? locale === "en"
+            ? "Too few comparable listings for a reliable price comparison."
+            : "För få jämförbara annonser för en säker prisjämförelse."
+          : factor.impact === "positive"
+            ? locale === "en"
+              ? `Priced ${value("percent")}% below estimated market value.`
+              : `Prissatt ${value("percent")} % under uppskattat marknadsvärde.`
+            : factor.impact === "negative"
+              ? locale === "en"
+                ? `Priced ${value("percent")}% above estimated market value.`
+                : `Prissatt ${value("percent")} % över uppskattat marknadsvärde.`
+              : locale === "en"
+                ? "Priced close to estimated market value."
+                : "Prissatt nära uppskattat marknadsvärde.";
+      break;
+    case "vehicle_age":
+      explanation =
+        locale === "en"
+          ? `${value("age")} years old (model year ${value("modelYear")}).`
+          : `${value("age")} år gammal (årsmodell ${value("modelYear")}).`;
+      break;
+    case "mileage":
+      explanation =
+        locale === "en"
+          ? `${value("mileageKm").toLocaleString(numberLocale)} km on the odometer.`
+          : `${value("mileageKm").toLocaleString(numberLocale)} km i mätarställningen.`;
+      break;
+    case "affordability":
+      explanation =
+        locale === "en"
+          ? `Asking price SEK ${value("askingPrice").toLocaleString(numberLocale)}.`
+          : `Utgångspris ${value("askingPrice").toLocaleString(numberLocale)} kr.`;
+      break;
+    case "condition":
+      explanation =
+        factor.impact === "positive"
+          ? locale === "en"
+            ? "Low age and mileage reduce the risk of age-related faults."
+            : "Låg ålder och lågt miltal minskar risken för åldersrelaterade fel."
+          : factor.impact === "negative"
+            ? locale === "en"
+              ? "High age and mileage increase the risk of wear and unplanned maintenance."
+              : "Hög ålder och högt miltal ökar risken för slitage och oplanerat underhåll."
+            : locale === "en"
+              ? "Moderate wear risk for the vehicle's age and mileage."
+              : "Måttlig risk för slitage givet fordonets ålder och miltal.";
+      break;
+    case "ownership_history": {
+      const ownerCount = value("ownerCount");
+      explanation =
+        ownerCount === undefined
+          ? locale === "en"
+            ? "The number of previous owners is unknown."
+            : "Antal tidigare ägare är inte känt."
+          : ownerCount === 1
+            ? locale === "en"
+              ? "Only one previous owner."
+              : "Endast en tidigare ägare."
+            : factor.impact === "positive"
+              ? locale === "en"
+                ? `${ownerCount} previous owners, fewer than average.`
+                : `${ownerCount} tidigare ägare, färre än genomsnittet.`
+              : factor.impact === "negative"
+                ? locale === "en"
+                  ? `${ownerCount} previous owners, more than average.`
+                  : `${ownerCount} tidigare ägare, fler än genomsnittet.`
+                : locale === "en"
+                  ? `${ownerCount} previous owners.`
+                  : `${ownerCount} tidigare ägare.`;
+      break;
+    }
+  }
+
+  return { label: labels[locale][factor.key], explanation };
+}
 
 export const uiCopy = {
   en: {
@@ -83,6 +199,18 @@ export const uiCopy = {
         van: "Van",
         other: "Other",
       },
+      drivetrains: {
+        all_wheel_drive: "All-wheel drive",
+        front_wheel_drive: "Front-wheel drive",
+        rear_wheel_drive: "Rear-wheel drive",
+        other: "Other",
+      },
+      serviceHistories: {
+        complete: "Full service history",
+        partial: "Partial service history",
+        missing: "No service history",
+        unknown: "Service history unknown",
+      },
     },
     results: {
       eyebrow: "Analyzed for you",
@@ -150,11 +278,59 @@ export const uiCopy = {
       confidenceHelp: "Overall purchase quality, ownership cost and risk.",
       financingFrom: "Financing from",
       perMonth: "/mo",
+      dealerBadge: "Dealer",
+      privateSellerBadge: "Private",
       posted: "Posted",
       firstSeen: "First seen",
       distanceAway: (distanceKm: number) => `${distanceKm} km away`,
       viewListing: "View listing",
       scoreOutOf: (label: string, value: number) => `${label}: ${value} out of 100`,
+    },
+    detail: {
+      back: "Back to results",
+      dealScoreTitle: "Deal Score",
+      buyConfidenceTitle: "Buy Confidence",
+      whyThisScore: "Why this score",
+      marketValueTitle: "Estimated market value",
+      marketRange: "Likely range",
+      ownershipCostTitle: "Estimated annual ownership cost",
+      ownershipCostCaption: (km: number) =>
+        `Based on ${km.toLocaleString("en-SE")} km per year`,
+      equipmentTitle: "Equipment",
+      specificationsTitle: "Specifications",
+      engine: "Engine",
+      horsepower: "Horsepower",
+      drivetrain: "Drivetrain",
+      serviceHistory: "Service history",
+      owners: "Owners",
+      warranty: "Warranty",
+      vehicleDetailsTitle: "Vehicle details",
+      registrationNumber: "Registration number",
+      vin: "VIN",
+      firstRegistration: "First registered",
+      notFoundTitle: "Car not found",
+      notFoundBody: "This listing may have been removed or sold.",
+      backToSearch: "Back to search",
+      factorImpact: {
+        positive: "Positive factor",
+        neutral: "Neutral factor",
+        negative: "Negative factor",
+      },
+      factorTiers: [
+        "Well below average",
+        "Below average",
+        "Average",
+        "Above average",
+        "Well above average",
+      ],
+      ownershipCostBreakdown: "Estimated cost split",
+      ownershipCostCategories: {
+        depreciation: "Depreciation",
+        energy: "Fuel / energy",
+        insurance: "Insurance",
+        maintenance: "Maintenance",
+        tax: "Tax",
+      },
     },
     filterLabels: {
       max: "Max",
@@ -247,6 +423,18 @@ export const uiCopy = {
         van: "Skåpbil",
         other: "Övrig",
       },
+      drivetrains: {
+        all_wheel_drive: "Fyrhjulsdrift",
+        front_wheel_drive: "Framhjulsdrift",
+        rear_wheel_drive: "Bakhjulsdrift",
+        other: "Övrig",
+      },
+      serviceHistories: {
+        complete: "Fullständig servicehistorik",
+        partial: "Delvis servicehistorik",
+        missing: "Ingen servicehistorik",
+        unknown: "Servicehistorik okänd",
+      },
     },
     results: {
       eyebrow: "Analyserat för dig",
@@ -314,11 +502,59 @@ export const uiCopy = {
       confidenceHelp: "Helhetsbedömning av kvalitet, ägandekostnad och risk.",
       financingFrom: "Finansiering från",
       perMonth: "/mån",
+      dealerBadge: "Handlare",
+      privateSellerBadge: "Privat",
       posted: "Publicerad",
       firstSeen: "Först sedd",
       distanceAway: (distanceKm: number) => `${distanceKm} km bort`,
       viewListing: "Visa annons",
       scoreOutOf: (label: string, value: number) => `${label}: ${value} av 100`,
+    },
+    detail: {
+      back: "Tillbaka till resultat",
+      dealScoreTitle: "Deal Score",
+      buyConfidenceTitle: "Köptrygghet",
+      whyThisScore: "Varför detta betyg",
+      marketValueTitle: "Uppskattat marknadsvärde",
+      marketRange: "Trolig prisspann",
+      ownershipCostTitle: "Uppskattad årlig ägandekostnad",
+      ownershipCostCaption: (km: number) =>
+        `Baserat på ${km.toLocaleString("sv-SE")} km per år`,
+      equipmentTitle: "Utrustning",
+      specificationsTitle: "Specifikationer",
+      engine: "Motor",
+      horsepower: "Effekt",
+      drivetrain: "Drivning",
+      serviceHistory: "Servicehistorik",
+      owners: "Ägare",
+      warranty: "Garanti",
+      vehicleDetailsTitle: "Fordonsdetaljer",
+      registrationNumber: "Registreringsnummer",
+      vin: "Chassinummer",
+      firstRegistration: "Först registrerad",
+      notFoundTitle: "Bilen hittades inte",
+      notFoundBody: "Annonsen kan ha tagits bort eller sålts.",
+      backToSearch: "Tillbaka till sökningen",
+      factorImpact: {
+        positive: "Positiv faktor",
+        neutral: "Neutral faktor",
+        negative: "Negativ faktor",
+      },
+      factorTiers: [
+        "Långt under snittet",
+        "Under snittet",
+        "Genomsnittligt",
+        "Över snittet",
+        "Långt över snittet",
+      ],
+      ownershipCostBreakdown: "Uppskattad kostnadsfördelning",
+      ownershipCostCategories: {
+        depreciation: "Värdeminskning",
+        energy: "Drivmedel/el",
+        insurance: "Försäkring",
+        maintenance: "Underhåll",
+        tax: "Skatt",
+      },
     },
     filterLabels: {
       max: "Max",

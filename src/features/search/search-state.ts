@@ -1,4 +1,9 @@
-import type { BodyStyle, FuelType, TransmissionType } from "@/domain/vehicle";
+import type {
+  BodyStyle,
+  FuelType,
+  SellerType,
+  TransmissionType,
+} from "@/domain/vehicle";
 import {
   vehiclePageSizes,
   type SearchFilters,
@@ -40,6 +45,7 @@ const sorts = new Set<SearchSort>([
   "price_desc",
   "newest",
 ]);
+const sellerTypes = new Set<SellerType>(["dealer", "private"]);
 
 export const defaultSearchFilters: SearchFilters = {
   query: "",
@@ -54,6 +60,7 @@ export const defaultSearchFilters: SearchFilters = {
   minMileageMil: null,
   maxMileageMil: null,
   bodyStyle: "",
+  sellerType: "",
 };
 
 export const defaultSearchSort: SearchSort = "newest";
@@ -143,6 +150,7 @@ export function parseVehicleSearchOptions(
           : null,
       maxMileageMil: maximumMileage,
       bodyStyle: enumValue(parameters.body, bodyStyles),
+      sellerType: enumValue(parameters.seller, sellerTypes),
     },
   };
 }
@@ -166,6 +174,7 @@ export function vehicleSearchUrl({ filters, sort, page, pageSize }: VehicleSearc
     parameters.set("maxMileage", filters.maxMileageMil.toString());
   }
   if (filters.bodyStyle) parameters.set("body", filters.bodyStyle);
+  if (filters.sellerType) parameters.set("seller", filters.sellerType);
   if (sort !== defaultSearchSort) parameters.set("sort", sort);
   if (pageSize !== defaultVehiclePageSize) {
     parameters.set("perPage", pageSize.toString());

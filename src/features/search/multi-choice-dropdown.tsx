@@ -253,7 +253,7 @@ export function MultiChoiceDropdown({
             >
               <div className="flex min-h-0 w-full flex-col p-1.5">
                 {searchable ? (
-                  <label className="mb-1 flex h-10 shrink-0 items-center gap-2 rounded-lg bg-[#f5f7f4] px-2.5 text-[#6b756e] focus-within:ring-2 focus-within:ring-[#708b79]/25">
+                  <label className="mb-1 flex h-10 shrink-0 items-center gap-2 rounded-lg bg-surface-muted px-2.5 text-[#6b756e] focus-within:ring-2 focus-within:ring-[#708b79]/25">
                     <SearchIcon className="size-3.5 shrink-0" />
                     <input
                       aria-label={searchPlaceholder}
@@ -323,7 +323,7 @@ export function MultiChoiceDropdown({
                 </div>
                 <div className="mt-1 flex shrink-0 items-center justify-between border-t border-[#e8eae6] px-1.5 pt-1.5">
                   <button
-                    className="rounded-lg px-2.5 py-2 text-xs font-semibold text-[#66736a] transition hover:bg-[#f2f4f1] hover:text-[#17211b] disabled:cursor-not-allowed disabled:opacity-35"
+                    className="rounded-lg px-2.5 py-2 text-xs font-semibold text-[#66736a] transition hover:bg-[#f2f4f1] hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
                     disabled={values.length === 0}
                     onClick={() => onChange([])}
                     type="button"
@@ -331,7 +331,7 @@ export function MultiChoiceDropdown({
                     {clearLabel}
                   </button>
                   <button
-                    className="rounded-lg bg-[#17221c] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#2b3b32]"
+                    className="rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#2b3b32]"
                     onClick={() => closeMenu(true)}
                     type="button"
                   >

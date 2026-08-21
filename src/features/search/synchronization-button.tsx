@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
 import {
   synchronizeLatestListings,
   type ManualSynchronizationState,
@@ -9,6 +10,28 @@ import type { Locale } from "./copy";
 import { RefreshIcon } from "./icons";
 
 const initialState: ManualSynchronizationState = { outcome: "idle" };
+const autoDismissMilliseconds = 6_000;
+
+function SynchronizationStatusMessage({ message }: { message: string }) {
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDismissed(true), autoDismissMilliseconds);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  if (dismissed) return null;
+
+  return (
+    <p
+      aria-live="polite"
+      className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-64 rounded-xl border border-[#dfe4de] bg-white px-3 py-2.5 text-xs leading-5 text-[#526058] shadow-[0_10px_30px_rgba(24,36,28,0.12)]"
+      id="synchronization-status"
+    >
+      {message}
+    </p>
+  );
+}
 
 interface SynchronizationButtonProps {
   activeSynchronization?: {
@@ -26,6 +49,14 @@ export function SynchronizationButton({
     synchronizeLatestListings,
     initialState,
   );
+  const router = useRouter();
+
+  useEffect(() => {
+    if (state.outcome === "completed" || state.outcome === "warning") {
+      router.refresh();
+    }
+  }, [state, router]);
+
   const english = locale === "en";
   const initiallyBusy = Boolean(activeSynchronization);
   const label = pending
@@ -77,7 +108,7 @@ export function SynchronizationButton({
       <form action={action}>
         <button
           aria-describedby={
-            actionMessage ? "synchronization-status" : undefined
+            actionMessage && !pending ? "synchronization-status" : undefined
           }
           aria-label={label}
           className="flex h-11 items-center gap-2 rounded-xl border border-[#d6ddd7] bg-[#f3f7f4] px-3.5 text-sm font-semibold text-[#315441] shadow-sm transition hover:border-[#aebeb3] hover:bg-white hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-65"
@@ -93,14 +124,8 @@ export function SynchronizationButton({
           <span className="sr-only xl:hidden">{label}</span>
         </button>
       </form>
-      {actionMessage ? (
-        <p
-          aria-live="polite"
-          className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-64 rounded-xl border border-[#dfe4de] bg-white px-3 py-2.5 text-xs leading-5 text-[#526058] shadow-[0_10px_30px_rgba(24,36,28,0.12)]"
-          id="synchronization-status"
-        >
-          {actionMessage}
-        </p>
+      {actionMessage && !pending ? (
+        <SynchronizationStatusMessage key={actionMessage} message={actionMessage} />
       ) : null}
     </div>
   );

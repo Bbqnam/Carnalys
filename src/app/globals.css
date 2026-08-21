@@ -9,6 +9,15 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
+
+  /* Consolidated tokens for colors that were previously repeated as
+     near-duplicate arbitrary hex values across feature components. */
+  --color-ink: #17211b;
+  --color-ink-muted: #647068;
+  --color-border: #e4e5df;
+  --color-surface-muted: #f5f7f4;
+  --color-positive: #1f5737;
+  --color-negative: #81463e;
 }
 
 html {

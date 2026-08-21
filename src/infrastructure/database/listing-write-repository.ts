@@ -34,6 +34,7 @@ function listingHashes(normalized: NormalizedVehicleListing) {
         longitude: normalized.listing.longitude,
         description: normalized.listing.description,
         serviceHistory: normalized.listing.serviceHistory,
+        ownerCount: normalized.listing.ownerCount,
       },
     }),
     imageHash: digest(normalized.listing.images),
@@ -197,6 +198,7 @@ async function writeListing(
       longitude: listing.longitude,
       description: listing.description,
       serviceHistory: listing.serviceHistory,
+      ownerCount: listing.ownerCount,
       status: "active",
       publishedAt: normalized.source.publishedAt,
       sourceUpdatedAt: normalized.source.updatedAt,
@@ -226,6 +228,7 @@ async function writeListing(
       longitude: listing.longitude,
       description: listing.description,
       serviceHistory: listing.serviceHistory,
+      ownerCount: listing.ownerCount,
       status: "active",
       publishedAt: normalized.source.publishedAt,
       sourceUpdatedAt: normalized.source.updatedAt,
@@ -363,6 +366,30 @@ export async function existingListingExternalIds(
     select: { externalId: true },
   });
   return new Set(rows.map(({ externalId }) => externalId));
+}
+
+/**
+ * Cached raw detail payloads for listings we've already enriched before,
+ * keyed by externalId. Lets a sync re-normalize a known, already-enriched
+ * listing from its stored raw JSON instead of re-fetching detail over the
+ * network for every listing on every page — the network fetch only happens
+ * for genuinely new listings, or known ones never successfully enriched.
+ */
+export async function existingListingDetailPayloads(
+  provider: string,
+  externalIds: readonly string[],
+) {
+  if (externalIds.length === 0) return new Map<string, unknown>();
+  const rows = await prisma.listingRecord.findMany({
+    where: { provider, externalId: { in: [...externalIds] } },
+    select: { externalId: true, rawPayload: true },
+  });
+  const detailByExternalId = new Map<string, unknown>();
+  for (const row of rows) {
+    const rawPayload = row.rawPayload as { detail?: unknown } | null;
+    if (rawPayload?.detail) detailByExternalId.set(row.externalId, rawPayload.detail);
+  }
+  return detailByExternalId;
 }
 
 export async function markMissingListingsRemovedSafely(

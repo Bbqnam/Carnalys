@@ -16,6 +16,8 @@ import {
 import { SearchHero } from "./search-hero";
 import { SynchronizationButton } from "./synchronization-button";
 import { defaultSearchFilters, vehicleSearchUrl } from "./search-state";
+import { setLocaleCookie } from "./locale";
+import { useFavorites } from "./use-favorites";
 import type {
   AvailableVehicleFilters,
   SearchFilters,
@@ -42,6 +44,7 @@ interface SearchExperienceProps {
     fetchedCount: number;
   };
   allowManualSynchronization: boolean;
+  initialLocale: Locale;
   listings: readonly VehicleSearchResult[];
   initialFilters: SearchFilters;
   initialSort: SearchSort;
@@ -106,6 +109,7 @@ export function SearchExperience({
   activeSynchronization,
   allowManualSynchronization,
   availableFilters,
+  initialLocale,
   initialFilters,
   initialSort,
   listings,
@@ -113,7 +117,7 @@ export function SearchExperience({
   pagination,
 }: SearchExperienceProps) {
   const router = useRouter();
-  const [locale, setLocale] = useState<Locale>("en");
+  const [locale, setLocale] = useState<Locale>(initialLocale);
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [sort, setSort] = useState<SearchSort>(initialSort);
   const incomingSearchState = vehicleSearchUrl({
@@ -123,7 +127,7 @@ export function SearchExperience({
     pageSize: pagination.pageSize,
   });
   const [renderedSearchState, setRenderedSearchState] = useState(incomingSearchState);
-  const [favorites, setFavorites] = useState<Set<string>>(() => new Set());
+  const { favorites, toggle: toggleFavorite } = useFavorites();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation>();
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
@@ -278,6 +282,15 @@ export function SearchExperience({
   );
 
   useEffect(() => {
+    const intervalMinutes = 5;
+    const interval = setInterval(
+      () => router.refresh(),
+      intervalMinutes * 60 * 1_000,
+    );
+    return () => clearInterval(interval);
+  }, [router]);
+
+  useEffect(() => {
     const currentUrl = `${window.location.pathname}${window.location.search}#cars`;
 
     if (window.location.search) {
@@ -334,6 +347,7 @@ export function SearchExperience({
 
   function changeLocale(nextLocale: Locale) {
     setLocale(nextLocale);
+    setLocaleCookie(nextLocale);
     document.documentElement.lang = nextLocale;
   }
 
@@ -418,15 +432,6 @@ export function SearchExperience({
     changeFilters({ ...filters, [key]: defaultSearchFilters[key] }, 0);
   }
 
-  function toggleFavorite(listingId: string) {
-    setFavorites((current) => {
-      const next = new Set(current);
-      if (next.has(listingId)) next.delete(listingId);
-      else next.add(listingId);
-      return next;
-    });
-  }
-
   function scrollToResults() {
     document.getElementById("cars")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -455,7 +460,7 @@ export function SearchExperience({
                 {copy.results.eyebrow}
               </p>
               <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h2 className="text-3xl font-medium tracking-[-0.045em] text-[#17211b] sm:text-[2.1rem]">
+                <h2 className="text-3xl font-medium tracking-[-0.045em] text-ink sm:text-[2.1rem]">
                   {copy.results.title}
                 </h2>
                 <p aria-live="polite" className="text-sm text-[#69736d]">
@@ -569,7 +574,7 @@ export function SearchExperience({
                 {activeFilters.map((filter) => (
                   <button
                     aria-label={copy.results.removeFilter(filter.label)}
-                    className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#ccd5ce] bg-[#f0f5f1] px-3 py-1.5 text-xs font-semibold text-[#354c3e] transition hover:border-[#9fb0a4] hover:bg-white hover:text-[#17211b]"
+                    className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#ccd5ce] bg-[#f0f5f1] px-3 py-1.5 text-xs font-semibold text-[#354c3e] transition hover:border-[#9fb0a4] hover:bg-white hover:text-ink"
                     key={filter.id}
                     onClick={() => removeFilter(filter.key, filter.value)}
                     type="button"
@@ -579,7 +584,7 @@ export function SearchExperience({
                   </button>
                 ))}
                 <button
-                  className="shrink-0 rounded-full px-2.5 text-xs font-semibold text-[#66736a] underline-offset-4 hover:text-[#17211b] hover:underline"
+                  className="shrink-0 rounded-full px-2.5 text-xs font-semibold text-[#66736a] underline-offset-4 hover:text-ink hover:underline"
                   onClick={resetFilters}
                   type="button"
                 >
@@ -681,7 +686,7 @@ export function SearchExperience({
                               ) : (
                                 <Link
                                   aria-label={copy.results.goToPage(item)}
-                                  className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-[#526058] transition hover:bg-[#edf2ee] hover:text-[#17211b] active:scale-[0.96]"
+                                  className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-[#526058] transition hover:bg-[#edf2ee] hover:text-ink active:scale-[0.96]"
                                   href={vehicleSearchUrl({
                                     filters,
                                     sort,
@@ -709,7 +714,7 @@ export function SearchExperience({
                         {pagination.page < pagination.totalPages ? (
                           <Link
                             aria-label={copy.results.nextPage}
-                            className="flex h-10 flex-1 items-center justify-center rounded-xl bg-[#17221c] px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2b3b32] hover:shadow-md active:scale-[0.98] sm:flex-none"
+                            className="flex h-10 flex-1 items-center justify-center rounded-xl bg-ink px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2b3b32] hover:shadow-md active:scale-[0.98] sm:flex-none"
                             href={vehicleSearchUrl({
                               filters,
                               sort,
@@ -797,7 +802,7 @@ export function SearchExperience({
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#c7cbc6]" />
               <div className="mb-5 flex items-center justify-between">
                 <h2
-                  className="text-lg font-semibold tracking-[-0.025em] text-[#17211b]"
+                  className="text-lg font-semibold tracking-[-0.025em] text-ink"
                   id="mobile-filters-title"
                 >
                   {copy.results.mobileTitle}
@@ -823,7 +828,7 @@ export function SearchExperience({
                 years={availableFilters.years}
               />
               <button
-                className="sticky bottom-0 mt-7 h-13 w-full rounded-full bg-[#17221c] text-sm font-semibold text-white shadow-[0_10px_30px_rgba(23,34,28,0.24)] transition hover:bg-[#2b3b32] active:scale-[0.99]"
+                className="sticky bottom-0 mt-7 h-13 w-full rounded-full bg-ink text-sm font-semibold text-white shadow-[0_10px_30px_rgba(23,34,28,0.24)] transition hover:bg-[#2b3b32] active:scale-[0.99]"
                 onClick={() => setShowMobileFilters(false)}
                 type="button"
               >

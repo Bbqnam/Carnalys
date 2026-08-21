@@ -302,7 +302,7 @@ export function BrandLogo({ make, className = "size-5" }: { make: string; classN
 
   return (
     <span aria-hidden="true" className={`relative block shrink-0 ${className}`}>
-      <Image alt="" className="object-contain" fill sizes="28px" src={logo} />
+      <Image alt="" className="object-contain" fill sizes="44px" src={logo} />
     </span>
   );
 }

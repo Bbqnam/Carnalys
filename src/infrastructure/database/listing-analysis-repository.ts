@@ -1,10 +1,16 @@
 import { Prisma } from "@/generated/prisma/client";
+import { buildOwnershipCostItems } from "@/domain/vehicle/analysis/ownership-cost-items";
+import {
+  buildBuyConfidenceFactors,
+  buildDealScoreFactors,
+} from "@/domain/vehicle/analysis/score-factors";
 import { initializeDatabase, prisma } from "./prisma";
 
 interface AnalysisTarget {
   id: string;
   priceAmount: number;
   mileageKm: number;
+  ownerCount: number | null;
   synchronizedAt: Date;
   vehicle: {
     make: string;
@@ -22,13 +28,19 @@ interface MarketComparableRow {
   model: string;
   fuelType: string;
   transmission: string;
-  bodyStyle: string;
   modelYear: number;
   mileageKm: number;
   priceAmount: number;
 }
 
-const methodologyVersion = "value-quality-composite-2.0";
+interface SegmentComparableRow {
+  id: string;
+  make: string;
+  modelYear: number;
+  priceAmount: number;
+}
+
+const methodologyVersion = "value-quality-composite-7.0";
 
 function clampScore(value: number) {
   return Math.max(10, Math.min(95, Math.round(value)));
@@ -65,33 +77,57 @@ function vehicleQualityScores(target: AnalysisTarget, priceDelta: number, year: 
     [0, 100], [75_000, 95], [150_000, 85], [250_000, 70],
     [400_000, 50], [600_000, 32], [1_000_000, 15], [2_000_000, 10],
   ]);
+  // Unknown owner count is treated as neutral (2 owners) rather than
+  // penalized, since it's genuinely absent for a lot of listings.
+  const ownerScore = interpolateScore(target.ownerCount ?? 2, [
+    [1, 100], [2, 80], [3, 60], [4, 45], [5, 30], [8, 15],
+  ]);
   const dealScore = clampScore(
     priceValueScore * 0.45 +
       ageScore * 0.25 +
       mileageScore * 0.2 +
       affordabilityScore * 0.1,
   );
+  // Deliberately independent of dealScore/price — Deal Score answers "is
+  // this priced well," Buy Confidence answers "is this a sound car to
+  // own," driven purely by condition (age/mileage) and ownership history.
   const buyConfidenceScore = clampScore(
-    dealScore * 0.65 + ageScore * 0.2 + mileageScore * 0.15,
+    ageScore * 0.4 + mileageScore * 0.35 + ownerScore * 0.25,
   );
 
-  return { dealScore, buyConfidenceScore };
+  return {
+    dealScore,
+    buyConfidenceScore,
+    age,
+    priceValueScore,
+    ageScore,
+    mileageScore,
+    affordabilityScore,
+    ownerScore,
+  };
 }
 
+// Note: deliberately excludes bodyStyle. It's only populated from detail
+// data (see importer.ts), so during the transition while most of the
+// catalog is still un-enriched, requiring an exact bodyStyle match would
+// isolate freshly-enriched listings from the (still-"other") bulk of their
+// own real comparables.
 function cohortKey({
   make,
   model,
   fuelType,
   transmission,
-  bodyStyle,
 }: {
   make: string;
   model: string;
   fuelType: string;
   transmission: string;
-  bodyStyle: string;
 }) {
-  return JSON.stringify([make, model, fuelType, transmission, bodyStyle]);
+  return JSON.stringify([make, model, fuelType, transmission]);
+}
+
+function segmentKey({ make }: { make: string }) {
+  return make;
 }
 
 function roundedThousands(value: number) {
@@ -127,6 +163,7 @@ async function loadTargets(
       id: true,
       priceAmount: true,
       mileageKm: true,
+      ownerCount: true,
       synchronizedAt: true,
       vehicle: {
         select: {
@@ -159,12 +196,12 @@ export async function refreshStoredListingAnalyses(
   ];
   const comparables = await prisma.$queryRaw<MarketComparableRow[]>(Prisma.sql`
     WITH "target_cohorts" (
-      "make", "model", "fuelType", "transmission", "bodyStyle"
+      "make", "model", "fuelType", "transmission"
     ) AS (
       VALUES ${Prisma.join(
         cohorts.map(
           (vehicle) =>
-            Prisma.sql`(${vehicle.make}, ${vehicle.model}, ${vehicle.fuelType}, ${vehicle.transmission}, ${vehicle.bodyStyle})`,
+            Prisma.sql`(${vehicle.make}, ${vehicle.model}, ${vehicle.fuelType}, ${vehicle.transmission})`,
         ),
       )}
     )
@@ -174,7 +211,6 @@ export async function refreshStoredListingAnalyses(
       vehicle."model" AS "model",
       vehicle."fuelType" AS "fuelType",
       vehicle."transmission" AS "transmission",
-      vehicle."bodyStyle" AS "bodyStyle",
       vehicle."modelYear" AS "modelYear",
       listing."mileageKm" AS "mileageKm",
       listing."priceAmount" AS "priceAmount"
@@ -184,7 +220,6 @@ export async function refreshStoredListingAnalyses(
       AND vehicle."model" = cohort."model"
       AND vehicle."fuelType" = cohort."fuelType"
       AND vehicle."transmission" = cohort."transmission"
-      AND vehicle."bodyStyle" = cohort."bodyStyle"
     INNER JOIN "ListingRecord" AS listing
       ON listing."vehicleId" = vehicle."id"
       AND listing."status" = 'active'
@@ -198,26 +233,86 @@ export async function refreshStoredListingAnalyses(
     comparablesByCohort.set(key, rows);
   }
 
+  function tier1Prices(target: AnalysisTarget) {
+    return (comparablesByCohort.get(cohortKey(target.vehicle)) ?? [])
+      .filter(
+        (comparable) =>
+          comparable.id !== target.id &&
+          Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 3 &&
+          Math.abs(comparable.mileageKm - target.mileageKm) <= 120_000,
+      )
+      .toSorted(
+        (left, right) =>
+          Math.abs(left.modelYear - target.vehicle.modelYear) * 60_000 +
+            Math.abs(left.mileageKm - target.mileageKm) -
+            (Math.abs(right.modelYear - target.vehicle.modelYear) * 60_000 +
+              Math.abs(right.mileageKm - target.mileageKm)),
+      )
+      .slice(0, 25)
+      .map(({ priceAmount }) => Number(priceAmount));
+  }
+
+  // Rare/exotic vehicles (e.g. a Ferrari) rarely have 3+ exact make+model
+  // matches, so their price signal would otherwise always fall back to a
+  // flat neutral score. For those, widen to same-make (a looser but still
+  // meaningful comparison) instead of giving up.
+  const needsSegmentFallback = targets.filter(
+    (target) => tier1Prices(target).length < 3,
+  );
+  const segmentMakes = [
+    ...new Set(needsSegmentFallback.map(({ vehicle }) => vehicle.make)),
+  ];
+  const segmentComparables = segmentMakes.length
+    ? await prisma.$queryRaw<SegmentComparableRow[]>(Prisma.sql`
+        SELECT
+          listing."id" AS "id",
+          vehicle."make" AS "make",
+          vehicle."modelYear" AS "modelYear",
+          listing."priceAmount" AS "priceAmount"
+        FROM "VehicleRecord" AS vehicle
+        INNER JOIN "ListingRecord" AS listing
+          ON listing."vehicleId" = vehicle."id"
+          AND listing."status" = 'active'
+        WHERE vehicle."make" IN (${Prisma.join(segmentMakes)})
+          AND listing."priceAmount" > 0
+      `)
+    : [];
+  const comparablesBySegment = new Map<string, SegmentComparableRow[]>();
+  for (const comparable of segmentComparables) {
+    const key = segmentKey(comparable);
+    const rows = comparablesBySegment.get(key) ?? [];
+    rows.push(comparable);
+    comparablesBySegment.set(key, rows);
+  }
+
+  function tier2Prices(target: AnalysisTarget) {
+    const minimumPrice = target.priceAmount * 0.6;
+    const maximumPrice = target.priceAmount * 1.4;
+    return (comparablesBySegment.get(segmentKey(target.vehicle)) ?? [])
+      .filter(
+        (comparable) =>
+          comparable.id !== target.id &&
+          Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 5 &&
+          comparable.priceAmount >= minimumPrice &&
+          comparable.priceAmount <= maximumPrice,
+      )
+      .toSorted(
+        (left, right) =>
+          Math.abs(left.modelYear - target.vehicle.modelYear) -
+          Math.abs(right.modelYear - target.vehicle.modelYear),
+      )
+      .slice(0, 25)
+      .map(({ priceAmount }) => Number(priceAmount));
+  }
+
   const calculatedAt = new Date();
   await prisma.$transaction(
     targets.map((target) => {
-      const prices = (comparablesByCohort.get(cohortKey(target.vehicle)) ?? [])
-        .filter(
-          (comparable) =>
-            comparable.id !== target.id &&
-            Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 3 &&
-            Math.abs(comparable.mileageKm - target.mileageKm) <= 120_000,
-        )
-        .toSorted(
-          (left, right) =>
-            Math.abs(left.modelYear - target.vehicle.modelYear) * 60_000 +
-              Math.abs(left.mileageKm - target.mileageKm) -
-              (Math.abs(right.modelYear - target.vehicle.modelYear) * 60_000 +
-                Math.abs(right.mileageKm - target.mileageKm)),
-        )
-        .slice(0, 25)
-        .map(({ priceAmount }) => Number(priceAmount))
-        .toSorted((left, right) => left - right);
+      const tier1 = tier1Prices(target);
+      const usedFallbackTier = tier1.length < 3;
+      const prices = (usedFallbackTier ? tier2Prices(target) : tier1).toSorted(
+        (left, right) => left - right,
+      );
       const hasEstimate = prices.length >= 3;
       const marketValue = hasEstimate
         ? roundedThousands(percentile(prices, 0.5))
@@ -225,12 +320,36 @@ export async function refreshStoredListingAnalyses(
       const priceDelta =
         marketValue > 0 ? (marketValue - target.priceAmount) / marketValue : 0;
       const confidence =
-        prices.length >= 15 ? "high" : prices.length >= 8 ? "medium" : "low";
+        !hasEstimate || usedFallbackTier
+          ? "low"
+          : prices.length >= 15
+            ? "high"
+            : prices.length >= 8
+              ? "medium"
+              : "low";
       const fuelMultiplier = target.vehicle.fuelType === "electric" ? 0.8 : 1;
       const qualityScores = vehicleQualityScores(
         target,
         hasEstimate ? priceDelta : 0,
         calculatedAt.getFullYear(),
+      );
+      const factorInputs = {
+        hasMarketEstimate: hasEstimate,
+        priceDelta: hasEstimate ? priceDelta : 0,
+        priceValueScore: qualityScores.priceValueScore,
+        ageScore: qualityScores.ageScore,
+        mileageScore: qualityScores.mileageScore,
+        affordabilityScore: qualityScores.affordabilityScore,
+        dealScore: qualityScores.dealScore,
+        ownerScore: qualityScores.ownerScore,
+        ownerCount: target.ownerCount ?? undefined,
+        age: qualityScores.age,
+        modelYear: target.vehicle.modelYear,
+        mileageKm: target.mileageKm,
+        askingPrice: target.priceAmount,
+      };
+      const annualOwnershipCost = Math.round(
+        (34_000 + target.priceAmount * 0.065) * fuelMultiplier,
       );
       const values = {
         marketValueAmount: marketValue,
@@ -243,10 +362,19 @@ export async function refreshStoredListingAnalyses(
         comparableCount: prices.length,
         confidence,
         dealScore: qualityScores.dealScore,
+        dealScoreFactors: buildDealScoreFactors(
+          factorInputs,
+        ) as unknown as Prisma.InputJsonValue,
         buyConfidenceScore: qualityScores.buyConfidenceScore,
-        annualOwnershipCost: Math.round(
-          (34_000 + target.priceAmount * 0.065) * fuelMultiplier,
-        ),
+        buyConfidenceFactors: buildBuyConfidenceFactors(
+          factorInputs,
+        ) as unknown as Prisma.InputJsonValue,
+        annualOwnershipCost,
+        ownershipCostItems: buildOwnershipCostItems({
+          totalAnnualCost: annualOwnershipCost,
+          askingPrice: target.priceAmount,
+          age: qualityScores.age,
+        }) as unknown as Prisma.InputJsonValue,
         methodologyVersion,
         calculatedAt,
         sourceSynchronizedAt: target.synchronizedAt,
@@ -258,6 +386,7 @@ export async function refreshStoredListingAnalyses(
         update: values,
       });
     }),
+    { timeout: 30_000 },
   );
 
   return targets.length;

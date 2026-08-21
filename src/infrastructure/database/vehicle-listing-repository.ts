@@ -5,6 +5,8 @@ import type {
   BodyStyle,
   Drivetrain,
   FuelType,
+  OwnershipCostItem,
+  ScoreFactor,
   ServiceHistoryStatus,
   TransmissionType,
 } from "@/domain/vehicle";
@@ -43,6 +45,7 @@ const storedListingSelect = {
   description: true,
   mileageKm: true,
   serviceHistory: true,
+  ownerCount: true,
   publishedAt: true,
   synchronizedAt: true,
   vehicle: {
@@ -80,8 +83,11 @@ const storedListingSelect = {
       comparableCount: true,
       confidence: true,
       dealScore: true,
+      dealScoreFactors: true,
       buyConfidenceScore: true,
+      buyConfidenceFactors: true,
       annualOwnershipCost: true,
+      ownershipCostItems: true,
       methodologyVersion: true,
       calculatedAt: true,
     },
@@ -199,7 +205,7 @@ function createStoredAnalysis(
       },
       estimatedForAnnualDistanceKm: 15_000,
       confidence: "low",
-      items: [],
+      items: (stored?.ownershipCostItems as OwnershipCostItem[] | undefined) ?? [],
       assumptions: ["1 500 mil per år", "Tillfällig kostnadsmodell"],
     },
     dealScore: {
@@ -210,14 +216,15 @@ function createStoredAnalysis(
         comparableCount >= 3
           ? "Priset jämförs med liknande aktiva annonser."
           : "För få jämförbara annonser för en säker prisbedömning.",
-      factors: [],
+      factors: (stored?.dealScoreFactors as ScoreFactor[] | undefined) ?? [],
     },
     buyConfidenceScore: {
       kind: "buy_confidence",
       value: stored?.buyConfidenceScore ?? 70,
       confidence,
       summary: "Sparad bedömning baserad på tillgänglig annonsdata.",
-      factors: [],
+      factors:
+        (stored?.buyConfidenceFactors as ScoreFactor[] | undefined) ?? [],
     },
     insights: [],
   };
@@ -300,6 +307,7 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
         serviceHistories,
         "unknown",
       ),
+      ownerCount: record.ownerCount ?? undefined,
       equipment: record.equipment.map(({ label }) => label),
       images: record.images.map((image) => ({
         url: image.url,
@@ -352,6 +360,7 @@ function buildListingWhere(
 
   return {
     status: "active",
+    ...(filters.sellerType ? { sellerType: filters.sellerType } : {}),
     ...(Object.keys(priceFilter).length > 0
       ? { priceAmount: priceFilter }
       : {}),
@@ -448,4 +457,64 @@ export async function getActiveVehicleListings(
       totalPages,
     },
   };
+}
+
+export async function getListingById(
+  listingId: string,
+): Promise<VehicleSearchResult | null> {
+  await initializeDatabase();
+  const record = await prisma.listingRecord.findUnique({
+    where: { id: listingId },
+    select: storedListingSelect,
+  });
+  if (!record) return null;
+
+  const target = mapStoredListing(record);
+  const comparableRecords = await prisma.listingRecord.findMany({
+    where: {
+      status: "active",
+      vehicle: {
+        is: { make: record.vehicle.make, model: record.vehicle.model },
+      },
+    },
+    select: storedListingSelect,
+    take: 50,
+  });
+  const comparables = comparableRecords.map(mapStoredListing);
+  const benchmarkSource = comparables.some(
+    (result) => result.listing.id === target.listing.id,
+  )
+    ? comparables
+    : [...comparables, target];
+  const benchmarks = buildVehicleInsightBenchmarks(benchmarkSource);
+
+  return {
+    ...target,
+    analysis: {
+      ...target.analysis,
+      insights: generateVehicleInsights(target, benchmarks),
+    },
+  };
+}
+
+export async function getListingsByIds(
+  listingIds: readonly string[],
+): Promise<VehicleSearchResult[]> {
+  await initializeDatabase();
+  if (listingIds.length === 0) return [];
+
+  const records = await prisma.listingRecord.findMany({
+    where: { id: { in: [...listingIds] } },
+    select: storedListingSelect,
+  });
+  const baseResults = records.map(mapStoredListing);
+  const benchmarks = buildVehicleInsightBenchmarks(baseResults);
+
+  return baseResults.map((result) => ({
+    ...result,
+    analysis: {
+      ...result.analysis,
+      insights: generateVehicleInsights(result, benchmarks),
+    },
+  }));
 }

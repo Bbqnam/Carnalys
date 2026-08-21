@@ -212,7 +212,7 @@ export function CompactDropdown({
               }}
             >
               {searchable ? (
-                <label className="mb-1 flex h-9 items-center gap-2 rounded-lg bg-[#f5f7f4] px-2.5 text-[#6b756e] focus-within:ring-2 focus-within:ring-[#708b79]/25">
+                <label className="mb-1 flex h-9 items-center gap-2 rounded-lg bg-surface-muted px-2.5 text-[#6b756e] focus-within:ring-2 focus-within:ring-[#708b79]/25">
                   <SearchIcon className="size-3.5 shrink-0" />
                   <input
                     aria-label={searchPlaceholder}

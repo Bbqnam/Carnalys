@@ -1,6 +1,7 @@
 import type {
   BodyStyle,
   FuelType,
+  SellerType,
   TransmissionType,
   Vehicle,
   VehicleAnalysis,
@@ -26,6 +27,7 @@ export interface SearchFilters {
   minMileageMil: number | null;
   maxMileageMil: number | null;
   bodyStyle: BodyStyle | "";
+  sellerType: SellerType | "";
 }
 
 export interface VehicleFilterOption<T extends string | number> {

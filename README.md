@@ -6,7 +6,6 @@ analysis, and UI concerns separate.
 
 ## Project documentation
 
-- [Product and architecture context](docs/CODEX_START.md)
 - [Project roadmap](docs/PROJECT_ROADMAP.md)
 - [Data ingestion architecture](docs/DATA_INGESTION.md)
 

@@ -7,6 +7,7 @@ import {
   NoResumableSynchronizationError,
   SynchronizationAlreadyRunningError,
 } from "@/infrastructure/database/synchronization-state-repository";
+import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
 
 function environmentInteger(name: string, fallback: number) {
@@ -37,25 +38,28 @@ async function runOnce() {
         : "Startar eller återupptar full synkronisering…"
       : "Hämtar de senaste fordonsannonserna…",
   );
-  const result = await synchronizeMarketplace(new BlocketUnofficialImporter(), {
-    mode,
-    resumeOnly,
-    incrementalLookbackHours: environmentInteger(
-      "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
-      72,
-    ),
-    incrementalMaximumPages: environmentInteger(
-      "BLOCKET_INCREMENTAL_MAX_PAGES",
-      40,
-    ),
-    incrementalKnownPageThreshold: environmentInteger(
-      "BLOCKET_INCREMENTAL_KNOWN_PAGES",
-      2,
-    ),
-    analysisRefreshLimit: environmentInteger("SYNC_ANALYSIS_REFRESH_LIMIT", 250),
-    onProgress: console.log,
-    shouldStop: () => stopping,
-  });
+  const result = await synchronizeMarketplace(
+    new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
+    {
+      mode,
+      resumeOnly,
+      incrementalLookbackHours: environmentInteger(
+        "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
+        72,
+      ),
+      incrementalMaximumPages: environmentInteger(
+        "BLOCKET_INCREMENTAL_MAX_PAGES",
+        40,
+      ),
+      incrementalKnownPageThreshold: environmentInteger(
+        "BLOCKET_INCREMENTAL_KNOWN_PAGES",
+        2,
+      ),
+      analysisRefreshLimit: environmentInteger("SYNC_ANALYSIS_REFRESH_LIMIT", 250),
+      onProgress: console.log,
+      shouldStop: () => stopping,
+    },
+  );
 
   console.log(
     `Körning ${result.id} klar: ${result.createdCount} nya, ${result.updatedCount} ändrade, ${result.unchangedCount} oförändrade, ${result.failedCount} avvisade och ${result.removedCount} borttagna. Stopporsak: ${result.stopReason ?? "okänd"}.`,

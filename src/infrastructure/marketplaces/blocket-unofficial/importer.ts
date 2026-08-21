@@ -9,7 +9,7 @@ import {
   BlocketUnofficialClient,
 } from "./client";
 import { normalizeBlocketListing } from "./normalizer";
-import { parseBlocketSearchResponse } from "./parser";
+import { parseBlocketDetail, parseBlocketSearchResponse } from "./parser";
 
 const requestIntervalMs = 300;
 const maximumRequestAttempts = 7;
@@ -37,6 +37,11 @@ function requestContext(
   };
 }
 
+export type KnownListingDetailLookup = (
+  provider: string,
+  externalIds: readonly string[],
+) => Promise<ReadonlyMap<string, unknown>>;
+
 export class BlocketUnofficialImporter implements MarketplaceImporter {
   readonly provider = "blocket_unofficial";
   readonly scope: string;
@@ -44,9 +49,45 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
   private lastRequestAt = 0;
   private readonly query: string;
 
-  constructor(private readonly client = new BlocketUnofficialClient()) {
+  /**
+   * Optional: given externalIds already on a fetched page, returns cached
+   * raw detail JSON for the ones we've already enriched before. Lets
+   * fetchPage re-normalize a known, already-enriched listing from stored
+   * data instead of hitting the network for every listing on every page —
+   * detail is only fetched live for genuinely new listings, or known ones
+   * never successfully enriched (e.g. the pre-existing catalog).
+   */
+  constructor(
+    private readonly client = new BlocketUnofficialClient(),
+    private readonly knownDetailLookup?: KnownListingDetailLookup,
+  ) {
     this.query = process.env.BLOCKET_IMPORT_QUERY?.trim() ?? "";
     this.scope = this.query || "all-cars";
+  }
+
+  private async throttle() {
+    const elapsed = Date.now() - this.lastRequestAt;
+    if (elapsed < requestIntervalMs) {
+      await new Promise((resolve) => setTimeout(resolve, requestIntervalMs - elapsed));
+    }
+  }
+
+  /**
+   * The search response alone omits body style, engine, drivetrain, and
+   * equipment — those only exist on the per-listing detail endpoint. A
+   * single failed detail fetch shouldn't drop the whole listing, so this
+   * falls back to `undefined` (search-only data) rather than throwing.
+   */
+  private async fetchDetail(id: string) {
+    await this.throttle();
+    try {
+      const payload = await this.client.getCar(id);
+      this.lastRequestAt = Date.now();
+      return parseBlocketDetail(payload);
+    } catch {
+      this.lastRequestAt = Date.now();
+      return undefined;
+    }
   }
 
   async fetchPage(
@@ -56,12 +97,7 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= maximumRequestAttempts; attempt += 1) {
-      const elapsed = Date.now() - this.lastRequestAt;
-      if (elapsed < requestIntervalMs) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, requestIntervalMs - elapsed),
-        );
-      }
+      await this.throttle();
 
       try {
         const partition = request.partition;
@@ -79,10 +115,24 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         this.lastRequestAt = Date.now();
         const parsed = parseBlocketSearchResponse(payload);
 
+        const cachedDetailByExternalId = this.knownDetailLookup
+          ? await this.knownDetailLookup(
+              this.provider,
+              parsed.documents.map((document) => document.id),
+            )
+          : new Map<string, unknown>();
+
+        const listings = [];
+        for (const document of parsed.documents) {
+          const cached = cachedDetailByExternalId.get(document.id);
+          const detail = cached
+            ? parseBlocketDetail(cached)
+            : await this.fetchDetail(document.id);
+          listings.push(normalizeBlocketListing(document, detail, this.scope));
+        }
+
         return {
-          listings: parsed.documents.map((document) =>
-            normalizeBlocketListing(document, undefined, this.scope),
-          ),
+          listings,
           rejectedCount: parsed.rejectedCount,
           totalMatches: parsed.totalMatches,
           currentPage: parsed.currentPage,

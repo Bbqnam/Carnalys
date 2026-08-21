@@ -55,6 +55,7 @@ export interface NormalizedVehicleListing {
     longitude?: number;
     description?: string;
     serviceHistory: ServiceHistoryStatus;
+    ownerCount?: number;
     equipment: readonly string[];
     images: readonly NormalizedListingImage[];
   };
