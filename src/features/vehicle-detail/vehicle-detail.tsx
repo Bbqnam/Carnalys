@@ -14,6 +14,7 @@ import {
   factorTierIndex,
   formatExactListingDate,
   formatRelativeListingDate,
+  ownershipCostCategoryTone,
   scoreTone,
   sellerTypeTone,
 } from "@/features/search/format";
@@ -436,10 +437,26 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[#8a918c]">
                   {copy.detail.ownershipCostBreakdown}
                 </p>
-                <ul className="mt-2 space-y-2">
+                <div
+                  aria-hidden="true"
+                  className="mt-3 flex h-4 gap-[2px] overflow-hidden rounded-full bg-white"
+                >
+                  {analysis.ownershipCost.items.map((item) => (
+                    <div
+                      className={ownershipCostCategoryTone(item.category)}
+                      key={item.category}
+                      style={{ flexGrow: Math.max(item.annualCost.amount, 1) }}
+                    />
+                  ))}
+                </div>
+                <ul className="mt-3 space-y-2">
                   {analysis.ownershipCost.items.map((item) => (
                     <li className="flex items-center justify-between text-sm" key={item.category}>
-                      <span className="text-[#526058]">
+                      <span className="flex items-center gap-2 text-[#526058]">
+                        <span
+                          aria-hidden="true"
+                          className={`size-2.5 shrink-0 rounded-full ${ownershipCostCategoryTone(item.category)}`}
+                        />
                         {copy.detail.ownershipCostCategories[item.category]}
                       </span>
                       <span className="font-medium text-[#26332b]">

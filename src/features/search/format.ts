@@ -114,3 +114,25 @@ export function sellerTypeTone(type: "dealer" | "private") {
     ? "border-[#a9bcae] bg-[#eef2ed] text-[#28543a]"
     : "border-[#e0c9a6] bg-[#faf3e8] text-[#8a6948]";
 }
+
+/**
+ * Fixed-order categorical colors for the ownership cost breakdown, validated
+ * for CVD-safe adjacent contrast at ΔE >= 8 (see the data-viz palette
+ * reference). Order matters — it's the safety mechanism, not cosmetic.
+ */
+export function ownershipCostCategoryTone(
+  category: "depreciation" | "energy" | "insurance" | "maintenance" | "tax",
+) {
+  switch (category) {
+    case "depreciation":
+      return "bg-[#2a78d6]";
+    case "energy":
+      return "bg-[#eb6834]";
+    case "insurance":
+      return "bg-[#1baf7a]";
+    case "maintenance":
+      return "bg-[#eda100]";
+    case "tax":
+      return "bg-[#e87ba4]";
+  }
+}
