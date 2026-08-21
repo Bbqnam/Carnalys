@@ -4,3 +4,7 @@ prisma/*.db-shm
 prisma/*.db-wal
 node_modules
 .next
+.env
+.env.*
+!.env.example
+.claude
