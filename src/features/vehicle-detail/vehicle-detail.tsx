@@ -437,16 +437,25 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[#8a918c]">
                   {copy.detail.ownershipCostBreakdown}
                 </p>
-                <div
-                  aria-hidden="true"
-                  className="mt-3 flex h-4 gap-[2px] overflow-hidden rounded-full bg-white"
-                >
-                  {analysis.ownershipCost.items.map((item) => (
+                <div className="mt-3 flex h-4 gap-[2px] bg-white">
+                  {analysis.ownershipCost.items.map((item, index) => (
                     <div
-                      className={ownershipCostCategoryTone(item.category)}
+                      aria-label={`${copy.detail.ownershipCostCategories[item.category]}: ${moneyFormatter.format(item.annualCost.amount)}`}
+                      className={`group/cost relative cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#708b79] focus-visible:ring-offset-2 ${ownershipCostCategoryTone(item.category)} ${
+                        index === 0 ? "rounded-l-full" : ""
+                      } ${index === analysis.ownershipCost.items.length - 1 ? "rounded-r-full" : ""}`}
                       key={item.category}
                       style={{ flexGrow: Math.max(item.annualCost.amount, 1) }}
-                    />
+                      tabIndex={0}
+                    >
+                      <span
+                        className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-20 w-max max-w-56 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-lg transition duration-150 group-hover/cost:translate-y-0 group-hover/cost:opacity-100 group-focus-visible/cost:translate-y-0 group-focus-visible/cost:opacity-100"
+                        role="tooltip"
+                      >
+                        {copy.detail.ownershipCostCategories[item.category]}:{" "}
+                        {moneyFormatter.format(item.annualCost.amount)}
+                      </span>
+                    </div>
                   ))}
                 </div>
                 <ul className="mt-3 space-y-2">

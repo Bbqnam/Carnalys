@@ -50,22 +50,23 @@ const mileageStepMil = 100;
 const mileageSliderMaximum = maximumMileageMil / mileageStepMil;
 const minimumModelYear = 1990;
 
-function budgetIncrement(maximum: number) {
-  if (maximum <= 1_000_000) return 5_000;
-  if (maximum <= 10_000_000) return 25_000;
-  return 50_000;
-}
-
 function sliderPositionForPrice(price: number, maximum: number) {
   if (maximum <= 0) return 0;
   const ratio = Math.max(0, Math.min(price, maximum)) / maximum;
   return Math.round(Math.cbrt(ratio) * budgetSliderMaximum);
 }
 
+/**
+ * No increment rounding here (unlike mileage's flat step) — snapping to a
+ * coarse increment made round-tripping position -> price -> position
+ * non-monotonic, so the controlled slider value would visibly stick or
+ * jump mid-drag. Rounding to the nearest whole SEK keeps the mapping
+ * dense and smooth; typed values in the number inputs can still land on
+ * any exact figure the user wants.
+ */
 function priceForSliderPosition(position: number, maximum: number) {
   const ratio = position / budgetSliderMaximum;
-  const increment = budgetIncrement(maximum);
-  return Math.round((ratio ** 3 * maximum) / increment) * increment;
+  return Math.round(ratio ** 3 * maximum);
 }
 
 function FilterGroup({
@@ -323,9 +324,44 @@ export function FilterPanel({
                 value={maximumPosition}
               />
             </div>
-            <div className="mt-1 flex justify-between gap-3 text-xs font-semibold tabular-nums text-[#56635b]">
-              <span>{selectedMinimumLabel}</span>
-              <span className="text-right">{selectedMaximumLabel}</span>
+            <div className="mt-2 flex items-center gap-2">
+              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-[#dedfd9] bg-white px-2.5 text-xs font-semibold tabular-nums text-[#56635b] focus-within:border-[#9eafa4]">
+                <span className="sr-only">{copy.minimumBudget}</span>
+                <input
+                  className="w-full min-w-0 bg-transparent outline-none"
+                  inputMode="numeric"
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/\D/g, "");
+                    const amount = digits === "" ? 0 : Math.min(Number(digits), selectedMaximum);
+                    onChange({ ...filters, minPrice: amount === 0 ? null : amount });
+                  }}
+                  placeholder="0"
+                  type="text"
+                  value={filters.minPrice ?? ""}
+                />
+                <span className="shrink-0 text-[#8a918c]">SEK</span>
+              </label>
+              <span className="shrink-0 text-[#c5c8c4]">–</span>
+              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-[#dedfd9] bg-white px-2.5 text-xs font-semibold tabular-nums text-[#56635b] focus-within:border-[#9eafa4]">
+                <span className="sr-only">{copy.maximumBudget}</span>
+                <input
+                  className="w-full min-w-0 bg-transparent outline-none"
+                  inputMode="numeric"
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/\D/g, "");
+                    const amount =
+                      digits === "" ? maxBudget : Math.max(Number(digits), selectedMinimum);
+                    onChange({
+                      ...filters,
+                      maxPrice: amount >= maxBudget ? null : amount,
+                    });
+                  }}
+                  placeholder={copy.noMaximum}
+                  type="text"
+                  value={filters.maxPrice ?? ""}
+                />
+                <span className="shrink-0 text-[#8a918c]">SEK</span>
+              </label>
             </div>
           </div>
         </FilterGroup>
