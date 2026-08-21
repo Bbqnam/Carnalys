@@ -122,7 +122,6 @@ export const uiCopy = {
     languageSwitchLabel: "Change language",
     nav: {
       home: "Carnalysis home",
-      findCars: "Find a car",
       howItWorks: "How it works",
       saved: "Saved",
       savedCars: (count: number) => `${count} saved cars`,
@@ -346,7 +345,6 @@ export const uiCopy = {
     languageSwitchLabel: "Byt språk",
     nav: {
       home: "Carnalysis hem",
-      findCars: "Hitta bil",
       howItWorks: "Så fungerar det",
       saved: "Sparade",
       savedCars: (count: number) => `${count} sparade bilar`,

@@ -1,15 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
-import { HeartIcon, SearchIcon } from "./icons";
+import { HeartIcon, MapPinIcon } from "./icons";
 import { uiCopy, type Locale } from "./copy";
+
+type LocationStatus = "idle" | "locating" | "ready" | "unavailable";
 
 interface SiteHeaderProps {
   activePage?: "cars" | "saved";
   locale: Locale;
   savedCount: number;
   onLocaleChange: (locale: Locale) => void;
-  findCarsHref?: string;
   logoHref?: string;
+  locationStatus?: LocationStatus;
+  onRequestLocation?: () => void;
 }
 
 export function SiteHeader({
@@ -17,10 +20,19 @@ export function SiteHeader({
   locale,
   savedCount,
   onLocaleChange,
-  findCarsHref = "/#cars",
   logoHref = "/",
+  locationStatus,
+  onRequestLocation,
 }: SiteHeaderProps) {
   const copy = uiCopy[locale];
+  const locationLabel =
+    locationStatus === "locating"
+      ? copy.results.locating
+      : locationStatus === "ready"
+        ? copy.results.locationOn
+        : locationStatus === "unavailable"
+          ? copy.results.locationUnavailable
+          : copy.results.useCurrentLocation;
 
   return (
     <header className="relative border-b border-[#24362b]/[0.06]">
@@ -46,17 +58,22 @@ export function SiteHeader({
 
         <div className="flex items-center gap-2 sm:gap-5">
           <nav className="hidden items-center gap-6 text-sm text-[#59635d] md:flex">
-            <Link
-              aria-current={activePage === "cars" ? "page" : undefined}
-              className={`rounded-full px-3 py-2 transition-colors ${
-                activePage === "cars"
-                  ? "bg-white/80 font-medium text-ink shadow-sm"
-                  : "hover:bg-white/55 hover:text-ink"
-              }`}
-              href={findCarsHref}
-            >
-              {copy.nav.findCars}
-            </Link>
+            {onRequestLocation ? (
+              <button
+                aria-live="polite"
+                className={`flex items-center gap-1.5 rounded-full px-3 py-2 font-medium transition-colors ${
+                  locationStatus === "ready"
+                    ? "text-[#28543a]"
+                    : "text-[#354139] hover:bg-white/55 hover:text-ink"
+                }`}
+                disabled={locationStatus === "locating"}
+                onClick={onRequestLocation}
+                type="button"
+              >
+                <MapPinIcon className="size-4" />
+                {locationLabel}
+              </button>
+            ) : null}
             <Link
               aria-current={activePage === "saved" ? "page" : undefined}
               className={`rounded-full px-3 py-2 font-medium transition-colors ${
@@ -93,18 +110,21 @@ export function SiteHeader({
             ))}
           </div>
 
-          <Link
-            aria-current={activePage === "cars" ? "page" : undefined}
-            aria-label={copy.nav.findCars}
-            className={`grid size-10 place-items-center rounded-full border text-ink shadow-sm backdrop-blur transition md:hidden ${
-              activePage === "cars"
-                ? "border-[#bcc8bf] bg-white"
-                : "border-[#d9d7d0] bg-white/70 hover:bg-white"
-            }`}
-            href={findCarsHref}
-          >
-            <SearchIcon className="size-4" />
-          </Link>
+          {onRequestLocation ? (
+            <button
+              aria-label={locationLabel}
+              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition md:hidden ${
+                locationStatus === "ready"
+                  ? "border-[#adc2b3] bg-[#edf5ef] text-[#28543a]"
+                  : "border-[#d9d7d0] bg-white/70 text-ink hover:bg-white"
+              }`}
+              disabled={locationStatus === "locating"}
+              onClick={onRequestLocation}
+              type="button"
+            >
+              <MapPinIcon className="size-4" />
+            </button>
+          ) : null}
 
           <Link
             aria-label={copy.nav.savedCars(savedCount)}

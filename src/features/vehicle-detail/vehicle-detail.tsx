@@ -141,7 +141,9 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
     <div>
       <SiteHeader
         locale={locale}
+        locationStatus={locationStatus}
         onLocaleChange={changeLocale}
+        onRequestLocation={requestCurrentLocation}
         savedCount={favorites.size}
       />
 
@@ -252,20 +254,6 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                   {formatRelativeListingDate(listingDateValue, locale)}
                 </time>
               </span>
-              <button
-                className="text-xs font-medium text-[#526058] underline decoration-[#c5c8c4] underline-offset-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={locationStatus === "locating"}
-                onClick={requestCurrentLocation}
-                type="button"
-              >
-                {locationStatus === "locating"
-                  ? copy.results.locating
-                  : locationStatus === "ready"
-                    ? copy.results.locationOn
-                    : locationStatus === "unavailable"
-                      ? copy.results.locationUnavailable
-                      : copy.results.useCurrentLocation}
-              </button>
             </p>
           ) : null}
 

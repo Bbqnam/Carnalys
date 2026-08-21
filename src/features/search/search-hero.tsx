@@ -7,8 +7,10 @@ interface SearchHeroProps {
   query: string;
   totalListings: number;
   savedCount: number;
+  locationStatus: "idle" | "locating" | "ready" | "unavailable";
   onLocaleChange: (locale: Locale) => void;
   onQueryChange: (query: string) => void;
+  onRequestLocation: () => void;
   onSearch: () => void;
 }
 
@@ -17,8 +19,10 @@ export function SearchHero({
   query,
   totalListings,
   savedCount,
+  locationStatus,
   onLocaleChange,
   onQueryChange,
+  onRequestLocation,
   onSearch,
 }: SearchHeroProps) {
   const copy = uiCopy[locale];
@@ -27,10 +31,11 @@ export function SearchHero({
     <section className="relative border-b border-[#26382d]/[0.07] bg-[#f4f1ea]">
       <SiteHeader
         activePage="cars"
-        findCarsHref="#cars"
         locale={locale}
+        locationStatus={locationStatus}
         logoHref="#top"
         onLocaleChange={onLocaleChange}
+        onRequestLocation={onRequestLocation}
         savedCount={savedCount}
       />
 

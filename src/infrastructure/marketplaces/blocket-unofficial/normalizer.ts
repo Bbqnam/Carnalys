@@ -132,10 +132,11 @@ export function normalizeBlocketListing(
         height: position === 0 ? document.thumbnail?.height : undefined,
       })),
     },
-    rawPayload: {
-      search: document.raw,
-      detail: detail?.raw,
-      importedAt: seenAt.toISOString(),
-    },
+    // Only the detail payload is ever read back (as an enrichment cache, see
+    // existingListingDetailPayloads) — the raw search-result document has no
+    // reader and would otherwise be stored for nothing.
+    rawPayload: detail?.raw
+      ? { detail: detail.raw, importedAt: seenAt.toISOString() }
+      : undefined,
   };
 }

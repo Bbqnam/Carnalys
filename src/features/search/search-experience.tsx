@@ -9,7 +9,6 @@ import { FilterPanel } from "./filter-panel";
 import {
   ChevronDownIcon,
   CloseIcon,
-  MapPinIcon,
   SearchEmptyIcon,
   SlidersIcon,
 } from "./icons";
@@ -440,8 +439,10 @@ export function SearchExperience({
     <main>
       <SearchHero
         locale={locale}
+        locationStatus={locationStatus}
         onLocaleChange={changeLocale}
         onQueryChange={(query) => changeFilters({ ...filters, query }, 300)}
+        onRequestLocation={requestCurrentLocation}
         onSearch={scrollToResults}
         query={filters.query}
         savedCount={favorites.size}
@@ -499,28 +500,6 @@ export function SearchExperience({
                     {activeFilterCount}
                   </span>
                 ) : null}
-              </button>
-              <button
-                aria-live="polite"
-                className={`flex h-11 items-center gap-2 rounded-xl border px-3 text-sm font-semibold shadow-sm transition active:scale-[0.98] ${
-                  locationStatus === "ready"
-                    ? "border-[#adc2b3] bg-[#edf5ef] text-[#28543a]"
-                    : "border-[#dedfd9] bg-white text-[#526058] hover:border-[#c6cbc4] hover:text-[#28332c] hover:shadow-md"
-                }`}
-                disabled={locationStatus === "locating"}
-                onClick={requestCurrentLocation}
-                type="button"
-              >
-                <MapPinIcon className="size-4" />
-                <span className="hidden lg:inline">
-                  {locationStatus === "locating"
-                    ? copy.results.locating
-                    : locationStatus === "ready"
-                      ? copy.results.locationOn
-                      : locationStatus === "unavailable"
-                        ? copy.results.locationUnavailable
-                        : copy.results.useCurrentLocation}
-                </span>
               </button>
               <div className="flex items-center gap-2">
                 <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
@@ -641,12 +620,9 @@ export function SearchExperience({
                   {pagination.totalPages > 1 ? (
                     <nav
                       aria-label={copy.results.paginationLabel}
-                      className="mt-8 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[#e2e2dc] bg-white p-3 shadow-[0_8px_30px_rgba(26,35,29,0.04)] sm:flex-row sm:p-4"
+                      className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-[#e2e2dc] bg-white p-3 shadow-[0_8px_30px_rgba(26,35,29,0.04)] sm:p-4"
                     >
-                      <p className="px-2 text-sm font-medium text-[#69736d]">
-                        {copy.results.pageOf(pagination.page, pagination.totalPages)}
-                      </p>
-                      <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
+                      <div className="flex w-full min-w-0 items-center justify-between gap-1.5">
                         {pagination.page > 1 ? (
                           <Link
                             aria-label={copy.results.previousPage}

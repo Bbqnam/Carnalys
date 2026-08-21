@@ -13,6 +13,12 @@ export function useCurrentLocation() {
   const [status, setStatus] = useState<LocationStatus>("idle");
 
   function requestCurrentLocation() {
+    if (status === "ready") {
+      setLocation(undefined);
+      setStatus("idle");
+      return;
+    }
+
     if (!navigator.geolocation) {
       setStatus("unavailable");
       return;
