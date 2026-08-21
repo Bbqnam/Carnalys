@@ -588,16 +588,15 @@ export function SearchExperience({
             <div className="min-w-0">
               {results.length > 0 ? (
                 <>
-                  <motion.div className="grid min-w-0 gap-5 xl:grid-cols-2 2xl:grid-cols-3" layout>
-                    <AnimatePresence initial={false} mode="popLayout">
+                  <div className="grid min-w-0 gap-5 xl:grid-cols-2 2xl:grid-cols-3">
+                    <AnimatePresence initial={false}>
                       {results.map((result, index) => (
                         <motion.div
                           animate={{ opacity: 1, y: 0 }}
                           className="min-w-0"
-                          exit={{ opacity: 0, scale: 0.98 }}
+                          exit={{ opacity: 0 }}
                           initial={{ opacity: 0, y: 8 }}
                           key={result.listing.id}
-                          layout
                           transition={{ duration: 0.2, ease: "easeOut" }}
                         >
                           <VehicleCard
@@ -611,7 +610,7 @@ export function SearchExperience({
                         </motion.div>
                       ))}
                     </AnimatePresence>
-                  </motion.div>
+                  </div>
 
                   {pagination.totalPages > 1 ? (
                     <nav
