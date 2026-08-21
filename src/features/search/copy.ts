@@ -116,6 +116,41 @@ export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
   return { label: labels[locale][factor.key], explanation };
 }
 
+/**
+ * The stored MarketValueEstimate.explanation string is Swedish-only
+ * (written at analysis time, before locale is known); comparableCount is
+ * locale-independent data, so the frontend derives the message from that
+ * instead of rendering the stored string.
+ */
+export function marketValueExplanationText(locale: Locale, comparableCount: number) {
+  if (comparableCount >= 3) {
+    return locale === "en"
+      ? `Median price from ${comparableCount} comparable active listings.`
+      : `Medianpris från ${comparableCount} jämförbara aktiva annonser.`;
+  }
+  return locale === "en"
+    ? "Too few comparable listings; the estimate is shown as neutral."
+    : "För få jämförbara annonser; värderingen visas neutralt.";
+}
+
+/** Same reasoning as marketValueExplanationText — stored summary strings are Swedish-only. */
+export function dealScoreSummaryText(locale: Locale, comparableCount: number) {
+  if (comparableCount >= 3) {
+    return locale === "en"
+      ? "Price is compared against similar active listings."
+      : "Priset jämförs med liknande aktiva annonser.";
+  }
+  return locale === "en"
+    ? "Too few comparable listings for a reliable price assessment."
+    : "För få jämförbara annonser för en säker prisbedömning.";
+}
+
+export function buyConfidenceSummaryText(locale: Locale) {
+  return locale === "en"
+    ? "Assessment based on available listing data."
+    : "Bedömning baserad på tillgänglig annonsdata.";
+}
+
 export const uiCopy = {
   en: {
     languageName: "English",

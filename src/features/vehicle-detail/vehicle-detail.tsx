@@ -4,7 +4,14 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BrandLogo } from "@/features/search/brand-logo";
-import { scoreFactorText, uiCopy, type Locale } from "@/features/search/copy";
+import {
+  buyConfidenceSummaryText,
+  dealScoreSummaryText,
+  marketValueExplanationText,
+  scoreFactorText,
+  uiCopy,
+  type Locale,
+} from "@/features/search/copy";
 import {
   createMoneyFormatter,
   createNumberFormatter,
@@ -393,14 +400,14 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           <ScoreCard
             factors={analysis.dealScore.factors}
             locale={locale}
-            summary={analysis.dealScore.summary}
+            summary={dealScoreSummaryText(locale, analysis.marketValue.comparableListingCount)}
             title={copy.detail.dealScoreTitle}
             value={analysis.dealScore.value}
           />
           <ScoreCard
             factors={analysis.buyConfidenceScore.factors}
             locale={locale}
-            summary={analysis.buyConfidenceScore.summary}
+            summary={buyConfidenceSummaryText(locale)}
             title={copy.detail.buyConfidenceTitle}
             value={analysis.buyConfidenceScore.value}
           />
@@ -421,7 +428,9 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             ) : (
               <p className="mt-2 text-sm text-ink-muted">{copy.card.marketEstimatePending}</p>
             )}
-            <p className="mt-3 text-xs text-[#8a918c]">{analysis.marketValue.explanation}</p>
+            <p className="mt-3 text-xs text-[#8a918c]">
+              {marketValueExplanationText(locale, analysis.marketValue.comparableListingCount)}
+            </p>
           </div>
 
           <div className="rounded-2xl border border-border bg-white p-5">
