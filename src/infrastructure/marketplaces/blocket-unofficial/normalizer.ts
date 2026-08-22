@@ -79,11 +79,18 @@ function findConsumptionValue(specifications: Record<string, string>) {
 }
 
 // The unofficial API's detail response sometimes carries most of the
-// "Specifikationer" block but drops individual keys — body style in
-// particular, since the deal score and body-style filter rely on it. An
-// entirely-empty specifications object already triggers an HTML fallback in
-// the importer; this lets it also trigger when just body style is missing
-// from an otherwise-populated response.
+// "Specifikationer" block but drops individual keys — body style and
+// horsepower in particular, since the deal score, body-style filter, and
+// card/detail display all rely on them. An entirely-empty specifications
+// object already triggers an HTML fallback in the importer; this lets it
+// also trigger when just one of these is missing from an otherwise-
+// populated response.
+//
+// Horsepower belongs here (unlike fuel/energy consumption below) because
+// it's present on Blocket's own page almost every time the rest of the
+// spec block is — only ~1% of listings with a recognized body style lack
+// it — so checking for it catches real partial-fetch gaps without causing
+// much pointless re-scraping.
 //
 // Deliberately NOT applied to fuel/energy consumption: most Blocket sellers
 // simply never fill that field in (it's optional on their listing form), so
@@ -92,7 +99,7 @@ function findConsumptionValue(specifications: Record<string, string>) {
 // pointless re-fetch/re-scrape on every sync, forever, for data that was
 // never going to be there.
 export function isMissingCriticalSpecifications(specifications: Record<string, string>) {
-  return !("Biltyp" in specifications);
+  return !("Biltyp" in specifications) || !("Effekt" in specifications);
 }
 
 export function normalizeBlocketListing(
@@ -164,11 +171,11 @@ export function normalizeBlocketListing(
         height: position === 0 ? document.thumbnail?.height : undefined,
       })),
     },
-    // Only the detail payload is ever read back (as an enrichment cache, see
-    // existingListingDetailPayloads) — the raw search-result document has no
-    // reader and would otherwise be stored for nothing.
-    rawPayload: detail?.raw
-      ? { detail: detail.raw, importedAt: seenAt.toISOString() }
-      : undefined,
+    // Store everything we fetched, not just the fields we currently map to
+    // typed columns — `detail` is read back as an enrichment cache (see
+    // existingListingDetailPayloads), but keeping `document` too means the
+    // full search-result payload isn't thrown away, so future fields can be
+    // mined from already-stored data instead of requiring a re-crawl.
+    rawPayload: { document: document.raw, detail: detail?.raw, importedAt: seenAt.toISOString() },
   };
 }
