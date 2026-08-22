@@ -228,13 +228,13 @@ export default function ComparePage() {
         ) : (
           <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-white">
             <table
-              className="w-full table-fixed border-collapse text-sm"
-              style={{ minWidth: 160 + 220 * results.length }}
+              className="table-fixed border-collapse text-sm"
+              style={{ width: 160 + 380 * results.length }}
             >
               <colgroup>
                 <col className="w-40" />
                 {results.map((result) => (
-                  <col key={result.listing.id} />
+                  <col className="w-[380px]" key={result.listing.id} />
                 ))}
               </colgroup>
               <thead>
@@ -251,7 +251,7 @@ export default function ComparePage() {
                             alt={result.listing.images[0].alt ?? result.listing.title}
                             className="object-cover"
                             fill
-                            sizes={`${Math.max(15, Math.round(90 / results.length))}vw`}
+                            sizes="380px"
                             src={result.listing.images[0].url}
                           />
                         ) : null}
