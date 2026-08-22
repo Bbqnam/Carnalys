@@ -191,7 +191,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
 
         <div className="mt-5 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
         <div>
-          <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-[#e9e8e3]">
+          <div className="relative aspect-[16/10] max-h-[380px] overflow-hidden rounded-2xl bg-[#e9e8e3]">
             {currentImage ? (
               <Image
                 alt={currentImage.alt ?? listing.title}
