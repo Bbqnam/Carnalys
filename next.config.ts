@@ -1,6 +1,22 @@
+import { networkInterfaces } from "node:os";
 import type { NextConfig } from "next";
 
+// The dev server blocks cross-origin requests to its internal assets, so
+// opening it from a phone or tablet by LAN address (see `npm run dev:lan`)
+// makes every /_next/* chunk 403: the page server-renders but React never
+// hydrates, and nothing is clickable. Allowing this machine's own LAN
+// addresses fixes that; they're detected at startup so a new DHCP lease
+// doesn't silently break it again. Development-only — Next ignores this in
+// production builds.
+function localNetworkOrigins() {
+  return Object.values(networkInterfaces())
+    .flat()
+    .filter((address) => address && address.family === "IPv4" && !address.internal)
+    .map((address) => address!.address);
+}
+
 const nextConfig: NextConfig = {
+  allowedDevOrigins: localNetworkOrigins(),
   images: {
     // Listing photos are resized by Blocket's own CDN rather than Vercel's
     // Image Optimization — see the loader for why. `remotePatterns` is kept
