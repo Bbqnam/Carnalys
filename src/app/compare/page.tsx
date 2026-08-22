@@ -249,7 +249,7 @@ export default function ComparePage() {
                         {result.listing.images[0] ? (
                           <Image
                             alt={result.listing.images[0].alt ?? result.listing.title}
-                            className="object-contain"
+                            className="object-cover"
                             fill
                             sizes={`${Math.max(15, Math.round(90 / results.length))}vw`}
                             src={result.listing.images[0].url}
