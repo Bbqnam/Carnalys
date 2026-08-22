@@ -100,7 +100,7 @@ export function VehicleCard({
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-white shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1 hover:border-[#d5d9d2] hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] focus-within:border-[#aebbb2] focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
-      <div className="relative aspect-[16/9] overflow-hidden bg-[#e9e8e3]">
+      <div className="relative aspect-[2/1] overflow-hidden bg-[#e9e8e3]">
         {image && !imageFailed ? (
           <Image
             alt={imageAlt}
@@ -110,7 +110,7 @@ export function VehicleCard({
             onError={() => setImageFailed(true)}
             placeholder="blur"
             preload={priority}
-            sizes="(max-width: 1023px) 100vw, (max-width: 1279px) 50vw, 33vw"
+            sizes="(max-width: 1279px) 100vw, (max-width: 1535px) 50vw, (max-width: 1759px) 33vw, 25vw"
             src={image.url}
           />
         ) : (
@@ -118,7 +118,7 @@ export function VehicleCard({
             alt={copy.card.missingImage}
             className="object-cover"
             fill
-            sizes="(max-width: 1023px) 100vw, (max-width: 1279px) 50vw, 33vw"
+            sizes="(max-width: 1279px) 100vw, (max-width: 1535px) 50vw, (max-width: 1759px) 33vw, 25vw"
             src="/images/vehicle-fallback.svg"
           />
         )}
@@ -170,15 +170,15 @@ export function VehicleCard({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-4 sm:p-5">
-        <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-[#737b75]">
+      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+        <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm text-[#737b75]">
           <span className="shrink-0">{identity.modelYear}</span>
           <span className="shrink-0 text-[#c5c8c4]">•</span>
           <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
           <span className="shrink-0 text-[#c5c8c4]">•</span>
           <span className="truncate">{copy.filters.fuels[specification.powertrain.fuelType]}</span>
-          <span className="shrink-0 text-[#c5c8c4]">•</span>
-          <span className="truncate">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
+          <span className="shrink-0 text-[#c5c8c4] 2xl:hidden">•</span>
+          <span className="truncate 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           <span
             className={`ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
           >
@@ -194,7 +194,7 @@ export function VehicleCard({
         >
           <BrandLogo className="size-11 shrink-0" make={identity.make} />
           <span className="min-w-0">
-            <h2 className="line-clamp-1 text-lg font-semibold leading-[1.2] tracking-[-0.035em] text-ink hover:underline">
+            <h2 className="line-clamp-1 text-xl font-semibold leading-[1.2] tracking-[-0.035em] text-ink hover:underline">
               {identity.make} {identity.model}
             </h2>
             {identity.variant ? (
@@ -204,7 +204,7 @@ export function VehicleCard({
         </Link>
 
         <div className="mt-3 flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-2">
-          <p className="whitespace-nowrap text-xl font-semibold leading-none tracking-[-0.045em] text-ink sm:text-2xl">
+          <p className="whitespace-nowrap text-xl font-semibold leading-none tracking-[-0.04em] text-ink sm:text-2xl">
             {moneyFormatter.format(askingPrice)}
           </p>
           <span
@@ -217,29 +217,29 @@ export function VehicleCard({
             tabIndex={0}
           >
             {!hasMarketEstimate ? (
-              <span className="block text-xs font-medium text-ink-muted">
+              <span className="block text-sm font-medium text-ink-muted">
                 {copy.card.marketEstimatePending}
               </span>
             ) : savings > 0 ? (
               <>
-                <strong className="block text-xs font-semibold text-[#2b6a45]">
+                <strong className="block text-sm font-semibold text-[#2b6a45]">
                   {copy.card.save} {moneyFormatter.format(savings)}
                 </strong>
-                <span className="mt-0.5 block text-[11px] text-[#737b75]">
+                <span className="mt-0.5 block text-xs text-[#737b75]">
                   {copy.card.belowMarket(marketDifferencePercent)}
                 </span>
               </>
             ) : priceDifference < 0 ? (
-              <span className="block text-xs font-medium text-[#8a6257]">
+              <span className="block text-sm font-medium text-[#8a6257]">
                 {copy.card.aboveMarket(marketDifferencePercent)}
               </span>
             ) : (
-              <span className="block text-xs font-medium text-ink-muted">
+              <span className="block text-sm font-medium text-ink-muted">
                 {copy.card.atMarket}
               </span>
             )}
             {priceReduction > 0 ? (
-              <span className="mt-0.5 block text-[10px] text-[#737b75]">
+              <span className="mt-0.5 block text-xs text-[#737b75]">
                 {copy.card.reduced} {moneyFormatter.format(priceReduction)}
               </span>
             ) : null}
@@ -257,10 +257,10 @@ export function VehicleCard({
         </div>
 
         <div className="mt-auto flex min-w-0 items-end justify-between gap-4 pt-5">
-          <div className="min-w-0 space-y-1.5 text-xs text-[#858c87]">
+          <div className="min-w-0 space-y-1.5 text-sm text-[#858c87]">
             {sellerLocation ? (
               <p className="flex min-w-0 items-center gap-1.5">
-                <MapPinIcon className="size-3.5 shrink-0" />
+                <MapPinIcon className="size-4 shrink-0" />
                 <span className="truncate">{sellerLocation}</span>
                 {distanceKm !== undefined ? (
                   <span className="shrink-0 font-medium text-[#52685a]">
@@ -270,7 +270,7 @@ export function VehicleCard({
               </p>
             ) : null}
             <p className="flex items-center gap-1.5">
-              <CalendarFilterIcon className="size-3.5 shrink-0" />
+              <CalendarFilterIcon className="size-4 shrink-0" />
               <span>
                 {listingDateLabel}{" "}
                 <time
@@ -285,10 +285,10 @@ export function VehicleCard({
           </div>
           {financingOffer ? (
             <div className="shrink-0 text-right">
-              <p className="text-[10px] font-medium text-[#8a918c]">
+              <p className="text-xs font-medium text-[#8a918c]">
                 {copy.card.financingFrom}
               </p>
-              <p className="mt-0.5 whitespace-nowrap text-sm font-semibold text-[#303a34]">
+              <p className="mt-0.5 whitespace-nowrap text-base font-semibold text-[#303a34]">
                 {moneyFormatter.format(financingOffer.amount)}{copy.card.perMonth}
               </p>
             </div>

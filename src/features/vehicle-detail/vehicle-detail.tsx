@@ -179,7 +179,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         compareCount={compared.length}
       />
 
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
         <button
           className="inline-flex items-center gap-1.5 text-sm font-medium text-[#526058] hover:text-[#19231d]"
           onClick={() => router.back()}
@@ -295,7 +295,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           {identity.variant ? (
             <p className="mt-1 text-base text-ink-muted">{identity.variant}</p>
           ) : null}
-          <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-ink">
+          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-ink">
             {moneyFormatter.format(askingPrice)}
           </p>
 
@@ -402,39 +402,6 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                   </dd>
                 </div>
               ) : null}
-            </dl>
-          </div>
-
-          {equipmentItems.length > 0 ? (
-            <div className="mt-6">
-              <h2 className="text-sm font-semibold text-[#19231d]">
-                {copy.detail.equipmentTitle}
-              </h2>
-              <ul className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-                {visibleEquipment.map((item) => (
-                  <li className="flex items-start gap-2 text-sm text-[#354139]" key={item}>
-                    <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-[#8c948e]" />
-                    <span className="min-w-0">{item}</span>
-                  </li>
-                ))}
-              </ul>
-              {equipmentItems.length > equipmentPreviewCount ? (
-                <button
-                  className="mt-4 text-xs font-semibold text-[#354139] underline-offset-4 hover:underline"
-                  onClick={() => setShowAllEquipment((current) => !current)}
-                  type="button"
-                >
-                  {showAllEquipment
-                    ? copy.detail.equipmentShowLess
-                    : copy.detail.equipmentShowAll(equipmentItems.length)}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="mt-6 rounded-2xl border border-border bg-[#fbfcfa] p-5">
-            <h2 className="text-sm font-semibold text-[#19231d]">{copy.detail.vehicleDetailsTitle}</h2>
-            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
               {vehicle.registrationNumber ? (
                 <div>
                   <dt className="text-[#8a918c]">{copy.detail.registrationNumber}</dt>
@@ -465,6 +432,33 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ) : null}
             </dl>
           </div>
+
+          {equipmentItems.length > 0 ? (
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold text-[#19231d]">
+                {copy.detail.equipmentTitle}
+              </h2>
+              <ul className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+                {visibleEquipment.map((item) => (
+                  <li className="flex items-start gap-2 text-sm text-[#354139]" key={item}>
+                    <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-[#8c948e]" />
+                    <span className="min-w-0">{item}</span>
+                  </li>
+                ))}
+              </ul>
+              {equipmentItems.length > equipmentPreviewCount ? (
+                <button
+                  className="mt-4 text-xs font-semibold text-[#354139] underline-offset-4 hover:underline"
+                  onClick={() => setShowAllEquipment((current) => !current)}
+                  type="button"
+                >
+                  {showAllEquipment
+                    ? copy.detail.equipmentShowLess
+                    : copy.detail.equipmentShowAll(equipmentItems.length)}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           <a
             className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#dfe2dc] bg-[#fbfcfa] text-sm font-semibold text-[#334139] transition hover:border-[#b9c5bb] hover:bg-[#f5f8f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#255e45] focus-visible:ring-offset-2 active:scale-[0.99]"

@@ -21,6 +21,10 @@
 }
 
 html {
+  /* Nearly every size in this app (spacing, type, radii, icons) comes from
+     Tailwind's rem-based scale, so this is the single lever for the app's
+     overall density. 14px = 87.5% of the 16px browser default. */
+  font-size: 14px;
   scroll-behavior: smooth;
 }
 

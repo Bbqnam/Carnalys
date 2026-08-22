@@ -7,13 +7,9 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { uiCopy, type Locale } from "./copy";
 import { CompareMobileBar, CompareTrayPanel } from "./compare-tray";
 import { FilterPanel } from "./filter-panel";
-import {
-  ChevronDownIcon,
-  CloseIcon,
-  SearchEmptyIcon,
-  SlidersIcon,
-} from "./icons";
+import { CloseIcon, SearchEmptyIcon, SlidersIcon } from "./icons";
 import { SearchHero } from "./search-hero";
+import { SingleChoiceDropdown } from "./single-choice-dropdown";
 import { SynchronizationButton } from "./synchronization-button";
 import { defaultSearchFilters, vehicleSearchUrl } from "./search-state";
 import { setLocaleCookie } from "./locale";
@@ -505,7 +501,7 @@ export function SearchExperience({
               <button
                 aria-controls="mobile-filters"
                 aria-expanded={showFilters}
-                className="flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white px-3.5 text-sm font-semibold text-[#28332c] shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md active:scale-[0.98]"
+                className="flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white px-3.5 text-sm font-semibold text-[#28332c] shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md active:scale-[0.98] md:hidden"
                 onClick={() => setShowFilters(true)}
                 type="button"
               >
@@ -517,69 +513,36 @@ export function SearchExperience({
                   </span>
                 ) : null}
               </button>
-              <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
-                <span className="hidden text-xs font-medium text-[#7a837d] sm:inline">
-                  {copy.results.postedLabel}:
-                  </span>
-                  <select
-                    aria-label={copy.results.postedAria}
-                    className="h-full appearance-none bg-transparent py-0 pl-0 pr-9 text-sm font-semibold text-[#28332c] outline-none"
-                    onChange={(event) =>
-                      changeFilters({
-                        ...filters,
-                        postedWithin: event.target.value as SearchFilters["postedWithin"],
-                      })
-                    }
-                    value={filters.postedWithin}
-                  >
-                    {(Object.keys(copy.results.postedOptions) as SearchFilters["postedWithin"][]).map(
-                      (value) => (
-                        <option key={value || "any"} value={value}>
-                          {copy.results.postedOptions[value]}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                  <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-[#78817b]" />
-                </label>
-                <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
-                  <span className="hidden text-xs font-medium text-[#7a837d] sm:inline">
-                    {copy.results.sortLabel}:
-                  </span>
-                  <select
-                    aria-label={copy.results.sortAria}
-                    className="h-full appearance-none bg-transparent py-0 pl-0 pr-9 text-sm font-semibold text-[#28332c] outline-none"
-                    onChange={(event) => changeSort(event.target.value as SearchSort)}
-                    value={sort}
-                  >
-                    {(Object.keys(copy.results.sorts) as SearchSort[]).map((sortValue) => (
-                      <option key={sortValue} value={sortValue}>
-                        {copy.results.sorts[sortValue]}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-[#78817b]" />
-                </label>
-                <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
-                  <span className="hidden text-xs font-medium text-[#7a837d] xl:inline">
-                    {copy.results.pageSizeLabel}:
-                  </span>
-                  <select
-                    aria-label={copy.results.pageSizeAria}
-                    className="h-full appearance-none bg-transparent py-0 pl-0 pr-8 text-sm font-semibold tabular-nums text-[#28332c] outline-none"
-                    onChange={(event) =>
-                      changePageSize(Number(event.target.value) as VehiclePageSize)
-                    }
-                    value={pagination.pageSize}
-                  >
-                    {vehiclePageSizes.map((pageSize) => (
-                      <option key={pageSize} value={pageSize}>
-                        {pageSize}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-[#78817b]" />
-                </label>
+              <SingleChoiceDropdown
+                ariaLabel={copy.results.postedAria}
+                inlineLabel={copy.results.postedLabel}
+                onChange={(value) => changeFilters({ ...filters, postedWithin: value })}
+                options={(
+                  Object.keys(copy.results.postedOptions) as SearchFilters["postedWithin"][]
+                ).map((value) => ({ value, label: copy.results.postedOptions[value] }))}
+                value={filters.postedWithin}
+              />
+              <SingleChoiceDropdown
+                ariaLabel={copy.results.sortAria}
+                inlineLabel={copy.results.sortLabel}
+                onChange={changeSort}
+                options={(Object.keys(copy.results.sorts) as SearchSort[]).map((sortValue) => ({
+                  value: sortValue,
+                  label: copy.results.sorts[sortValue],
+                }))}
+                value={sort}
+              />
+              <SingleChoiceDropdown
+                ariaLabel={copy.results.pageSizeAria}
+                inlineLabel={copy.results.pageSizeLabel}
+                inlineLabelClassName="hidden text-xs font-medium text-[#7a837d] xl:inline"
+                onChange={(value) => changePageSize(Number(value) as VehiclePageSize)}
+                options={vehiclePageSizes.map((pageSize) => ({
+                  value: String(pageSize),
+                  label: String(pageSize),
+                }))}
+                value={String(pagination.pageSize)}
+              />
             </div>
           </div>
 
@@ -613,14 +576,35 @@ export function SearchExperience({
           <div
             className={
               compared.length > 0
-                ? "grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_250px] xl:grid-cols-[minmax(0,1fr)_260px] xl:gap-8"
-                : "min-w-0"
+                ? "grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)_250px] xl:grid-cols-[280px_minmax(0,1fr)_260px] xl:gap-8"
+                : "grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-8"
             }
           >
+            <aside className="hidden min-w-0 self-stretch md:block">
+              <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#e2e2dc] bg-white p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <FilterPanel
+                  brands={availableFilters.brands}
+                  filters={filters}
+                  locale={locale}
+                  models={availableFilters.models}
+                  onChange={changeFilters}
+                  onReset={resetFilters}
+                  resultCount={pagination.totalListings}
+                  years={availableFilters.years}
+                />
+              </div>
+            </aside>
+
             <div className="min-w-0">
               {results.length > 0 ? (
                 <>
-                  <div className="grid min-w-0 gap-5 lg:grid-cols-2 xl:grid-cols-3">
+                  <div
+                    className={
+                      compared.length > 0
+                        ? "grid min-w-0 gap-5 xl:grid-cols-2 2xl:grid-cols-3"
+                        : "grid min-w-0 gap-5 xl:grid-cols-2 2xl:grid-cols-4"
+                    }
+                  >
                     <AnimatePresence initial={false}>
                       {results.map((result, index) => (
                         <motion.div
@@ -806,7 +790,7 @@ export function SearchExperience({
             animate={{ opacity: 1 }}
             aria-labelledby="mobile-filters-title"
             aria-modal="true"
-            className="fixed inset-0 z-50"
+            className="fixed inset-0 z-50 md:hidden"
             exit={{ opacity: 0 }}
             id="mobile-filters"
             initial={{ opacity: 0 }}
