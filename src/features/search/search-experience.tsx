@@ -135,7 +135,7 @@ export function SearchExperience({
     isFull: compareFull,
   } = useCompare();
   const comparedIds = new Set(compared.map((vehicle) => vehicle.id));
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation>();
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [isUpdating, startTransition] = useTransition();
@@ -330,7 +330,7 @@ export function SearchExperience({
   }, [router]);
 
   useEffect(() => {
-    if (!showMobileFilters) return;
+    if (!showFilters) return;
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
@@ -338,7 +338,7 @@ export function SearchExperience({
     closeFiltersRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setShowMobileFilters(false);
+      if (event.key === "Escape") setShowFilters(false);
       if (event.key !== "Tab") return;
 
       const dialog = document.getElementById("mobile-filters");
@@ -364,7 +364,7 @@ export function SearchExperience({
       window.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus();
     };
-  }, [showMobileFilters]);
+  }, [showFilters]);
 
   function changeLocale(nextLocale: Locale) {
     setLocale(nextLocale);
@@ -504,9 +504,9 @@ export function SearchExperience({
               />
               <button
                 aria-controls="mobile-filters"
-                aria-expanded={showMobileFilters}
-                className="flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white px-3.5 text-sm font-semibold text-[#28332c] shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md active:scale-[0.98] md:hidden"
-                onClick={() => setShowMobileFilters(true)}
+                aria-expanded={showFilters}
+                className="flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white px-3.5 text-sm font-semibold text-[#28332c] shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md active:scale-[0.98]"
+                onClick={() => setShowFilters(true)}
                 type="button"
               >
                 <SlidersIcon className="size-4" />
@@ -517,10 +517,9 @@ export function SearchExperience({
                   </span>
                 ) : null}
               </button>
-              <div className="flex items-center gap-2">
-                <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
-                  <span className="hidden text-xs font-medium text-[#7a837d] sm:inline">
-                    {copy.results.postedLabel}:
+              <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
+                <span className="hidden text-xs font-medium text-[#7a837d] sm:inline">
+                  {copy.results.postedLabel}:
                   </span>
                   <select
                     aria-label={copy.results.postedAria}
@@ -581,7 +580,6 @@ export function SearchExperience({
                   </select>
                   <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-[#78817b]" />
                 </label>
-              </div>
             </div>
           </div>
 
@@ -615,25 +613,10 @@ export function SearchExperience({
           <div
             className={
               compared.length > 0
-                ? "grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)_250px] xl:grid-cols-[280px_minmax(0,1fr)_260px] xl:gap-8"
-                : "grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-8"
+                ? "grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_250px] xl:grid-cols-[minmax(0,1fr)_260px] xl:gap-8"
+                : "min-w-0"
             }
           >
-            <aside className="hidden min-w-0 self-stretch md:block">
-              <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#e2e2dc] bg-white p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <FilterPanel
-                  brands={availableFilters.brands}
-                  filters={filters}
-                  locale={locale}
-                  models={availableFilters.models}
-                  onChange={changeFilters}
-                  onReset={resetFilters}
-                  resultCount={pagination.totalListings}
-                  years={availableFilters.years}
-                />
-              </div>
-            </aside>
-
             <div className="min-w-0">
               {results.length > 0 ? (
                 <>
@@ -818,12 +801,12 @@ export function SearchExperience({
       </footer>
 
       <AnimatePresence>
-        {showMobileFilters ? (
+        {showFilters ? (
           <motion.div
             animate={{ opacity: 1 }}
             aria-labelledby="mobile-filters-title"
             aria-modal="true"
-            className="fixed inset-0 z-50 md:hidden"
+            className="fixed inset-0 z-50"
             exit={{ opacity: 0 }}
             id="mobile-filters"
             initial={{ opacity: 0 }}
@@ -832,13 +815,13 @@ export function SearchExperience({
             <button
               aria-label={copy.results.closeFilters}
               className="absolute inset-0 bg-[#101712]/45 backdrop-blur-sm"
-              onClick={() => setShowMobileFilters(false)}
+              onClick={() => setShowFilters(false)}
               tabIndex={-1}
               type="button"
             />
             <motion.div
               animate={{ y: 0 }}
-              className="absolute inset-x-0 bottom-0 z-10 max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[1.75rem] bg-[#fafaf7] px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-4 shadow-2xl sm:inset-x-6 sm:bottom-6 sm:rounded-[1.75rem]"
+              className="absolute inset-x-0 bottom-0 z-10 max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[1.75rem] bg-[#fafaf7] px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-4 shadow-2xl sm:inset-x-6 sm:bottom-6 sm:rounded-[1.75rem] lg:inset-x-auto lg:right-6 lg:w-[400px] lg:max-h-[calc(100dvh-3rem)]"
               exit={{ y: "100%" }}
               initial={{ y: "100%" }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
@@ -854,7 +837,7 @@ export function SearchExperience({
                 <button
                   aria-label={copy.results.closeFilters}
                   className="grid size-11 place-items-center rounded-full border border-[#dedfd9] bg-white text-[#3c4840] shadow-sm transition hover:border-[#bdc6bf]"
-                  onClick={() => setShowMobileFilters(false)}
+                  onClick={() => setShowFilters(false)}
                   ref={closeFiltersRef}
                   type="button"
                 >
@@ -873,7 +856,7 @@ export function SearchExperience({
               />
               <button
                 className="sticky bottom-0 mt-7 h-13 w-full rounded-full bg-ink text-sm font-semibold text-white shadow-[0_10px_30px_rgba(23,34,28,0.24)] transition hover:bg-[#2b3b32] active:scale-[0.99]"
-                onClick={() => setShowMobileFilters(false)}
+                onClick={() => setShowFilters(false)}
                 type="button"
               >
                 {copy.hero.showCars(pagination.totalListings)}
