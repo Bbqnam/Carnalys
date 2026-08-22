@@ -13,7 +13,7 @@ interface PriceDistributionProps {
 }
 
 const width = 480;
-const height = 200;
+const height = 150;
 const paddingLeft = 60;
 const paddingRight = 12;
 const paddingTop = 12;
@@ -65,7 +65,7 @@ export function PriceDistribution({
   const gridlinePrices = [max, min + span / 2, min];
 
   return (
-    <div className="mt-4">
+    <div className="mt-3">
       <svg
         aria-hidden="true"
         className="w-full"

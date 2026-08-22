@@ -63,7 +63,7 @@ function ScoreCard({
 }) {
   const copy = uiCopy[locale];
   return (
-    <div className="rounded-2xl border border-border bg-white p-4">
+    <div className="rounded-2xl border border-border bg-white p-3.5">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-[#19231d]">{title}</h3>
         <span
@@ -74,7 +74,7 @@ function ScoreCard({
       </div>
       <p className="mt-1 text-xs text-[#526058]">{summary}</p>
       {factors.length > 0 ? (
-        <ul className="mt-3 space-y-2 border-t border-[#eceeea] pt-3">
+        <ul className="mt-2.5 space-y-1.5 border-t border-[#eceeea] pt-2.5">
           {factors.map((factor) => {
             const factorText = scoreFactorText(locale, factor);
             return (
@@ -471,7 +471,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           </a>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <ScoreCard
             factors={analysis.dealScore.factors}
             locale={locale}
@@ -487,11 +487,11 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             value={analysis.buyConfidenceScore.value}
           />
 
-          <div className="rounded-2xl border border-border bg-white p-5">
+          <div className="rounded-2xl border border-border bg-white p-4">
             <h3 className="text-sm font-semibold text-[#19231d]">{copy.detail.marketValueTitle}</h3>
             {hasMarketEstimate ? (
               <>
-                <p className="mt-2 text-2xl font-semibold text-ink">
+                <p className="mt-2 text-xl font-semibold text-ink">
                   {moneyFormatter.format(analysis.marketValue.value.amount)}
                 </p>
                 <p className="mt-1 text-xs text-[#8a918c]">
@@ -514,25 +514,25 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             ) : (
               <p className="mt-2 text-sm text-ink-muted">{copy.card.marketEstimatePending}</p>
             )}
-            <p className="mt-3 text-xs text-[#8a918c]">
+            <p className="mt-2.5 text-xs text-[#8a918c]">
               {marketValueExplanationText(locale, analysis.marketValue.comparableListingCount)}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-white p-5">
+          <div className="rounded-2xl border border-border bg-white p-4">
             <h3 className="text-sm font-semibold text-[#19231d]">{copy.detail.ownershipCostTitle}</h3>
-            <p className="mt-2 text-2xl font-semibold text-ink">
+            <p className="mt-2 text-xl font-semibold text-ink">
               {moneyFormatter.format(analysis.ownershipCost.annualCost.amount)}
             </p>
             <p className="mt-1 text-xs text-[#8a918c]">
               {copy.detail.ownershipCostCaption(analysis.ownershipCost.estimatedForAnnualDistanceKm)}
             </p>
             {analysis.ownershipCost.items.length > 0 ? (
-              <div className="mt-4 border-t border-[#eceeea] pt-4">
+              <div className="mt-3 border-t border-[#eceeea] pt-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[#8a918c]">
                   {copy.detail.ownershipCostBreakdown}
                 </p>
-                <div className="mt-3 flex h-4 gap-[2px] bg-white">
+                <div className="mt-2.5 flex h-4 gap-[2px] bg-white">
                   {analysis.ownershipCost.items.map((item, index) => (
                     <div
                       aria-label={`${copy.detail.ownershipCostCategories[item.category]}: ${moneyFormatter.format(item.annualCost.amount)}`}
