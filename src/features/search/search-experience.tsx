@@ -277,6 +277,20 @@ export function SearchExperience({
         label: copy.filters.bodies[filters.bodyStyle],
       });
     }
+    if (filters.sellerType) {
+      labels.push({
+        id: "sellerType",
+        key: "sellerType",
+        label: copy.filters.sellerTypes[filters.sellerType],
+      });
+    }
+    if (filters.postedWithin) {
+      labels.push({
+        id: "postedWithin",
+        key: "postedWithin",
+        label: copy.results.postedOptions[filters.postedWithin],
+      });
+    }
 
     return labels;
   }, [copy, filters, formatLocale, locale]);
@@ -466,14 +480,9 @@ export function SearchExperience({
         <div className="mx-auto max-w-[1800px]">
           <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6d7b72]">
-                {copy.results.eyebrow}
-              </p>
-              <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h2 className="text-3xl font-medium tracking-[-0.045em] text-ink sm:text-[2.1rem]">
-                  {copy.results.title}
-                </h2>
-                <p aria-live="polite" className="text-sm text-[#69736d]">
+              <h2 className="sr-only">{copy.results.title}</h2>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <p aria-live="polite" className="text-sm font-medium text-[#40473f]">
                   {copy.results.rangeCount(
                     firstListingNumber,
                     lastListingNumber,
@@ -509,6 +518,31 @@ export function SearchExperience({
                 ) : null}
               </button>
               <div className="flex items-center gap-2">
+                <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
+                  <span className="hidden text-xs font-medium text-[#7a837d] sm:inline">
+                    {copy.results.postedLabel}:
+                  </span>
+                  <select
+                    aria-label={copy.results.postedAria}
+                    className="h-full appearance-none bg-transparent py-0 pl-0 pr-9 text-sm font-semibold text-[#28332c] outline-none"
+                    onChange={(event) =>
+                      changeFilters({
+                        ...filters,
+                        postedWithin: event.target.value as SearchFilters["postedWithin"],
+                      })
+                    }
+                    value={filters.postedWithin}
+                  >
+                    {(Object.keys(copy.results.postedOptions) as SearchFilters["postedWithin"][]).map(
+                      (value) => (
+                        <option key={value || "any"} value={value}>
+                          {copy.results.postedOptions[value]}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-[#78817b]" />
+                </label>
                 <label className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10">
                   <span className="hidden text-xs font-medium text-[#7a837d] sm:inline">
                     {copy.results.sortLabel}:
@@ -551,34 +585,32 @@ export function SearchExperience({
             </div>
           </div>
 
-          <div className="mb-5 min-h-9">
-            {activeFilters.length > 0 ? (
-              <div
-                className="flex min-h-9 items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                aria-label={copy.results.activeFilters}
-              >
-                {activeFilters.map((filter) => (
-                  <button
-                    aria-label={copy.results.removeFilter(filter.label)}
-                    className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#ccd5ce] bg-[#f0f5f1] px-3 py-1.5 text-xs font-semibold text-[#354c3e] transition hover:border-[#9fb0a4] hover:bg-white hover:text-ink"
-                    key={filter.id}
-                    onClick={() => removeFilter(filter.key, filter.value)}
-                    type="button"
-                  >
-                    {filter.label}
-                    <CloseIcon className="size-3" />
-                  </button>
-                ))}
+          {activeFilters.length > 0 ? (
+            <div
+              className="mb-5 flex min-h-9 items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              aria-label={copy.results.activeFilters}
+            >
+              {activeFilters.map((filter) => (
                 <button
-                  className="shrink-0 rounded-full px-2.5 text-xs font-semibold text-[#66736a] underline-offset-4 hover:text-ink hover:underline"
-                  onClick={resetFilters}
+                  aria-label={copy.results.removeFilter(filter.label)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#ccd5ce] bg-[#f0f5f1] px-3 py-1.5 text-xs font-semibold text-[#354c3e] transition hover:border-[#9fb0a4] hover:bg-white hover:text-ink"
+                  key={filter.id}
+                  onClick={() => removeFilter(filter.key, filter.value)}
                   type="button"
                 >
-                  {copy.filters.resetAll}
+                  {filter.label}
+                  <CloseIcon className="size-3" />
                 </button>
-              </div>
-            ) : null}
-          </div>
+              ))}
+              <button
+                className="shrink-0 rounded-full px-2.5 text-xs font-semibold text-[#66736a] underline-offset-4 hover:text-ink hover:underline"
+                onClick={resetFilters}
+                type="button"
+              >
+                {copy.filters.resetAll}
+              </button>
+            </div>
+          ) : null}
 
           <div
             className={

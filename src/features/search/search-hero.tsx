@@ -47,7 +47,7 @@ export function SearchHero({
         className="relative mx-auto max-w-[1800px] px-5 py-5 sm:px-8 sm:py-6 lg:px-12"
       >
         <form
-          className="mx-auto flex max-w-5xl flex-col gap-2 rounded-[1.2rem] border border-[#e1e3dc] bg-white p-1.5 shadow-[0_8px_28px_rgba(42,53,46,0.08)] transition-[box-shadow,border-color] duration-200 focus-within:border-[#9eafa4] focus-within:shadow-[0_10px_32px_rgba(42,53,46,0.12)] sm:flex-row sm:rounded-full"
+          className="mx-auto flex max-w-[1400px] flex-col gap-2 rounded-[1.2rem] border border-[#e1e3dc] bg-white p-1.5 shadow-[0_8px_28px_rgba(42,53,46,0.08)] transition-[box-shadow,border-color] duration-200 focus-within:border-[#9eafa4] focus-within:shadow-[0_10px_32px_rgba(42,53,46,0.12)] sm:flex-row sm:rounded-full"
           role="search"
           onSubmit={(event) => {
             event.preventDefault();

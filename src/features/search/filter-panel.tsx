@@ -1,4 +1,4 @@
-import type { BodyStyle, FuelType, TransmissionType } from "@/domain/vehicle";
+import type { BodyStyle, FuelType, SellerType, TransmissionType } from "@/domain/vehicle";
 import { useState } from "react";
 import { BrandLogo } from "./brand-logo";
 import { uiCopy, type Locale } from "./copy";
@@ -42,6 +42,7 @@ const fuels = [
 ] as const satisfies readonly FuelType[];
 
 const transmissions = ["automatic", "manual"] as const satisfies readonly TransmissionType[];
+const sellerTypeOptions = ["dealer", "private"] as const satisfies readonly SellerType[];
 const bodyStyles = ["estate", "suv", "sedan", "hatchback"] as const satisfies readonly BodyStyle[];
 const budgetSliderMaximum = 1_000;
 const maximumBudget = 500_000;
@@ -404,6 +405,28 @@ export function FilterPanel({
             values={filters.models}
           />
         </div>
+
+        <FilterGroup className="order-1" label={copy.seller}>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              className={`flex h-9 items-center justify-center rounded-xl border text-xs font-semibold transition ${isSelected(!filters.sellerType)}`}
+              onClick={() => onChange({ ...filters, sellerType: "" })}
+              type="button"
+            >
+              {copy.any}
+            </button>
+            {sellerTypeOptions.map((type) => (
+              <button
+                className={`flex h-9 items-center justify-center rounded-xl border text-xs font-semibold transition ${isSelected(filters.sellerType === type)}`}
+                key={type}
+                onClick={() => onChange({ ...filters, sellerType: type })}
+                type="button"
+              >
+                {copy.sellerTypes[type]}
+              </button>
+            ))}
+          </div>
+        </FilterGroup>
 
         <button
           aria-expanded={showMoreFilters}

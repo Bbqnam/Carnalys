@@ -6,6 +6,7 @@ import type {
 } from "@/domain/vehicle";
 import {
   vehiclePageSizes,
+  type PostedWithin,
   type SearchFilters,
   type SearchSort,
   type VehiclePageSize,
@@ -46,6 +47,7 @@ const sorts = new Set<SearchSort>([
   "newest",
 ]);
 const sellerTypes = new Set<SellerType>(["dealer", "private"]);
+const postedWithinValues = new Set<PostedWithin>(["today", "week", "month"]);
 
 export const defaultSearchFilters: SearchFilters = {
   query: "",
@@ -61,6 +63,7 @@ export const defaultSearchFilters: SearchFilters = {
   maxMileageMil: null,
   bodyStyle: "",
   sellerType: "",
+  postedWithin: "",
 };
 
 export const defaultSearchSort: SearchSort = "newest";
@@ -156,6 +159,7 @@ export function parseVehicleSearchOptions(
       maxMileageMil: maximumMileage,
       bodyStyle: enumValue(parameters.body, bodyStyles),
       sellerType: enumValue(parameters.seller, sellerTypes),
+      postedWithin: enumValue(parameters.posted, postedWithinValues),
     },
   };
 }
@@ -180,6 +184,7 @@ export function vehicleSearchUrl({ filters, sort, page, pageSize }: VehicleSearc
   }
   if (filters.bodyStyle) parameters.set("body", filters.bodyStyle);
   if (filters.sellerType) parameters.set("seller", filters.sellerType);
+  if (filters.postedWithin) parameters.set("posted", filters.postedWithin);
   if (sort !== defaultSearchSort) parameters.set("sort", sort);
   if (pageSize !== defaultVehiclePageSize) {
     parameters.set("perPage", pageSize.toString());

@@ -212,6 +212,8 @@ export const uiCopy = {
       mileage: "Mileage range",
       anyMileage: "Any mileage",
       body: "Body style",
+      seller: "Seller",
+      sellerTypes: { dealer: "Dealer", private: "Private" },
       fuels: {
         electric: "Electric",
         plug_in_hybrid: "Plug-in",
@@ -249,7 +251,6 @@ export const uiCopy = {
       },
     },
     results: {
-      eyebrow: "Analyzed for you",
       title: "Best buys right now",
       matchCount: (shown: number, total: number) =>
         `${shown} of ${total} analyzed ${total === 1 ? "car" : "cars"} match`,
@@ -267,6 +268,14 @@ export const uiCopy = {
       sortAria: "Sort results",
       pageSizeLabel: "Per page",
       pageSizeAria: "Cars per page",
+      postedLabel: "Posted",
+      postedAria: "Filter by posted date",
+      postedOptions: {
+        "": "Any time",
+        today: "Today",
+        week: "This week",
+        month: "This month",
+      },
       sorts: {
         deal_score: "Best Deal Score",
         buy_confidence: "Highest confidence",
@@ -460,6 +469,8 @@ export const uiCopy = {
       mileage: "Miltalsintervall",
       anyMileage: "Alla miltal",
       body: "Karosstyp",
+      seller: "Säljare",
+      sellerTypes: { dealer: "Handlare", private: "Privat" },
       fuels: {
         electric: "El",
         plug_in_hybrid: "Laddhybrid",
@@ -497,7 +508,6 @@ export const uiCopy = {
       },
     },
     results: {
-      eyebrow: "Analyserat för dig",
       title: "Bästa köpen just nu",
       matchCount: (shown: number, total: number) =>
         `${shown} av ${total} analyserade ${total === 1 ? "bil" : "bilar"} matchar`,
@@ -515,6 +525,14 @@ export const uiCopy = {
       sortAria: "Sortera resultat",
       pageSizeLabel: "Per sida",
       pageSizeAria: "Bilar per sida",
+      postedLabel: "Publicerad",
+      postedAria: "Filtrera efter publiceringsdatum",
+      postedOptions: {
+        "": "När som helst",
+        today: "Idag",
+        week: "Denna vecka",
+        month: "Denna månad",
+      },
       sorts: {
         deal_score: "Bäst Deal Score",
         buy_confidence: "Högst köptrygghet",

@@ -346,6 +346,18 @@ export interface VehicleListingCatalog {
   };
 }
 
+function postedWithinCutoff(value: "today" | "week" | "month"): Date {
+  const dayInMs = 24 * 60 * 60 * 1000;
+  switch (value) {
+    case "today":
+      return new Date(Date.now() - dayInMs);
+    case "week":
+      return new Date(Date.now() - 7 * dayInMs);
+    case "month":
+      return new Date(Date.now() - 30 * dayInMs);
+  }
+}
+
 function buildListingWhere(
   filters: SearchFilters,
 ): Prisma.ListingRecordWhereInput {
@@ -371,6 +383,25 @@ function buildListingWhere(
 
   const queryTokens = filters.query.trim().split(/\s+/).filter(Boolean);
 
+  const andConditions: Prisma.ListingRecordWhereInput[] = queryTokens.map((token) => ({
+    OR: [
+      { sellerName: { contains: token, mode: "insensitive" } },
+      { vehicle: { is: { make: { contains: token, mode: "insensitive" } } } },
+      { vehicle: { is: { model: { contains: token, mode: "insensitive" } } } },
+      { vehicle: { is: { variant: { contains: token, mode: "insensitive" } } } },
+    ],
+  }));
+
+  if (filters.postedWithin) {
+    const cutoff = postedWithinCutoff(filters.postedWithin);
+    andConditions.push({
+      OR: [
+        { publishedAt: { gte: cutoff } },
+        { publishedAt: null, firstSeenAt: { gte: cutoff } },
+      ],
+    });
+  }
+
   return {
     status: "active",
     ...(filters.sellerType ? { sellerType: filters.sellerType } : {}),
@@ -392,18 +423,7 @@ function buildListingWhere(
     ...(Object.keys(vehicleFilter).length > 0
       ? { vehicle: { is: vehicleFilter } }
       : {}),
-    ...(queryTokens.length > 0
-      ? {
-          AND: queryTokens.map((token) => ({
-            OR: [
-              { sellerName: { contains: token, mode: "insensitive" } },
-              { vehicle: { is: { make: { contains: token, mode: "insensitive" } } } },
-              { vehicle: { is: { model: { contains: token, mode: "insensitive" } } } },
-              { vehicle: { is: { variant: { contains: token, mode: "insensitive" } } } },
-            ],
-          })),
-        }
-      : {}),
+    ...(andConditions.length > 0 ? { AND: andConditions } : {}),
   };
 }
 

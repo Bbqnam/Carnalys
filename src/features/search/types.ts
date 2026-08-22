@@ -28,7 +28,10 @@ export interface SearchFilters {
   maxMileageMil: number | null;
   bodyStyle: BodyStyle | "";
   sellerType: SellerType | "";
+  postedWithin: PostedWithin | "";
 }
+
+export type PostedWithin = "today" | "week" | "month";
 
 export interface VehicleFilterOption<T extends string | number> {
   value: T;
