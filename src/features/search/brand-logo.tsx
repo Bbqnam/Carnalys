@@ -302,7 +302,14 @@ export function BrandLogo({ make, className = "size-5" }: { make: string; classN
 
   return (
     <span aria-hidden="true" className={`relative block shrink-0 ${className}`}>
-      <Image alt="" className="object-contain" fill sizes="44px" src={logo} />
+      {/* Manufacturer marks are third-party assets we can't recolor, and most
+          are dark-on-transparent — several (NIO, Lincoln, Jaguar) are all but
+          invisible against the dark theme. The chip sits behind the mark to
+          give it a light backing there; it's transparent in light mode, so
+          nothing changes visually. Drawn as an inset backdrop rather than
+          padding so the mark keeps its current size in both themes. */}
+      <span className="absolute -inset-[6%] rounded-[28%] bg-brand-chip" />
+      <Image alt="" className="relative object-contain" fill sizes="44px" src={logo} />
     </span>
   );
 }

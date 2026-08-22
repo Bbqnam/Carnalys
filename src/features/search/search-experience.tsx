@@ -14,6 +14,7 @@ import { SynchronizationButton } from "./synchronization-button";
 import { defaultSearchFilters, vehicleSearchUrl } from "./search-state";
 import { setLocaleCookie } from "./locale";
 import { useCompare } from "./use-compare";
+import { useCurrentLocation } from "./use-current-location";
 import { useFavorites } from "./use-favorites";
 import type {
   AvailableVehicleFilters,
@@ -55,8 +56,6 @@ interface SearchExperienceProps {
 }
 
 type PaginationItem = number | `ellipsis-${"start" | "end"}`;
-type UserLocation = { latitude: number; longitude: number };
-type LocationStatus = "idle" | "locating" | "ready" | "unavailable";
 
 function paginationItems(currentPage: number, totalPages: number): PaginationItem[] {
   if (totalPages <= 7) {
@@ -132,8 +131,11 @@ export function SearchExperience({
   } = useCompare();
   const comparedIds = new Set(compared.map((vehicle) => vehicle.id));
   const [showFilters, setShowFilters] = useState(false);
-  const [userLocation, setUserLocation] = useState<UserLocation>();
-  const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
+  const {
+    location: userLocation,
+    status: locationStatus,
+    requestCurrentLocation,
+  } = useCurrentLocation();
   const [isUpdating, startTransition] = useTransition();
   const closeFiltersRef = useRef<HTMLButtonElement>(null);
   const navigationTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -401,26 +403,6 @@ export function SearchExperience({
 
   function changePageSize(nextPageSize: VehiclePageSize) {
     navigateToSearch(filters, sort, 0, nextPageSize);
-  }
-
-  function requestCurrentLocation() {
-    if (!navigator.geolocation) {
-      setLocationStatus("unavailable");
-      return;
-    }
-
-    setLocationStatus("locating");
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setUserLocation({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-        });
-        setLocationStatus("ready");
-      },
-      () => setLocationStatus("unavailable"),
-      { enableHighAccuracy: false, maximumAge: 300_000, timeout: 10_000 },
-    );
   }
 
   function resetFilters() {

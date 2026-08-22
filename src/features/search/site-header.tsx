@@ -4,7 +4,7 @@ import { CompareIcon, HeartIcon, MapPinIcon } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { uiCopy, type Locale } from "./copy";
 
-type LocationStatus = "idle" | "locating" | "ready" | "unavailable";
+import type { LocationStatus } from "./use-current-location";
 
 interface SiteHeaderProps {
   activePage?: "cars" | "saved" | "compare";
@@ -33,9 +33,11 @@ export function SiteHeader({
       ? copy.results.locating
       : locationStatus === "ready"
         ? copy.results.locationOn
-        : locationStatus === "unavailable"
-          ? copy.results.locationUnavailable
-          : copy.results.useCurrentLocation;
+        : locationStatus === "denied"
+          ? copy.results.locationDenied
+          : locationStatus === "unavailable"
+            ? copy.results.locationUnavailable
+            : copy.results.useCurrentLocation;
 
   return (
     <header className="relative border-b border-border">

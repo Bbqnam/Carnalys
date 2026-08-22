@@ -50,3 +50,6 @@ next-env.d.ts
 
 # Claude Code local-only settings (personal permission grants, not shared)
 .claude/settings.local.json
+
+# Local HTTPS dev certificates (see scripts/dev-lan.mjs) — never commit keys
+certificates/

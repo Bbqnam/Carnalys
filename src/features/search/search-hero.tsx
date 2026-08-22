@@ -1,6 +1,7 @@
 import { ArrowRightIcon, SearchIcon } from "./icons";
 import { uiCopy, type Locale } from "./copy";
 import { SiteHeader } from "./site-header";
+import type { LocationStatus } from "./use-current-location";
 
 interface SearchHeroProps {
   locale: Locale;
@@ -8,7 +9,7 @@ interface SearchHeroProps {
   totalListings: number;
   savedCount: number;
   compareCount: number;
-  locationStatus: "idle" | "locating" | "ready" | "unavailable";
+  locationStatus: LocationStatus;
   onLocaleChange: (locale: Locale) => void;
   onQueryChange: (query: string) => void;
   onRequestLocation: () => void;

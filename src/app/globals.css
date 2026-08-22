@@ -34,6 +34,10 @@
   --selection: #cbdacf;
   --hero-glow-1: rgba(200, 214, 204, 0.75);
   --hero-glow-2: rgba(230, 218, 193, 0.7);
+  /* Manufacturer marks are third-party brand assets we can't recolor, and
+     most are dark-on-transparent. They read fine on the light theme, so no
+     chip is drawn there; see the dark override. */
+  --brand-chip: transparent;
 }
 
 /* Dark values, applied when the OS prefers dark and the user hasn't made an
@@ -63,6 +67,8 @@
     --selection: #2c4636;
     --hero-glow-1: rgba(70, 100, 85, 0.35);
     --hero-glow-2: rgba(90, 80, 55, 0.3);
+    /* Light chip so dark manufacturer marks stay legible. */
+    --brand-chip: #e9ede8;
   }
 }
 
@@ -91,6 +97,8 @@
   --selection: #2c4636;
   --hero-glow-1: rgba(70, 100, 85, 0.35);
   --hero-glow-2: rgba(90, 80, 55, 0.3);
+  /* Light chip so dark manufacturer marks stay legible. */
+  --brand-chip: #e9ede8;
 }
 
 @theme inline {
@@ -113,6 +121,7 @@
   --color-negative: var(--negative);
   --color-negative-soft: var(--negative-soft);
   --color-gold: var(--gold);
+  --color-brand-chip: var(--brand-chip);
 }
 
 html {
