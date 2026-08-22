@@ -219,7 +219,7 @@ function CategoryMark({ className }: { className: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`grid shrink-0 place-items-center rounded-[35%] bg-[#edf3ef] text-[#436652] ring-1 ring-inset ring-[#d8e2da] ${className}`}
+      className={`grid shrink-0 place-items-center rounded-[35%] bg-accent-soft text-accent ring-1 ring-inset ring-border ${className}`}
     >
       <svg className="size-[78%]" fill="none" viewBox="0 0 32 32">
         <path

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CompareIcon, HeartIcon, MapPinIcon } from "./icons";
+import { ThemeToggle } from "./theme-toggle";
 import { uiCopy, type Locale } from "./copy";
 
 type LocationStatus = "idle" | "locating" | "ready" | "unavailable";
@@ -37,7 +38,7 @@ export function SiteHeader({
           : copy.results.useCurrentLocation;
 
   return (
-    <header className="relative border-b border-[#24362b]/[0.06]">
+    <header className="relative border-b border-border">
       <div className="mx-auto flex h-16 max-w-[1800px] items-center justify-between px-5 sm:h-[4.5rem] sm:px-8 lg:px-12">
         <Link
           aria-label={copy.nav.home}
@@ -59,14 +60,14 @@ export function SiteHeader({
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-5">
-          <nav className="hidden items-center gap-6 text-sm text-[#59635d] md:flex">
+          <nav className="hidden items-center gap-6 text-sm text-ink-muted md:flex">
             {onRequestLocation ? (
               <button
                 aria-live="polite"
                 className={`flex items-center gap-1.5 rounded-full px-3 py-2 font-medium transition-colors ${
                   locationStatus === "ready"
-                    ? "text-[#28543a]"
-                    : "text-[#354139] hover:bg-white/55 hover:text-ink"
+                    ? "text-positive"
+                    : "text-ink-muted hover:bg-surface/55 hover:text-ink"
                 }`}
                 disabled={locationStatus === "locating"}
                 onClick={onRequestLocation}
@@ -80,31 +81,31 @@ export function SiteHeader({
               aria-current={activePage === "compare" ? "page" : undefined}
               className={`rounded-full px-3 py-2 font-medium transition-colors ${
                 activePage === "compare"
-                  ? "bg-white/80 text-ink shadow-sm"
-                  : "text-[#354139] hover:bg-white/55 hover:text-ink"
+                  ? "bg-surface/80 text-ink shadow-sm"
+                  : "text-ink-muted hover:bg-surface/55 hover:text-ink"
               }`}
               href="/compare"
             >
               {copy.nav.compare}{" "}
-              <span className="text-[#8c948f]">{compareCount}</span>
+              <span className="text-ink-subtle">{compareCount}</span>
             </Link>
             <Link
               aria-current={activePage === "saved" ? "page" : undefined}
               className={`rounded-full px-3 py-2 font-medium transition-colors ${
                 activePage === "saved"
-                  ? "bg-white/80 text-ink shadow-sm"
-                  : "text-[#354139] hover:bg-white/55 hover:text-ink"
+                  ? "bg-surface/80 text-ink shadow-sm"
+                  : "text-ink-muted hover:bg-surface/55 hover:text-ink"
               }`}
               href="/saved"
             >
               {copy.nav.saved}{" "}
-              <span className="text-[#8c948f]">{savedCount}</span>
+              <span className="text-ink-subtle">{savedCount}</span>
             </Link>
           </nav>
 
           <div
             aria-label={copy.languageSwitchLabel}
-            className="flex rounded-full border border-[#d6d5cf] bg-white/65 p-0.5 text-[11px] font-semibold shadow-sm backdrop-blur"
+            className="flex rounded-full border border-border bg-surface/65 p-0.5 text-[11px] font-semibold shadow-sm backdrop-blur"
             role="group"
           >
             {(["en", "sv"] as const).map((language) => (
@@ -112,8 +113,8 @@ export function SiteHeader({
                 aria-pressed={locale === language}
                 className={`min-h-8 rounded-full px-2.5 transition ${
                   locale === language
-                    ? "bg-ink text-white shadow-sm"
-                    : "text-[#68716b] hover:text-ink"
+                    ? "bg-ink text-surface shadow-sm"
+                    : "text-ink-subtle hover:text-ink"
                 }`}
                 key={language}
                 onClick={() => onLocaleChange(language)}
@@ -124,13 +125,20 @@ export function SiteHeader({
             ))}
           </div>
 
+          <ThemeToggle
+            ariaLabel={copy.themeSwitchLabel}
+            darkLabel={copy.darkTheme}
+            lightLabel={copy.lightTheme}
+            className="hidden sm:flex"
+          />
+
           {onRequestLocation ? (
             <button
               aria-label={locationLabel}
               className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition md:hidden ${
                 locationStatus === "ready"
-                  ? "border-[#adc2b3] bg-[#edf5ef] text-[#28543a]"
-                  : "border-[#d9d7d0] bg-white/70 text-ink hover:bg-white"
+                  ? "border-accent/40 bg-accent-soft text-positive"
+                  : "border-border bg-surface/70 text-ink hover:bg-surface"
               }`}
               disabled={locationStatus === "locating"}
               onClick={onRequestLocation}
@@ -145,8 +153,8 @@ export function SiteHeader({
             aria-current={activePage === "compare" ? "page" : undefined}
             className={`relative grid size-10 place-items-center rounded-full border text-ink shadow-sm backdrop-blur transition md:hidden ${
               activePage === "compare"
-                ? "border-[#bcc8bf] bg-white"
-                : "border-[#d9d7d0] bg-white/70 hover:bg-white"
+                ? "border-border-strong bg-surface"
+                : "border-border bg-surface/70 hover:bg-surface"
             }`}
             href="/compare"
           >
@@ -154,7 +162,7 @@ export function SiteHeader({
             {compareCount > 0 ? (
               <span
                 aria-hidden="true"
-                className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[#f4f1ea]"
+                className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[9px] font-bold leading-none text-surface ring-2 ring-background"
               >
                 {compareCount}
               </span>
@@ -166,8 +174,8 @@ export function SiteHeader({
             aria-current={activePage === "saved" ? "page" : undefined}
             className={`relative grid size-10 place-items-center rounded-full border text-ink shadow-sm backdrop-blur transition md:hidden ${
               activePage === "saved"
-                ? "border-[#bcc8bf] bg-white"
-                : "border-[#d9d7d0] bg-white/70 hover:bg-white"
+                ? "border-border-strong bg-surface"
+                : "border-border bg-surface/70 hover:bg-surface"
             }`}
             href="/saved"
           >
@@ -175,7 +183,7 @@ export function SiteHeader({
             {savedCount > 0 ? (
               <span
                 aria-hidden="true"
-                className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[#f4f1ea]"
+                className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[9px] font-bold leading-none text-surface ring-2 ring-background"
               >
                 {savedCount > 99 ? "99+" : savedCount}
               </span>

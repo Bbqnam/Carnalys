@@ -192,14 +192,14 @@ export function MultiChoiceDropdown({
 
   return (
     <div className="min-w-0">
-      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.09em] text-[#737c76]">
+      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.09em] text-ink-subtle">
         {label}
       </span>
       <button
         aria-controls={open ? listboxId : undefined}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="group flex h-10 w-full min-w-0 items-center gap-1 rounded-xl border border-[#dde0da] bg-white px-1.5 text-left shadow-[0_1px_2px_rgba(23,33,27,0.02)] transition duration-200 hover:border-[#aebdb2] hover:bg-[#f8faf7] focus-visible:border-[#708b79] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#708b79]/10 disabled:cursor-not-allowed disabled:opacity-45"
+        className="group flex h-10 w-full min-w-0 items-center gap-1 rounded-xl border border-border bg-surface px-1.5 text-left shadow-[0_1px_2px_rgba(23,33,27,0.02)] transition duration-200 hover:border-border-strong hover:bg-surface-subtle focus-visible:border-accent/50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/10 disabled:cursor-not-allowed disabled:opacity-45"
         disabled={disabled}
         onClick={() => (open ? closeMenu() : openMenu())}
         onKeyDown={(event) => {
@@ -216,27 +216,27 @@ export function MultiChoiceDropdown({
         type="button"
       >
         {renderIcon ? (
-          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[#edf3ef] text-[#4f705d]">
+          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
             {renderIcon(values[0] ?? "")}
           </span>
         ) : null}
-        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#26332b]">
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
           {selectedLabel}
         </span>
         {values.length > 1 ? (
-          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#254934] text-[10px] font-bold text-white">
+          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent text-[10px] font-bold text-surface">
             {values.length}
           </span>
         ) : null}
         <ChevronDownIcon
-          className={`pointer-events-none size-3 shrink-0 text-[#78847d] transition-transform ${open ? "rotate-180" : ""}`}
+          className={`pointer-events-none size-3 shrink-0 text-ink-subtle transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
       {open && position
         ? createPortal(
             <div
-              className="fixed z-[100] flex overflow-hidden rounded-xl border border-[#d9ddd7] bg-white shadow-[0_18px_50px_rgba(20,30,24,0.18)]"
+              className="fixed z-[100] flex overflow-hidden rounded-xl border border-border bg-surface shadow-[0_18px_50px_rgba(20,30,24,0.18)]"
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.preventDefault();
@@ -253,11 +253,11 @@ export function MultiChoiceDropdown({
             >
               <div className="flex min-h-0 w-full flex-col p-1.5">
                 {searchable ? (
-                  <label className="mb-1 flex h-10 shrink-0 items-center gap-2 rounded-lg bg-surface-muted px-2.5 text-[#6b756e] focus-within:ring-2 focus-within:ring-[#708b79]/25">
+                  <label className="mb-1 flex h-10 shrink-0 items-center gap-2 rounded-lg bg-surface-muted px-2.5 text-ink-muted focus-within:ring-2 focus-within:ring-accent/25">
                     <SearchIcon className="size-3.5 shrink-0" />
                     <input
                       aria-label={searchPlaceholder}
-                      className="min-w-0 flex-1 bg-transparent text-xs text-[#26332b] outline-none placeholder:text-[#929a95]"
+                      className="min-w-0 flex-1 bg-transparent text-xs text-ink outline-none placeholder:text-ink-subtle"
                       onChange={(event) => setQuery(event.target.value)}
                       placeholder={searchPlaceholder}
                       ref={searchRef}
@@ -277,10 +277,10 @@ export function MultiChoiceDropdown({
                       return (
                         <button
                           aria-selected={selected}
-                          className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#708b79] ${
+                          className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
                             selected
-                              ? "bg-[#eaf2ed] font-semibold text-[#214b36]"
-                              : "text-[#354139] hover:bg-[#f4f6f3]"
+                              ? "bg-accent-soft font-semibold text-accent-strong"
+                              : "text-ink-muted hover:bg-surface-muted"
                           }`}
                           key={option.value}
                           onClick={() => toggleOption(option.value)}
@@ -295,20 +295,20 @@ export function MultiChoiceDropdown({
                             aria-hidden="true"
                             className={`grid size-5 shrink-0 place-items-center rounded-[0.3rem] border ${
                               selected
-                                ? "border-[#254934] bg-[#254934] text-white"
-                                : "border-[#cbd1cc] bg-white text-transparent"
+                                ? "border-accent bg-accent text-surface"
+                                : "border-border-strong bg-surface text-transparent"
                             }`}
                           >
                             <CheckIcon className="size-3" />
                           </span>
                           {renderIcon ? (
-                            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-[#4f705d] ring-1 ring-[#e3e7e2] shadow-[0_1px_2px_rgba(23,33,27,0.03)]">
+                            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-surface text-accent ring-1 ring-border shadow-[0_1px_2px_rgba(23,33,27,0.03)]">
                               {renderIcon(option.value)}
                             </span>
                           ) : null}
                           <span className="min-w-0 flex-1 truncate">{option.label}</span>
                           {option.count !== undefined ? (
-                            <span className="shrink-0 tabular-nums text-[11px] font-normal text-[#87908a]">
+                            <span className="shrink-0 tabular-nums text-[11px] font-normal text-ink-subtle">
                               {option.count.toLocaleString("sv-SE")}
                             </span>
                           ) : null}
@@ -316,14 +316,14 @@ export function MultiChoiceDropdown({
                       );
                     })
                   ) : (
-                    <p className="px-3 py-5 text-center text-xs text-[#7b847e]">
+                    <p className="px-3 py-5 text-center text-xs text-ink-subtle">
                       {noResultsLabel}
                     </p>
                   )}
                 </div>
-                <div className="mt-1 flex shrink-0 items-center justify-between border-t border-[#e8eae6] px-1.5 pt-1.5">
+                <div className="mt-1 flex shrink-0 items-center justify-between border-t border-border px-1.5 pt-1.5">
                   <button
-                    className="rounded-lg px-2.5 py-2 text-xs font-semibold text-[#66736a] transition hover:bg-[#f2f4f1] hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
+                    className="rounded-lg px-2.5 py-2 text-xs font-semibold text-ink-muted transition hover:bg-surface-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
                     disabled={values.length === 0}
                     onClick={() => onChange([])}
                     type="button"
@@ -331,7 +331,7 @@ export function MultiChoiceDropdown({
                     {clearLabel}
                   </button>
                   <button
-                    className="rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#2b3b32]"
+                    className="rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-surface transition hover:opacity-90"
                     onClick={() => closeMenu(true)}
                     type="button"
                   >

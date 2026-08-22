@@ -37,10 +37,10 @@ export function PriceDistribution({
   // already used elsewhere (e.g. the "below/above market" labels on cards).
   const targetTone =
     targetPrice <= likelyRangeMinimum
-      ? "#1f5737"
+      ? "var(--positive)"
       : targetPrice >= likelyRangeMaximum
-        ? "#81463e"
-        : "#647068";
+        ? "var(--negative)"
+        : "var(--ink-muted)";
 
   const moneyFormatter = createMoneyFormatter(locale);
   const points = [
@@ -76,13 +76,13 @@ export function PriceDistribution({
         {gridlinePrices.map((price) => (
           <g key={price}>
             <line
-              stroke="#eceeea"
+              stroke="var(--border)"
               x1={paddingLeft}
               x2={width - paddingRight}
               y1={y(price)}
               y2={y(price)}
             />
-            <text fill="#9aa19c" fontSize="9" textAnchor="end" x={paddingLeft - 8} y={y(price) + 3}>
+            <text fill="var(--ink-subtle)" fontSize="9" textAnchor="end" x={paddingLeft - 8} y={y(price) + 3}>
               {moneyFormatter.format(price)}
             </text>
           </g>
@@ -101,7 +101,7 @@ export function PriceDistribution({
             <circle
               cx={x(index)}
               cy={y(point.price)}
-              fill="#c5c8c4"
+              fill="var(--border-strong)"
               key={index}
               r="3"
             />
@@ -112,13 +112,13 @@ export function PriceDistribution({
           cy={targetY}
           fill={targetTone}
           r="5"
-          stroke="#fff"
+          stroke="var(--surface)"
           strokeWidth="2"
         />
       </svg>
-      <div className="mt-1 flex items-center justify-center gap-4 text-[10px] text-[#9aa19c]">
+      <div className="mt-1 flex items-center justify-center gap-4 text-[10px] text-ink-subtle">
         <span className="flex items-center gap-1">
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-[#c5c8c4]" />
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-border-strong" />
           {comparableLabel}
         </span>
         <span className="flex items-center gap-1 font-medium" style={{ color: targetTone }}>

@@ -470,7 +470,7 @@ export function SearchExperience({
 
       <section
         aria-busy={isUpdating}
-        className="scroll-mt-3 bg-[#fafaf7] px-5 py-9 sm:px-8 sm:py-11 lg:px-12 lg:py-12"
+        className="scroll-mt-3 bg-background px-5 py-9 sm:px-8 sm:py-11 lg:px-12 lg:py-12"
         id="cars"
       >
         <div className="mx-auto max-w-[1800px]">
@@ -478,7 +478,7 @@ export function SearchExperience({
             <div>
               <h2 className="sr-only">{copy.results.title}</h2>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <p aria-live="polite" className="text-sm font-medium text-[#40473f]">
+                <p aria-live="polite" className="text-sm font-medium text-ink-muted">
                   {copy.results.rangeCount(
                     firstListingNumber,
                     lastListingNumber,
@@ -486,7 +486,7 @@ export function SearchExperience({
                   )}
                 </p>
                 {lastSynchronizedAt ? (
-                  <p className="text-xs text-[#8a928d]">
+                  <p className="text-xs text-ink-subtle">
                     {copy.results.synchronized} {formatSynchronizedAt(lastSynchronizedAt, locale)}
                   </p>
                 ) : null}
@@ -501,14 +501,14 @@ export function SearchExperience({
               <button
                 aria-controls="mobile-filters"
                 aria-expanded={showFilters}
-                className="flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white px-3.5 text-sm font-semibold text-[#28332c] shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md active:scale-[0.98] md:hidden"
+                className="flex h-11 items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-sm font-semibold text-ink shadow-sm transition hover:border-border-strong hover:shadow-md active:scale-[0.98] md:hidden"
                 onClick={() => setShowFilters(true)}
                 type="button"
               >
                 <SlidersIcon className="size-4" />
                 {copy.results.filterButton}
                 {activeFilterCount > 0 ? (
-                  <span className="grid size-5 place-items-center rounded-full bg-[#1c3827] text-[10px] text-white">
+                  <span className="grid size-5 place-items-center rounded-full bg-accent-strong text-[10px] text-surface">
                     {activeFilterCount}
                   </span>
                 ) : null}
@@ -535,7 +535,7 @@ export function SearchExperience({
               <SingleChoiceDropdown
                 ariaLabel={copy.results.pageSizeAria}
                 inlineLabel={copy.results.pageSizeLabel}
-                inlineLabelClassName="hidden text-xs font-medium text-[#7a837d] xl:inline"
+                inlineLabelClassName="hidden text-xs font-medium text-ink-subtle xl:inline"
                 onChange={(value) => changePageSize(Number(value) as VehiclePageSize)}
                 options={vehiclePageSizes.map((pageSize) => ({
                   value: String(pageSize),
@@ -554,7 +554,7 @@ export function SearchExperience({
               {activeFilters.map((filter) => (
                 <button
                   aria-label={copy.results.removeFilter(filter.label)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#ccd5ce] bg-[#f0f5f1] px-3 py-1.5 text-xs font-semibold text-[#354c3e] transition hover:border-[#9fb0a4] hover:bg-white hover:text-ink"
+                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft px-3 py-1.5 text-xs font-semibold text-accent-strong transition hover:border-accent/50 hover:bg-surface hover:text-ink"
                   key={filter.id}
                   onClick={() => removeFilter(filter.key, filter.value)}
                   type="button"
@@ -564,7 +564,7 @@ export function SearchExperience({
                 </button>
               ))}
               <button
-                className="shrink-0 rounded-full px-2.5 text-xs font-semibold text-[#66736a] underline-offset-4 hover:text-ink hover:underline"
+                className="shrink-0 rounded-full px-2.5 text-xs font-semibold text-ink-muted underline-offset-4 hover:text-ink hover:underline"
                 onClick={resetFilters}
                 type="button"
               >
@@ -581,7 +581,7 @@ export function SearchExperience({
             }
           >
             <aside className="hidden min-w-0 self-stretch md:block">
-              <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#e2e2dc] bg-white p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-surface p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <FilterPanel
                   brands={availableFilters.brands}
                   filters={filters}
@@ -642,13 +642,13 @@ export function SearchExperience({
                   {pagination.totalPages > 1 ? (
                     <nav
                       aria-label={copy.results.paginationLabel}
-                      className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-[#e2e2dc] bg-white p-3 shadow-[0_8px_30px_rgba(26,35,29,0.04)] sm:p-4"
+                      className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-[0_8px_30px_rgba(26,35,29,0.04)] sm:p-4"
                     >
                       <div className="flex w-full min-w-0 items-center justify-between gap-1.5">
                         {pagination.page > 1 ? (
                           <Link
                             aria-label={copy.results.previousPage}
-                            className="flex h-10 flex-1 items-center justify-center rounded-xl border border-[#d9ddd7] px-3 text-sm font-semibold text-[#334139] transition hover:border-[#aebbb2] hover:bg-[#f4f7f4] active:scale-[0.98] sm:flex-none"
+                            className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted active:scale-[0.98] sm:flex-none"
                             href={vehicleSearchUrl({
                               filters,
                               sort,
@@ -663,7 +663,7 @@ export function SearchExperience({
                         ) : (
                           <span
                             aria-disabled="true"
-                            className="flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-xl border border-[#eceeea] px-3 text-sm font-semibold text-[#a7ada9] sm:flex-none"
+                            className="flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-ink-subtle sm:flex-none"
                           >
                             <span className="sm:hidden">‹</span>
                             <span className="hidden sm:inline">{copy.results.previousPage}</span>
@@ -676,7 +676,7 @@ export function SearchExperience({
                               item === pagination.page ? (
                                 <span
                                   aria-current="page"
-                                  className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#254934] text-sm font-bold text-white shadow-sm"
+                                  className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-sm font-bold text-surface shadow-sm"
                                   key={item}
                                 >
                                   {item}
@@ -684,7 +684,7 @@ export function SearchExperience({
                               ) : (
                                 <Link
                                   aria-label={copy.results.goToPage(item)}
-                                  className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-[#526058] transition hover:bg-[#edf2ee] hover:text-ink active:scale-[0.96]"
+                                  className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-ink-muted transition hover:bg-surface-muted hover:text-ink active:scale-[0.96]"
                                   href={vehicleSearchUrl({
                                     filters,
                                     sort,
@@ -700,7 +700,7 @@ export function SearchExperience({
                             ) : (
                               <span
                                 aria-hidden="true"
-                                className="grid size-6 shrink-0 place-items-center text-sm text-[#919a94] sm:size-8"
+                                className="grid size-6 shrink-0 place-items-center text-sm text-ink-subtle sm:size-8"
                                 key={item}
                               >
                                 …
@@ -712,7 +712,7 @@ export function SearchExperience({
                         {pagination.page < pagination.totalPages ? (
                           <Link
                             aria-label={copy.results.nextPage}
-                            className="flex h-10 flex-1 items-center justify-center rounded-xl bg-ink px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2b3b32] hover:shadow-md active:scale-[0.98] sm:flex-none"
+                            className="flex h-10 flex-1 items-center justify-center rounded-xl bg-ink px-3 text-sm font-semibold text-surface shadow-sm transition hover:opacity-90 hover:shadow-md active:scale-[0.98] sm:flex-none"
                             href={vehicleSearchUrl({
                               filters,
                               sort,
@@ -727,7 +727,7 @@ export function SearchExperience({
                         ) : (
                           <span
                             aria-disabled="true"
-                            className="flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-xl bg-[#e7eae6] px-3 text-sm font-semibold text-[#9ba29d] sm:flex-none"
+                            className="flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-xl bg-surface-muted px-3 text-sm font-semibold text-ink-subtle sm:flex-none"
                           >
                             <span className="sm:hidden">›</span>
                             <span className="hidden sm:inline">{copy.results.nextPage}</span>
@@ -738,19 +738,19 @@ export function SearchExperience({
                   ) : null}
                 </>
               ) : (
-                <div className="grid min-h-96 place-items-center rounded-[1.6rem] border border-dashed border-[#d6d9d2] bg-white p-8 text-center shadow-[0_12px_40px_rgba(26,35,29,0.035)]">
+                <div className="grid min-h-96 place-items-center rounded-[1.6rem] border border-dashed border-border bg-surface p-8 text-center shadow-[0_12px_40px_rgba(26,35,29,0.035)]">
                   <div className="max-w-sm">
-                    <span className="mx-auto grid size-14 place-items-center rounded-full bg-[#eef1ec] text-[#526359]">
+                    <span className="mx-auto grid size-14 place-items-center rounded-full bg-surface-muted text-ink-muted">
                       <SearchEmptyIcon className="size-6" />
                     </span>
-                    <h3 className="mt-5 text-xl font-semibold text-[#1d2821]">
+                    <h3 className="mt-5 text-xl font-semibold text-ink">
                       {copy.results.noResultsTitle}
                     </h3>
-                    <p className="mt-2 text-sm leading-6 text-[#69736d]">
+                    <p className="mt-2 text-sm leading-6 text-ink-muted">
                       {copy.results.noResultsBody}
                     </p>
                     <button
-                      className="mt-5 rounded-full bg-[#1b2b21] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#304238]"
+                      className="mt-5 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-surface transition hover:opacity-90"
                       onClick={() => changeFilters(defaultSearchFilters, 0)}
                       type="button"
                     >
@@ -777,8 +777,8 @@ export function SearchExperience({
         </div>
       </section>
 
-      <footer className="border-t border-[#e8e8e2] bg-[#fafaf7] px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-2 text-xs text-[#747e78] sm:flex-row sm:items-center sm:justify-between">
+      <footer className="border-t border-border bg-background px-5 py-8 sm:px-8 lg:px-12">
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-2 text-xs text-ink-subtle sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 Carnalysis. {copy.footer.tagline}</p>
           <p>{copy.footer.disclaimer}</p>
         </div>
@@ -805,12 +805,12 @@ export function SearchExperience({
             />
             <motion.div
               animate={{ y: 0 }}
-              className="absolute inset-x-0 bottom-0 z-10 max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[1.75rem] bg-[#fafaf7] px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-4 shadow-2xl sm:inset-x-6 sm:bottom-6 sm:rounded-[1.75rem] lg:inset-x-auto lg:right-6 lg:w-[400px] lg:max-h-[calc(100dvh-3rem)]"
+              className="absolute inset-x-0 bottom-0 z-10 max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[1.75rem] bg-background px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-4 shadow-2xl sm:inset-x-6 sm:bottom-6 sm:rounded-[1.75rem] lg:inset-x-auto lg:right-6 lg:w-[400px] lg:max-h-[calc(100dvh-3rem)]"
               exit={{ y: "100%" }}
               initial={{ y: "100%" }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#c7cbc6]" />
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
               <div className="mb-5 flex items-center justify-between">
                 <h2
                   className="text-lg font-semibold tracking-[-0.025em] text-ink"
@@ -820,7 +820,7 @@ export function SearchExperience({
                 </h2>
                 <button
                   aria-label={copy.results.closeFilters}
-                  className="grid size-11 place-items-center rounded-full border border-[#dedfd9] bg-white text-[#3c4840] shadow-sm transition hover:border-[#bdc6bf]"
+                  className="grid size-11 place-items-center rounded-full border border-border bg-surface text-ink shadow-sm transition hover:border-border-strong"
                   onClick={() => setShowFilters(false)}
                   ref={closeFiltersRef}
                   type="button"
@@ -839,7 +839,7 @@ export function SearchExperience({
                 years={availableFilters.years}
               />
               <button
-                className="sticky bottom-0 mt-7 h-13 w-full rounded-full bg-ink text-sm font-semibold text-white shadow-[0_10px_30px_rgba(23,34,28,0.24)] transition hover:bg-[#2b3b32] active:scale-[0.99]"
+                className="sticky bottom-0 mt-7 h-13 w-full rounded-full bg-ink text-sm font-semibold text-surface shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition hover:opacity-90 active:scale-[0.99]"
                 onClick={() => setShowFilters(false)}
                 type="button"
               >

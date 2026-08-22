@@ -81,7 +81,7 @@ function FilterGroup({
 }) {
   return (
     <fieldset className={className}>
-      <legend className="mb-2 text-[11px] font-bold uppercase tracking-[0.09em] text-[#737c76]">
+      <legend className="mb-2 text-[11px] font-bold uppercase tracking-[0.09em] text-ink-subtle">
         {label}
       </legend>
       {children}
@@ -91,8 +91,8 @@ function FilterGroup({
 
 function isSelected(selected: boolean) {
   return selected
-    ? "border-[#a9bcae] bg-[#eaf2ed] text-[#214b36] shadow-sm"
-    : "border-[#dde0da] bg-white hover:border-[#aebdb2] hover:bg-[#f8faf7]";
+    ? "border-accent/50 bg-accent-soft text-accent-strong shadow-sm"
+    : "border-border bg-surface hover:border-border-strong hover:bg-surface-subtle";
 }
 
 function IconChoiceButton({
@@ -100,7 +100,7 @@ function IconChoiceButton({
   selected,
   children,
   onClick,
-  tone = "text-[#4f5b53]",
+  tone = "text-ink-muted",
 }: {
   label: string;
   selected: boolean;
@@ -120,7 +120,7 @@ function IconChoiceButton({
       {children}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-ink px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-ink px-2 py-1 text-[10px] font-semibold text-surface opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
       >
         {label}
       </span>
@@ -265,15 +265,15 @@ export function FilterPanel({
     <div>
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold tracking-[-0.02em] text-[#18231d]">
+          <h2 className="text-base font-semibold tracking-[-0.02em] text-ink">
             {copy.title}
           </h2>
-          <p className="mt-0.5 text-[11px] text-[#818a84]">
+          <p className="mt-0.5 text-[11px] text-ink-subtle">
             {copy.resultCount(resultCount)}
           </p>
         </div>
         <button
-          className="rounded-full border border-transparent px-2.5 py-1.5 text-xs font-semibold text-[#59665e] transition hover:border-[#d9ddd7] hover:bg-[#f6f7f3] hover:text-[#18231d] disabled:cursor-not-allowed disabled:opacity-35"
+          className="rounded-full border border-transparent px-2.5 py-1.5 text-xs font-semibold text-ink-muted transition hover:border-border hover:bg-surface-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
           disabled={!hasActiveFilters}
           onClick={onReset}
           type="button"
@@ -284,7 +284,7 @@ export function FilterPanel({
 
       <div className="flex flex-col gap-4">
         <FilterGroup className="order-2" label={copy.budget}>
-          <div className="rounded-2xl border border-[#eaebe7] bg-[#f8f8f5] px-3.5 py-2.5">
+          <div className="rounded-2xl border border-border bg-surface-muted px-3.5 py-2.5">
             <div
               className="budget-range"
               style={{
@@ -326,7 +326,7 @@ export function FilterPanel({
               />
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-[#dedfd9] bg-white px-2.5 text-xs font-semibold tabular-nums text-[#56635b] focus-within:border-[#9eafa4]">
+              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold tabular-nums text-ink-muted focus-within:border-accent/50">
                 <span className="sr-only">{copy.minimumBudget}</span>
                 <input
                   className="w-full min-w-0 bg-transparent outline-none"
@@ -340,10 +340,10 @@ export function FilterPanel({
                   type="text"
                   value={filters.minPrice ?? ""}
                 />
-                <span className="shrink-0 text-[#8a918c]">SEK</span>
+                <span className="shrink-0 text-ink-subtle">SEK</span>
               </label>
-              <span className="shrink-0 text-[#c5c8c4]">–</span>
-              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-[#dedfd9] bg-white px-2.5 text-xs font-semibold tabular-nums text-[#56635b] focus-within:border-[#9eafa4]">
+              <span className="shrink-0 text-border-strong">–</span>
+              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold tabular-nums text-ink-muted focus-within:border-accent/50">
                 <span className="sr-only">{copy.maximumBudget}</span>
                 <input
                   className="w-full min-w-0 bg-transparent outline-none"
@@ -361,7 +361,7 @@ export function FilterPanel({
                   type="text"
                   value={filters.maxPrice ?? ""}
                 />
-                <span className="shrink-0 text-[#8a918c]">SEK</span>
+                <span className="shrink-0 text-ink-subtle">SEK</span>
               </label>
             </div>
           </div>
@@ -430,7 +430,7 @@ export function FilterPanel({
 
         <button
           aria-expanded={showMoreFilters}
-          className="sticky bottom-0 z-20 order-5 flex h-10 w-full items-center justify-between rounded-xl border border-[#dde1db] bg-[#f7f8f5]/95 px-3 text-xs font-semibold text-[#344239] shadow-[0_4px_14px_rgba(26,35,29,0.08)] backdrop-blur-sm transition hover:border-[#b8c2ba] hover:bg-[#f1f4f0]"
+          className="sticky bottom-0 z-20 order-5 flex h-10 w-full items-center justify-between rounded-xl border border-border bg-surface-subtle/95 px-3 text-xs font-semibold text-ink shadow-[0_4px_14px_rgba(26,35,29,0.08)] backdrop-blur-sm transition hover:border-border-strong hover:bg-surface-muted"
           onClick={() => setShowMoreFilters((current) => !current)}
           type="button"
         >
@@ -485,18 +485,18 @@ export function FilterPanel({
         </FilterGroup>
 
         <FilterGroup className="order-3" label={copy.year}>
-          <div className="rounded-2xl border border-[#eaebe7] bg-[#f8f8f5] px-3.5 py-2.5">
+          <div className="rounded-2xl border border-border bg-surface-muted px-3.5 py-2.5">
             <div className="budget-range" style={{ "--budget-start": `${((selectedMinimumYear - earliestYear) / Math.max(1, latestYear - earliestYear)) * 100}%`, "--budget-end": `${((selectedMaximumYear - earliestYear) / Math.max(1, latestYear - earliestYear)) * 100}%` } as React.CSSProperties}>
               <span aria-hidden="true" className="budget-range-track" />
               <input aria-label={`${copy.minimum} ${copy.year}`} max={latestYear} min={earliestYear} onChange={(event) => { const value = Math.min(Number(event.target.value), selectedMaximumYear); onChange({ ...filters, minYear: value === earliestYear ? null : value }); }} step={1} type="range" value={selectedMinimumYear} />
               <input aria-label={`${copy.maximum} ${copy.year}`} max={latestYear} min={earliestYear} onChange={(event) => { const value = Math.max(Number(event.target.value), selectedMinimumYear); onChange({ ...filters, maxYear: value === latestYear ? null : value }); }} step={1} type="range" value={selectedMaximumYear} />
             </div>
-            <div className="mt-1 flex justify-between text-xs font-semibold tabular-nums text-[#56635b]"><span>{selectedMinimumYear}</span><span>{selectedMaximumYear}</span></div>
+            <div className="mt-1 flex justify-between text-xs font-semibold tabular-nums text-ink-muted"><span>{selectedMinimumYear}</span><span>{selectedMaximumYear}</span></div>
           </div>
         </FilterGroup>
 
         <FilterGroup className="order-4" label={copy.mileage}>
-          <div className="rounded-2xl border border-[#eaebe7] bg-[#f8f8f5] px-3.5 py-2.5">
+          <div className="rounded-2xl border border-border bg-surface-muted px-3.5 py-2.5">
             <div
               className="budget-range"
               style={{
@@ -535,7 +535,7 @@ export function FilterPanel({
                 value={maximumMileagePosition}
               />
             </div>
-            <div className="mt-1 flex justify-between text-xs font-semibold tabular-nums text-[#56635b]">
+            <div className="mt-1 flex justify-between text-xs font-semibold tabular-nums text-ink-muted">
               <span>{selectedMinimumMileageLabel}</span>
               <span>{selectedMaximumMileageLabel}</span>
             </div>

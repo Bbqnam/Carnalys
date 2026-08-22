@@ -305,6 +305,23 @@ export function SedanBodyIcon(props: IconProps) {
   );
 }
 
+export function SunIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <circle cx="12" cy="12" r="4.2" />
+      <path d="M12 2.5v2.3M12 19.2v2.3M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.3M19.2 12h2.3M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" />
+    </svg>
+  );
+}
+
+export function MoonIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M20.5 14.7A8.5 8.5 0 1 1 9.3 3.5a7 7 0 0 0 11.2 11.2Z" />
+    </svg>
+  );
+}
+
 export function HatchbackBodyIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} viewBox="0 0 64 32" {...props}>

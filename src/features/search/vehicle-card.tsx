@@ -99,8 +99,8 @@ export function VehicleCard({
       : image?.alt ?? listing.title;
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-white shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1 hover:border-[#d5d9d2] hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] focus-within:border-[#aebbb2] focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
-      <div className="relative aspect-[2/1] overflow-hidden bg-[#e9e8e3]">
+    <article className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-surface shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1 hover:border-border-strong hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] focus-within:border-accent/40 focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
+      <div className="relative aspect-[2/1] overflow-hidden bg-surface-muted">
         {image && !imageFailed ? (
           <Image
             alt={imageAlt}
@@ -125,7 +125,7 @@ export function VehicleCard({
         <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3.5">
           <span
             aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
-            className={`flex items-center gap-1.5 rounded-full border-2 bg-white/90 px-3 py-1 text-sm font-bold tabular-nums shadow-sm backdrop-blur-md ${dealScoreTone}`}
+            className={`flex items-center gap-1.5 rounded-full border-2 bg-surface/90 px-3 py-1 text-sm font-bold tabular-nums shadow-sm backdrop-blur-md ${dealScoreTone}`}
           >
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] opacity-75">
               {copy.card.dealBadge}
@@ -144,8 +144,8 @@ export function VehicleCard({
               aria-pressed={isCompared}
               className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${
                 isCompared
-                  ? "border-[#255e45] bg-[#eef6f1] text-[#255e45]"
-                  : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
+                  ? "border-accent bg-accent-soft text-accent"
+                  : "border-surface/60 bg-surface/85 text-ink hover:bg-surface"
               }`}
               disabled={compareDisabled && !isCompared}
               onClick={onToggleCompare}
@@ -158,8 +158,8 @@ export function VehicleCard({
               aria-pressed={isFavorite}
               className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 ${
                 isFavorite
-                  ? "border-[#a84c45] bg-[#fff8f7] text-[#a84c45]"
-                  : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
+                  ? "border-negative bg-negative-soft text-negative"
+                  : "border-surface/60 bg-surface/85 text-ink hover:bg-surface"
               }`}
               onClick={onToggleFavorite}
               type="button"
@@ -171,13 +171,13 @@ export function VehicleCard({
       </div>
 
       <div className="flex flex-1 flex-col p-3.5 sm:p-4">
-        <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm text-[#737b75]">
+        <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm text-ink-muted">
           <span className="shrink-0">{identity.modelYear}</span>
-          <span className="shrink-0 text-[#c5c8c4]">•</span>
+          <span className="shrink-0 text-border-strong">•</span>
           <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
-          <span className="shrink-0 text-[#c5c8c4]">•</span>
+          <span className="shrink-0 text-border-strong">•</span>
           <span className="truncate">{copy.filters.fuels[specification.powertrain.fuelType]}</span>
-          <span className="shrink-0 text-[#c5c8c4] 2xl:hidden">•</span>
+          <span className="shrink-0 text-border-strong 2xl:hidden">•</span>
           <span className="truncate 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           <span
             className={`ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
@@ -189,7 +189,7 @@ export function VehicleCard({
         </p>
 
         <Link
-          className="mt-3 flex min-w-0 items-start gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#708b79]"
+          className="mt-3 flex min-w-0 items-start gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
           href={`/vehicle/${listing.id}`}
         >
           <BrandLogo className="size-11 shrink-0" make={identity.make} />
@@ -213,7 +213,7 @@ export function VehicleCard({
                 ? `${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`
                 : copy.card.marketEstimatePending
             }
-            className="group/market relative min-w-0 cursor-help rounded-md text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#708b79] focus-visible:ring-offset-2"
+            className="group/market relative min-w-0 cursor-help rounded-md text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2"
             tabIndex={0}
           >
             {!hasMarketEstimate ? (
@@ -222,15 +222,15 @@ export function VehicleCard({
               </span>
             ) : savings > 0 ? (
               <>
-                <strong className="block text-sm font-semibold text-[#2b6a45]">
+                <strong className="block text-sm font-semibold text-positive">
                   {copy.card.save} {moneyFormatter.format(savings)}
                 </strong>
-                <span className="mt-0.5 block text-xs text-[#737b75]">
+                <span className="mt-0.5 block text-xs text-ink-muted">
                   {copy.card.belowMarket(marketDifferencePercent)}
                 </span>
               </>
             ) : priceDifference < 0 ? (
-              <span className="block text-sm font-medium text-[#8a6257]">
+              <span className="block text-sm font-medium text-negative">
                 {copy.card.aboveMarket(marketDifferencePercent)}
               </span>
             ) : (
@@ -239,12 +239,12 @@ export function VehicleCard({
               </span>
             )}
             {priceReduction > 0 ? (
-              <span className="mt-0.5 block text-xs text-[#737b75]">
+              <span className="mt-0.5 block text-xs text-ink-muted">
                 {copy.card.reduced} {moneyFormatter.format(priceReduction)}
               </span>
             ) : null}
             <span
-              className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] right-0 z-20 w-max max-w-56 translate-y-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-lg transition duration-150 group-hover/market:translate-y-0 group-hover/market:opacity-100 group-focus-visible/market:translate-y-0 group-focus-visible/market:opacity-100"
+              className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] right-0 z-20 w-max max-w-56 translate-y-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-surface opacity-0 shadow-lg transition duration-150 group-hover/market:translate-y-0 group-hover/market:opacity-100 group-focus-visible/market:translate-y-0 group-focus-visible/market:opacity-100"
               role="tooltip"
             >
               {hasMarketEstimate
@@ -257,13 +257,13 @@ export function VehicleCard({
         </div>
 
         <div className="mt-auto flex min-w-0 items-end justify-between gap-4 pt-5">
-          <div className="min-w-0 space-y-1.5 text-sm text-[#858c87]">
+          <div className="min-w-0 space-y-1.5 text-sm text-ink-muted">
             {sellerLocation ? (
               <p className="flex min-w-0 items-center gap-1.5">
                 <MapPinIcon className="size-4 shrink-0" />
                 <span className="truncate">{sellerLocation}</span>
                 {distanceKm !== undefined ? (
-                  <span className="shrink-0 font-medium text-[#52685a]">
+                  <span className="shrink-0 font-medium text-accent">
                     · {copy.card.distanceAway(distanceKm)}
                   </span>
                 ) : null}
@@ -285,10 +285,10 @@ export function VehicleCard({
           </div>
           {financingOffer ? (
             <div className="shrink-0 text-right">
-              <p className="text-xs font-medium text-[#8a918c]">
+              <p className="text-xs font-medium text-ink-subtle">
                 {copy.card.financingFrom}
               </p>
-              <p className="mt-0.5 whitespace-nowrap text-base font-semibold text-[#303a34]">
+              <p className="mt-0.5 whitespace-nowrap text-base font-semibold text-ink">
                 {moneyFormatter.format(financingOffer.amount)}{copy.card.perMonth}
               </p>
             </div>
@@ -296,7 +296,7 @@ export function VehicleCard({
         </div>
 
         <a
-          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#dfe2dc] bg-[#fbfcfa] text-sm font-semibold text-[#334139] transition hover:border-[#b9c5bb] hover:bg-[#f5f8f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#255e45] focus-visible:ring-offset-2 active:scale-[0.99]"
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-subtle text-sm font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.99]"
           href={listing.source.url}
           rel="noopener noreferrer"
           target="_blank"

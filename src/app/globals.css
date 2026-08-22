@@ -3,6 +3,94 @@
 :root {
   --background: #fafaf7;
   --foreground: #17211b;
+
+  /* Consolidated tokens for colors that were previously repeated as
+     near-duplicate arbitrary hex values across feature components. Every
+     color in the app should reference one of these instead of a literal
+     hex, so theme switching (see the dark overrides below) is a single
+     source of truth rather than a per-component patch job. Named without
+     the "color-" prefix here, then aliased into `--color-*` inside
+     `@theme inline` below — matching the existing --background/--foreground
+     pattern — so the alias stays a live var() reference instead of Tailwind
+     baking in a static value, which is what lets the dark-mode overrides
+     below actually take effect at runtime. */
+  --ink: #17211b;
+  --ink-muted: #56635b;
+  --ink-subtle: #8a918c;
+  --border: #e4e5df;
+  --border-strong: #c5c8c4;
+  --surface: #ffffff;
+  --surface-muted: #f5f7f4;
+  --surface-subtle: #fbfcfa;
+  --accent: #255e45;
+  --accent-strong: #17311f;
+  --accent-soft: #eaf2ed;
+  --positive: #1f5737;
+  --negative: #81463e;
+  --negative-soft: #fff3f1;
+  --gold: #b3924a;
+  --shimmer-from: #e8e8e3;
+  --shimmer-to: #f4f4ef;
+  --selection: #cbdacf;
+  --hero-glow-1: rgba(200, 214, 204, 0.75);
+  --hero-glow-2: rgba(230, 218, 193, 0.7);
+}
+
+/* Dark values, applied when the OS prefers dark and the user hasn't made an
+   explicit choice (guarded by :not([data-theme="light"]) so an explicit
+   light choice still wins over the OS setting)... */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #10140f;
+    --foreground: #eef1ec;
+    --ink: #eef1ec;
+    --ink-muted: #a3ac9e;
+    --ink-subtle: #7c857e;
+    --border: #263028;
+    --border-strong: #3b463e;
+    --surface: #182018;
+    --surface-muted: #1d271f;
+    --surface-subtle: #161d17;
+    --accent: #5aa584;
+    --accent-strong: #86c9a5;
+    --accent-soft: #1c2e24;
+    --positive: #5cb98a;
+    --negative: #e2897b;
+    --negative-soft: #3a2320;
+    --gold: #cfae6e;
+    --shimmer-from: #1c231d;
+    --shimmer-to: #242e26;
+    --selection: #2c4636;
+    --hero-glow-1: rgba(70, 100, 85, 0.35);
+    --hero-glow-2: rgba(90, 80, 55, 0.3);
+  }
+}
+
+/* ...and again when the user explicitly picks dark, so the toggle always
+   wins over the OS setting in both directions. */
+:root[data-theme="dark"] {
+  --background: #10140f;
+  --foreground: #eef1ec;
+  --ink: #eef1ec;
+  --ink-muted: #a3ac9e;
+  --ink-subtle: #7c857e;
+  --border: #263028;
+  --border-strong: #3b463e;
+  --surface: #182018;
+  --surface-muted: #1d271f;
+  --surface-subtle: #161d17;
+  --accent: #5aa584;
+  --accent-strong: #86c9a5;
+  --accent-soft: #1c2e24;
+  --positive: #5cb98a;
+  --negative: #e2897b;
+  --negative-soft: #3a2320;
+  --gold: #cfae6e;
+  --shimmer-from: #1c231d;
+  --shimmer-to: #242e26;
+  --selection: #2c4636;
+  --hero-glow-1: rgba(70, 100, 85, 0.35);
+  --hero-glow-2: rgba(90, 80, 55, 0.3);
 }
 
 @theme inline {
@@ -10,14 +98,21 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
 
-  /* Consolidated tokens for colors that were previously repeated as
-     near-duplicate arbitrary hex values across feature components. */
-  --color-ink: #17211b;
-  --color-ink-muted: #647068;
-  --color-border: #e4e5df;
-  --color-surface-muted: #f5f7f4;
-  --color-positive: #1f5737;
-  --color-negative: #81463e;
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-gold: var(--gold);
 }
 
 html {
@@ -26,6 +121,17 @@ html {
      overall density. 14px = 87.5% of the 16px browser default. */
   font-size: 14px;
   scroll-behavior: smooth;
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
 }
 
 body {
@@ -34,6 +140,7 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 button,
@@ -55,7 +162,7 @@ select {
 }
 
 :focus-visible {
-  outline: 2px solid #456653;
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -80,9 +187,9 @@ select:focus-visible {
   background:
     linear-gradient(
       to right,
-      #d5ddd6 0 var(--budget-start),
-      #557862 var(--budget-start) var(--budget-end),
-      #d5ddd6 var(--budget-end) 100%
+      var(--border-strong) 0 var(--budget-start),
+      var(--accent) var(--budget-start) var(--budget-end),
+      var(--border-strong) var(--budget-end) 100%
     );
 }
 
@@ -108,10 +215,10 @@ select:focus-visible {
   height: 1.1rem;
   margin-top: -0.4rem;
   appearance: none;
-  border: 3px solid white;
+  border: 3px solid var(--surface);
   border-radius: 999px;
-  background: #254934;
-  box-shadow: 0 1px 5px rgba(23, 34, 28, 0.25);
+  background: var(--accent-strong);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.25);
 }
 
 .budget-range input[type="range"]::-moz-range-track {
@@ -123,31 +230,36 @@ select:focus-visible {
   pointer-events: auto;
   width: 0.8rem;
   height: 0.8rem;
-  border: 3px solid white;
+  border: 3px solid var(--surface);
   border-radius: 999px;
-  background: #254934;
-  box-shadow: 0 1px 5px rgba(23, 34, 28, 0.25);
+  background: var(--accent-strong);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.25);
 }
 
 .budget-range input[type="range"]:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid #456653;
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
 .budget-range input[type="range"]:focus-visible::-moz-range-thumb {
-  outline: 2px solid #456653;
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
 .hero-glow {
   background:
-    radial-gradient(circle at 78% 18%, rgba(200, 214, 204, 0.75), transparent 31%),
-    radial-gradient(circle at 18% 82%, rgba(230, 218, 193, 0.7), transparent 34%);
+    radial-gradient(circle at 78% 18%, var(--hero-glow-1), transparent 31%),
+    radial-gradient(circle at 18% 82%, var(--hero-glow-2), transparent 34%);
 }
 
 .image-shimmer,
 .skeleton-shimmer {
-  background: linear-gradient(105deg, #e8e8e3 25%, #f4f4ef 42%, #e8e8e3 60%);
+  background: linear-gradient(
+    105deg,
+    var(--shimmer-from) 25%,
+    var(--shimmer-to) 42%,
+    var(--shimmer-from) 60%
+  );
   background-size: 220% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -163,8 +275,8 @@ select:focus-visible {
 }
 
 ::selection {
-  background: #cbdacf;
-  color: #17211b;
+  background: var(--selection);
+  color: var(--ink);
 }
 
 @media (prefers-reduced-motion: reduce) {

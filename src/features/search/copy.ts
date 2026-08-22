@@ -155,6 +155,9 @@ export const uiCopy = {
   en: {
     languageName: "English",
     languageSwitchLabel: "Change language",
+    themeSwitchLabel: "Change theme",
+    lightTheme: "Light",
+    darkTheme: "Dark",
     nav: {
       home: "Carnalysis home",
       howItWorks: "How it works",
@@ -413,6 +416,9 @@ export const uiCopy = {
   sv: {
     languageName: "Svenska",
     languageSwitchLabel: "Byt språk",
+    themeSwitchLabel: "Byt tema",
+    lightTheme: "Ljust",
+    darkTheme: "Mörkt",
     nav: {
       home: "Carnalysis hem",
       howItWorks: "Så fungerar det",

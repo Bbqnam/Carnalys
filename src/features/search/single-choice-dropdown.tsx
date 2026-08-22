@@ -42,7 +42,7 @@ export function SingleChoiceDropdown<T extends string>({
   onChange,
   ariaLabel,
   inlineLabel,
-  inlineLabelClassName = "hidden text-xs font-medium text-[#7a837d] sm:inline",
+  inlineLabelClassName = "hidden text-xs font-medium text-ink-subtle sm:inline",
   disabled = false,
 }: SingleChoiceDropdownProps<T>) {
   const listboxId = useId();
@@ -145,7 +145,7 @@ export function SingleChoiceDropdown<T extends string>({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className="relative flex h-11 items-center gap-2 rounded-xl border border-[#dedfd9] bg-white pl-3.5 pr-3 text-left shadow-sm transition hover:border-[#c6cbc4] hover:shadow-md focus-within:border-[#708b79] focus-within:ring-4 focus-within:ring-[#708b79]/10 disabled:cursor-not-allowed disabled:opacity-45"
+        className="relative flex h-11 items-center gap-2 rounded-xl border border-border bg-surface pl-3.5 pr-3 text-left shadow-sm transition hover:border-border-strong hover:shadow-md focus-within:border-accent/50 focus-within:ring-4 focus-within:ring-accent/10 disabled:cursor-not-allowed disabled:opacity-45"
         disabled={disabled}
         onClick={() => (open ? closeMenu() : openMenu())}
         onKeyDown={(event) => {
@@ -162,18 +162,18 @@ export function SingleChoiceDropdown<T extends string>({
         type="button"
       >
         {inlineLabel ? <span className={inlineLabelClassName}>{inlineLabel}:</span> : null}
-        <span className="whitespace-nowrap text-sm font-semibold text-[#28332c]">
+        <span className="whitespace-nowrap text-sm font-semibold text-ink">
           {selectedLabel}
         </span>
         <ChevronDownIcon
-          className={`pointer-events-none size-4 shrink-0 text-[#78817b] transition-transform ${open ? "rotate-180" : ""}`}
+          className={`pointer-events-none size-4 shrink-0 text-ink-subtle transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
       {open && position
         ? createPortal(
             <div
-              className="fixed z-[100] overflow-hidden rounded-xl border border-[#d9ddd7] bg-white p-1.5 shadow-[0_18px_50px_rgba(20,30,24,0.18)]"
+              className="fixed z-[100] overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-[0_18px_50px_rgba(20,30,24,0.18)]"
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.preventDefault();
@@ -198,10 +198,10 @@ export function SingleChoiceDropdown<T extends string>({
                   return (
                     <button
                       aria-selected={selected}
-                      className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#708b79] ${
+                      className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
                         selected
-                          ? "bg-[#eaf2ed] font-semibold text-[#214b36]"
-                          : "text-[#354139] hover:bg-[#f4f6f3]"
+                          ? "bg-accent-soft font-semibold text-accent-strong"
+                          : "text-ink-muted hover:bg-surface-muted"
                       }`}
                       key={option.value}
                       onClick={() => selectOption(option.value)}
@@ -214,7 +214,7 @@ export function SingleChoiceDropdown<T extends string>({
                     >
                       <span
                         aria-hidden="true"
-                        className={`grid size-4 shrink-0 place-items-center ${selected ? "text-[#214b36]" : "text-transparent"}`}
+                        className={`grid size-4 shrink-0 place-items-center ${selected ? "text-accent-strong" : "text-transparent"}`}
                       >
                         <CheckIcon className="size-3.5" />
                       </span>

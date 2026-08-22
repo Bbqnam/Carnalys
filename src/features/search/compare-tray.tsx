@@ -23,7 +23,7 @@ function CompareThumbnail({ vehicle }: { vehicle: ComparedVehicle }) {
       width={44}
     />
   ) : (
-    <div className="size-11 shrink-0 rounded-lg bg-[#e9e8e3]" />
+    <div className="size-11 shrink-0 rounded-lg bg-surface-muted" />
   );
 }
 
@@ -32,14 +32,14 @@ export function CompareTrayPanel({ compared, locale, onRemove, onClear }: Compar
   const copy = uiCopy[locale];
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-[#e2e2dc] bg-white shadow-[0_8px_30px_rgba(26,35,29,0.04)]">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgba(26,35,29,0.04)]">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-[#19231d]">
-          <CompareIcon className="size-4 text-[#255e45]" />
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <CompareIcon className="size-4 text-accent" />
           {copy.compare.selectedCount(compared.length)}
         </span>
         <button
-          className="text-xs font-medium text-[#737b75] transition hover:text-ink"
+          className="text-xs font-medium text-ink-muted transition hover:text-ink"
           onClick={onClear}
           type="button"
         >
@@ -50,7 +50,7 @@ export function CompareTrayPanel({ compared, locale, onRemove, onClear }: Compar
       <div className="flex flex-col gap-2 p-3">
         {compared.map((vehicle) => (
           <div
-            className="flex items-center gap-2.5 rounded-xl border border-[#e6e5df] bg-[#fbfcfa] p-2"
+            className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-subtle p-2"
             key={vehicle.id}
           >
             <CompareThumbnail vehicle={vehicle} />
@@ -64,7 +64,7 @@ export function CompareTrayPanel({ compared, locale, onRemove, onClear }: Compar
             </span>
             <button
               aria-label={copy.compare.remove}
-              className="grid size-7 shrink-0 place-items-center rounded-full text-[#8a918c] transition hover:bg-[#f0f1ec] hover:text-ink"
+              className="grid size-7 shrink-0 place-items-center rounded-full text-ink-subtle transition hover:bg-surface-muted hover:text-ink"
               onClick={() => onRemove(vehicle.id)}
               type="button"
             >
@@ -76,7 +76,7 @@ export function CompareTrayPanel({ compared, locale, onRemove, onClear }: Compar
 
       <div className="p-3 pt-0">
         <Link
-          className="flex h-11 w-full items-center justify-center rounded-xl bg-ink text-sm font-semibold text-white transition hover:bg-[#1a231d]"
+          className="flex h-11 w-full items-center justify-center rounded-xl bg-ink text-sm font-semibold text-surface transition hover:opacity-90"
           href="/compare"
         >
           {copy.compare.viewComparison}
@@ -94,20 +94,20 @@ export function CompareMobileBar({ compared, locale, onClear }: CompareTrayConte
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-4 lg:hidden">
-      <div className="flex items-center gap-3 rounded-full border border-border bg-white/95 px-4 py-2.5 shadow-[0_18px_48px_rgba(26,35,29,0.16)] backdrop-blur-md">
-        <span className="flex items-center gap-2 text-sm font-medium text-[#26332b]">
-          <CompareIcon className="size-4 text-[#255e45]" />
+      <div className="flex items-center gap-3 rounded-full border border-border bg-surface/95 px-4 py-2.5 shadow-[0_18px_48px_rgba(26,35,29,0.16)] backdrop-blur-md">
+        <span className="flex items-center gap-2 text-sm font-medium text-ink">
+          <CompareIcon className="size-4 text-accent" />
           {copy.compare.selectedCount(compared.length)}
         </span>
         <button
-          className="rounded-full px-2.5 py-1.5 text-xs font-medium text-[#737b75] transition hover:text-ink"
+          className="rounded-full px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:text-ink"
           onClick={onClear}
           type="button"
         >
           {copy.compare.clearAll}
         </button>
         <Link
-          className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1a231d]"
+          className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface transition hover:opacity-90"
           href="/compare"
         >
           {copy.compare.viewComparison}

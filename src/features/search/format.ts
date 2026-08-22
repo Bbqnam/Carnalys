@@ -73,9 +73,9 @@ export function formatRelativeListingDate(value: string, locale: Locale) {
 
 /** Tailwind border/text color classes for a Deal Score or Buy Confidence badge. */
 export function scoreTone(value: number) {
-  if (value >= 80) return "border-[#4f8b63] text-positive";
-  if (value >= 65) return "border-[#8b927b] text-[#555c49]";
-  return "border-[#b8796f] text-negative";
+  if (value >= 80) return "border-positive/50 text-positive";
+  if (value >= 65) return "border-ink-subtle/60 text-ink-muted";
+  return "border-negative/50 text-negative";
 }
 
 /** Text color class for a score factor's impact (positive/neutral/negative). */
@@ -96,23 +96,23 @@ export function factorTierIndex(score: number) {
 
 /** Tinted chip background + text classes for a factor's tier label. */
 export function factorChipTone(impact: "positive" | "neutral" | "negative") {
-  if (impact === "positive") return "bg-[#eef2ed] text-positive";
-  if (impact === "negative") return "bg-[#faf1ef] text-negative";
-  return "bg-[#f1f1ec] text-[#65695f]";
+  if (impact === "positive") return "bg-accent-soft text-positive";
+  if (impact === "negative") return "bg-negative-soft text-negative";
+  return "bg-surface-muted text-ink-muted";
 }
 
 /** Fill color class for a factor's mini benchmark bar. */
 export function factorBarTone(impact: "positive" | "neutral" | "negative") {
   if (impact === "positive") return "bg-positive";
   if (impact === "negative") return "bg-negative";
-  return "bg-[#8b927b]";
+  return "bg-ink-subtle";
 }
 
 /** Tailwind classes for the dealer/private seller badge. */
 export function sellerTypeTone(type: "dealer" | "private") {
   return type === "dealer"
-    ? "border-[#a9bcae] bg-[#eef2ed] text-[#28543a]"
-    : "border-[#e0c9a6] bg-[#faf3e8] text-[#8a6948]";
+    ? "border-accent/40 bg-accent-soft text-accent-strong"
+    : "border-gold/40 bg-gold/12 text-gold";
 }
 
 /**

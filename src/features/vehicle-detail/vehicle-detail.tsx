@@ -63,27 +63,27 @@ function ScoreCard({
 }) {
   const copy = uiCopy[locale];
   return (
-    <div className="rounded-2xl border border-border bg-white p-3.5">
+    <div className="rounded-2xl border border-border bg-surface p-3.5">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-[#19231d]">{title}</h3>
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
         <span
-          className={`flex items-center gap-1.5 rounded-full border-2 bg-white px-2.5 py-0.5 text-sm font-bold tabular-nums ${scoreTone(value)}`}
+          className={`flex items-center gap-1.5 rounded-full border-2 bg-surface px-2.5 py-0.5 text-sm font-bold tabular-nums ${scoreTone(value)}`}
         >
           {value}
         </span>
       </div>
-      <p className="mt-1 text-xs text-[#526058]">{summary}</p>
+      <p className="mt-1 text-xs text-ink-muted">{summary}</p>
       {factors.length > 0 ? (
-        <ul className="mt-2.5 space-y-1.5 border-t border-[#eceeea] pt-2.5">
+        <ul className="mt-2.5 space-y-1.5 border-t border-border pt-2.5">
           {factors.map((factor) => {
             const factorText = scoreFactorText(locale, factor);
             return (
               <li key={factor.key}>
                 <div className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-[#26332b]">
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">
                     {factorText.label}
                   </span>
-                  <div className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-[#e9e8e3]">
+                  <div className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-surface-muted">
                     <div
                       className={`h-full rounded-full ${factorBarTone(factor.impact)}`}
                       style={{
@@ -98,7 +98,7 @@ function ScoreCard({
                     {copy.detail.factorTiers[factorTierIndex(factor.score)]}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] leading-snug text-[#8a918c]">
+                <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
                   {factorText.explanation}
                 </p>
               </li>
@@ -179,7 +179,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
 
       <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
         <button
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#526058] hover:text-[#19231d]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:text-ink"
           onClick={() => router.back()}
           type="button"
         >
@@ -189,7 +189,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
 
         <div className="mt-5 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
         <div>
-          <div className="relative aspect-[16/10] max-h-[380px] overflow-hidden rounded-2xl bg-[#e9e8e3]">
+          <div className="relative aspect-[16/10] max-h-[380px] overflow-hidden rounded-2xl bg-surface-muted">
             {currentImage ? (
               <Image
                 alt={currentImage.alt ?? listing.title}
@@ -220,8 +220,8 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 aria-pressed={isCompared}
                 className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${
                   isCompared
-                    ? "border-[#255e45] bg-[#eef6f1] text-[#255e45]"
-                    : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
+                    ? "border-accent bg-accent-soft text-accent"
+                    : "border-surface/60 bg-surface/85 text-ink hover:bg-surface"
                 }`}
                 disabled={compareDisabled}
                 onClick={() =>
@@ -242,8 +242,8 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 aria-pressed={isFavorite}
                 className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 ${
                   isFavorite
-                    ? "border-[#a84c45] bg-[#fff8f7] text-[#a84c45]"
-                    : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
+                    ? "border-negative bg-negative-soft text-negative"
+                    : "border-surface/60 bg-surface/85 text-ink hover:bg-surface"
                 }`}
                 onClick={() => toggle(listing.id)}
                 type="button"
@@ -257,7 +257,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               {images.map((image, index) => (
                 <button
                   className={`relative size-16 shrink-0 overflow-hidden rounded-lg ring-2 transition ${
-                    index === activeImage ? "ring-[#255e45]" : "ring-transparent hover:ring-[#d5d9d2]"
+                    index === activeImage ? "ring-accent" : "ring-transparent hover:ring-border-strong"
                   }`}
                   key={image.url}
                   onClick={() => setActiveImage(index)}
@@ -268,16 +268,16 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ))}
             </div>
           ) : null}
-          <div className="mt-6 flex items-center gap-2 text-xs text-[#737b75]">
-            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-surface-muted ring-1 ring-inset ring-[#e2e6e1]">
+          <div className="mt-6 flex items-center gap-2 text-xs text-ink-muted">
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-surface-muted ring-1 ring-inset ring-border">
               <BrandLogo className="size-5.5" make={identity.make} />
             </span>
             <span>{identity.modelYear}</span>
-            <span className="text-[#c5c8c4]">•</span>
+            <span className="text-border-strong">•</span>
             <span>{numberFormatter.format(listing.mileageKm / 10)} {copy.card.mileageUnit}</span>
-            <span className="text-[#c5c8c4]">•</span>
+            <span className="text-border-strong">•</span>
             <span>{copy.filters.fuels[specification.powertrain.fuelType]}</span>
-            <span className="text-[#c5c8c4]">•</span>
+            <span className="text-border-strong">•</span>
             <span>{copy.filters.transmissions[specification.powertrain.transmission]}</span>
             <span
               className={`ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
@@ -298,15 +298,15 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           </p>
 
           {listing.seller.name || listing.location.municipality ? (
-            <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-[#737b75]">
+            <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
               <MapPinIcon className="size-3.5 shrink-0" />
               {[listing.seller.name, listing.location.municipality].filter(Boolean).join(" · ")}
               {distanceKm !== undefined ? (
-                <span className="font-medium text-[#52685a]">
+                <span className="font-medium text-accent">
                   · {copy.card.distanceAway(distanceKm)}
                 </span>
               ) : null}
-              <span className="text-[#c5c8c4]">·</span>
+              <span className="text-border-strong">·</span>
               <span>
                 {listingDateLabel}{" "}
                 <time dateTime={listingDateValue} suppressHydrationWarning title={formatExactListingDate(listingDateValue, locale)}>
@@ -317,36 +317,36 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           ) : null}
 
           {listing.description ? (
-            <p className="mt-6 whitespace-pre-line text-sm leading-relaxed text-[#354139]">
+            <p className="mt-6 whitespace-pre-line text-sm leading-relaxed text-ink-muted">
               {listing.description}
             </p>
           ) : null}
 
-          <div className="mt-6 rounded-2xl border border-border bg-[#fbfcfa] p-5">
-            <h2 className="text-sm font-semibold text-[#19231d]">{copy.detail.specificationsTitle}</h2>
+          <div className="mt-6 rounded-2xl border border-border bg-surface-subtle p-5">
+            <h2 className="text-sm font-semibold text-ink">{copy.detail.specificationsTitle}</h2>
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm sm:grid-cols-3">
               <div>
-                <dt className="text-[#8a918c]">{copy.filters.body}</dt>
-                <dd className="font-medium text-[#26332b]">
+                <dt className="text-ink-subtle">{copy.filters.body}</dt>
+                <dd className="font-medium text-ink">
                   {copy.filters.bodies[specification.bodyStyle]}
                 </dd>
               </div>
               <div>
-                <dt className="text-[#8a918c]">{copy.filters.fuel}</dt>
-                <dd className="font-medium text-[#26332b]">
+                <dt className="text-ink-subtle">{copy.filters.fuel}</dt>
+                <dd className="font-medium text-ink">
                   {copy.filters.fuels[specification.powertrain.fuelType]}
                 </dd>
               </div>
               <div>
-                <dt className="text-[#8a918c]">{copy.filters.transmission}</dt>
-                <dd className="font-medium text-[#26332b]">
+                <dt className="text-ink-subtle">{copy.filters.transmission}</dt>
+                <dd className="font-medium text-ink">
                   {copy.filters.transmissions[specification.powertrain.transmission]}
                 </dd>
               </div>
               {specification.powertrain.drivetrain ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.drivetrain}</dt>
-                  <dd className="font-medium text-[#26332b]">
+                  <dt className="text-ink-subtle">{copy.detail.drivetrain}</dt>
+                  <dd className="font-medium text-ink">
                     {copy.filters.drivetrains[specification.powertrain.drivetrain]}
                   </dd>
                 </div>
@@ -354,8 +354,8 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               {specification.powertrain.engineDescription ||
               specification.powertrain.engineDisplacementCc ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.engine}</dt>
-                  <dd className="font-medium text-[#26332b]">
+                  <dt className="text-ink-subtle">{copy.detail.engine}</dt>
+                  <dd className="font-medium text-ink">
                     {specification.powertrain.engineDescription ??
                       `${(specification.powertrain.engineDisplacementCc! / 1000).toFixed(1)} L`}
                   </dd>
@@ -363,22 +363,22 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ) : null}
               {specification.powertrain.powerHp ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.horsepower}</dt>
-                  <dd className="font-medium text-[#26332b]">
+                  <dt className="text-ink-subtle">{copy.detail.horsepower}</dt>
+                  <dd className="font-medium text-ink">
                     {specification.powertrain.powerHp} hk
                   </dd>
                 </div>
               ) : null}
               {specification.powertrain.fuelConsumption ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.fuelConsumption}</dt>
-                  <dd className="font-medium text-[#26332b]">
+                  <dt className="text-ink-subtle">{copy.detail.fuelConsumption}</dt>
+                  <dd className="font-medium text-ink">
                     {specification.powertrain.fuelConsumption}
                   </dd>
                 </div>
               ) : estimatedFuelConsumption !== undefined ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.fuelConsumption}</dt>
+                  <dt className="text-ink-subtle">{copy.detail.fuelConsumption}</dt>
                   <dd className="font-medium text-ink-muted">
                     {copy.detail.fuelConsumptionEstimated(
                       `${numberFormatter.format(estimatedFuelConsumption)} L/100 km`,
@@ -388,24 +388,24 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ) : null}
               {listing.ownerCount !== undefined ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.owners}</dt>
-                  <dd className="font-medium text-[#26332b]">{listing.ownerCount}</dd>
+                  <dt className="text-ink-subtle">{copy.detail.owners}</dt>
+                  <dd className="font-medium text-ink">{listing.ownerCount}</dd>
                 </div>
               ) : null}
               {listing.warranty?.included ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.warranty}</dt>
-                  <dd className="font-medium text-[#26332b]">
+                  <dt className="text-ink-subtle">{copy.detail.warranty}</dt>
+                  <dd className="font-medium text-ink">
                     {listing.warranty.description ?? copy.detail.warranty}
                   </dd>
                 </div>
               ) : null}
               {vehicle.registrationNumber ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.registrationNumber}</dt>
+                  <dt className="text-ink-subtle">{copy.detail.registrationNumber}</dt>
                   <dd>
                     <a
-                      className="inline-flex items-center gap-1 font-medium text-[#26332b] underline decoration-[#c5c8c4] underline-offset-2 hover:text-ink"
+                      className="inline-flex items-center gap-1 font-medium text-ink underline decoration-border-strong underline-offset-2 hover:text-ink"
                       href={`https://biluppgifter.se/fordon/${vehicle.registrationNumber.replace(/\s+/g, "").toUpperCase()}`}
                       rel="noopener noreferrer"
                       target="_blank"
@@ -418,14 +418,14 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ) : null}
               {vehicle.vin ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.vin}</dt>
-                  <dd className="font-medium text-[#26332b]">{vehicle.vin}</dd>
+                  <dt className="text-ink-subtle">{copy.detail.vin}</dt>
+                  <dd className="font-medium text-ink">{vehicle.vin}</dd>
                 </div>
               ) : null}
               {vehicle.firstRegistrationDate ? (
                 <div>
-                  <dt className="text-[#8a918c]">{copy.detail.firstRegistration}</dt>
-                  <dd className="font-medium text-[#26332b]">{vehicle.firstRegistrationDate}</dd>
+                  <dt className="text-ink-subtle">{copy.detail.firstRegistration}</dt>
+                  <dd className="font-medium text-ink">{vehicle.firstRegistrationDate}</dd>
                 </div>
               ) : null}
             </dl>
@@ -433,20 +433,20 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
 
           {equipmentItems.length > 0 ? (
             <div className="mt-6">
-              <h2 className="text-sm font-semibold text-[#19231d]">
+              <h2 className="text-sm font-semibold text-ink">
                 {copy.detail.equipmentTitle}
               </h2>
               <ul className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
                 {visibleEquipment.map((item) => (
-                  <li className="flex items-start gap-2 text-sm text-[#354139]" key={item}>
-                    <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-[#8c948e]" />
+                  <li className="flex items-start gap-2 text-sm text-ink-muted" key={item}>
+                    <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-ink-subtle" />
                     <span className="min-w-0">{item}</span>
                   </li>
                 ))}
               </ul>
               {equipmentItems.length > equipmentPreviewCount ? (
                 <button
-                  className="mt-4 text-xs font-semibold text-[#354139] underline-offset-4 hover:underline"
+                  className="mt-4 text-xs font-semibold text-ink-muted underline-offset-4 hover:underline"
                   onClick={() => setShowAllEquipment((current) => !current)}
                   type="button"
                 >
@@ -459,7 +459,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           ) : null}
 
           <a
-            className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#dfe2dc] bg-[#fbfcfa] text-sm font-semibold text-[#334139] transition hover:border-[#b9c5bb] hover:bg-[#f5f8f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#255e45] focus-visible:ring-offset-2 active:scale-[0.99]"
+            className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-subtle text-sm font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.99]"
             href={listing.source.url}
             rel="noopener noreferrer"
             target="_blank"
@@ -485,14 +485,14 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             value={analysis.buyConfidenceScore.value}
           />
 
-          <div className="rounded-2xl border border-border bg-white p-4">
-            <h3 className="text-sm font-semibold text-[#19231d]">{copy.detail.marketValueTitle}</h3>
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <h3 className="text-sm font-semibold text-ink">{copy.detail.marketValueTitle}</h3>
             {hasMarketEstimate ? (
               <>
                 <p className="mt-2 text-xl font-semibold text-ink">
                   {moneyFormatter.format(analysis.marketValue.value.amount)}
                 </p>
-                <p className="mt-1 text-xs text-[#8a918c]">
+                <p className="mt-1 text-xs text-ink-subtle">
                   {copy.detail.marketRange}: {moneyFormatter.format(analysis.marketValue.range.minimum.amount)}
                   {" – "}
                   {moneyFormatter.format(analysis.marketValue.range.maximum.amount)}
@@ -512,29 +512,29 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             ) : (
               <p className="mt-2 text-sm text-ink-muted">{copy.card.marketEstimatePending}</p>
             )}
-            <p className="mt-2.5 text-xs text-[#8a918c]">
+            <p className="mt-2.5 text-xs text-ink-subtle">
               {marketValueExplanationText(locale, analysis.marketValue.comparableListingCount)}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-white p-4">
-            <h3 className="text-sm font-semibold text-[#19231d]">{copy.detail.ownershipCostTitle}</h3>
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <h3 className="text-sm font-semibold text-ink">{copy.detail.ownershipCostTitle}</h3>
             <p className="mt-2 text-xl font-semibold text-ink">
               {moneyFormatter.format(analysis.ownershipCost.annualCost.amount)}
             </p>
-            <p className="mt-1 text-xs text-[#8a918c]">
+            <p className="mt-1 text-xs text-ink-subtle">
               {copy.detail.ownershipCostCaption(analysis.ownershipCost.estimatedForAnnualDistanceKm)}
             </p>
             {analysis.ownershipCost.items.length > 0 ? (
-              <div className="mt-3 border-t border-[#eceeea] pt-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[#8a918c]">
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-subtle">
                   {copy.detail.ownershipCostBreakdown}
                 </p>
-                <div className="mt-2.5 flex h-4 gap-[2px] bg-white">
+                <div className="mt-2.5 flex h-4 gap-[2px] bg-surface">
                   {analysis.ownershipCost.items.map((item, index) => (
                     <div
                       aria-label={`${copy.detail.ownershipCostCategories[item.category]}: ${moneyFormatter.format(item.annualCost.amount)}`}
-                      className={`group/cost relative cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#708b79] focus-visible:ring-offset-2 ${ownershipCostCategoryTone(item.category)} ${
+                      className={`group/cost relative cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 ${ownershipCostCategoryTone(item.category)} ${
                         index === 0 ? "rounded-l-full" : ""
                       } ${index === analysis.ownershipCost.items.length - 1 ? "rounded-r-full" : ""}`}
                       key={item.category}
@@ -542,7 +542,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                       tabIndex={0}
                     >
                       <span
-                        className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-20 w-max max-w-56 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-lg transition duration-150 group-hover/cost:translate-y-0 group-hover/cost:opacity-100 group-focus-visible/cost:translate-y-0 group-focus-visible/cost:opacity-100"
+                        className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-20 w-max max-w-56 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-surface opacity-0 shadow-lg transition duration-150 group-hover/cost:translate-y-0 group-hover/cost:opacity-100 group-focus-visible/cost:translate-y-0 group-focus-visible/cost:opacity-100"
                         role="tooltip"
                       >
                         {copy.detail.ownershipCostCategories[item.category]}:{" "}
@@ -554,14 +554,14 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 <ul className="mt-3 space-y-2">
                   {analysis.ownershipCost.items.map((item) => (
                     <li className="flex items-center justify-between text-sm" key={item.category}>
-                      <span className="flex items-center gap-2 text-[#526058]">
+                      <span className="flex items-center gap-2 text-ink-muted">
                         <span
                           aria-hidden="true"
                           className={`size-2.5 shrink-0 rounded-full ${ownershipCostCategoryTone(item.category)}`}
                         />
                         {copy.detail.ownershipCostCategories[item.category]}
                       </span>
-                      <span className="font-medium text-[#26332b]">
+                      <span className="font-medium text-ink">
                         {moneyFormatter.format(item.annualCost.amount)}
                       </span>
                     </li>

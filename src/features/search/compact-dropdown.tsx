@@ -174,35 +174,35 @@ export function CompactDropdown({
 
   return (
     <div className="min-w-0">
-      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.09em] text-[#737c76]">
+      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.09em] text-ink-subtle">
         {label}
       </span>
       <button
         aria-controls={open ? listboxId : undefined}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="group flex h-10 w-full min-w-0 items-center gap-1 rounded-xl border border-[#dde0da] bg-white px-1.5 text-left shadow-[0_1px_2px_rgba(23,33,27,0.02)] transition duration-200 hover:border-[#aebdb2] hover:bg-[#f8faf7] focus-visible:border-[#708b79] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#708b79]/10 disabled:cursor-not-allowed disabled:opacity-45"
+        className="group flex h-10 w-full min-w-0 items-center gap-1 rounded-xl border border-border bg-surface px-1.5 text-left shadow-[0_1px_2px_rgba(23,33,27,0.02)] transition duration-200 hover:border-border-strong hover:bg-surface-subtle focus-visible:border-accent/50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/10 disabled:cursor-not-allowed disabled:opacity-45"
         disabled={disabled}
         onClick={() => (open ? closeMenu() : openMenu())}
         onKeyDown={handleTriggerKeyDown}
         ref={triggerRef}
         type="button"
       >
-        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-[#edf3ef] text-[#4f705d]">
+        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent-soft text-accent">
           {renderIcon(selectedOption?.value ?? "")}
         </span>
-        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#26332b]">
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
           {selectedOption?.label}
         </span>
         <ChevronDownIcon
-          className={`pointer-events-none size-3 shrink-0 text-[#78847d] transition-transform ${open ? "rotate-180" : ""}`}
+          className={`pointer-events-none size-3 shrink-0 text-ink-subtle transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
       {open && position
         ? createPortal(
             <div
-              className="fixed z-[100] overflow-hidden rounded-xl border border-[#d9ddd7] bg-white p-1.5 shadow-[0_18px_50px_rgba(20,30,24,0.18)]"
+              className="fixed z-[100] overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-[0_18px_50px_rgba(20,30,24,0.18)]"
               ref={menuRef}
               style={{
                 top: position.top,
@@ -212,11 +212,11 @@ export function CompactDropdown({
               }}
             >
               {searchable ? (
-                <label className="mb-1 flex h-9 items-center gap-2 rounded-lg bg-surface-muted px-2.5 text-[#6b756e] focus-within:ring-2 focus-within:ring-[#708b79]/25">
+                <label className="mb-1 flex h-9 items-center gap-2 rounded-lg bg-surface-muted px-2.5 text-ink-muted focus-within:ring-2 focus-within:ring-accent/25">
                   <SearchIcon className="size-3.5 shrink-0" />
                   <input
                     aria-label={searchPlaceholder}
-                    className="min-w-0 flex-1 bg-transparent text-xs text-[#26332b] outline-none placeholder:text-[#929a95]"
+                    className="min-w-0 flex-1 bg-transparent text-xs text-ink outline-none placeholder:text-ink-subtle"
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder={searchPlaceholder}
                     value={query}
@@ -233,10 +233,10 @@ export function CompactDropdown({
                   filteredOptions.map((option, index) => (
                     <button
                       aria-selected={option.value === value}
-                      className={`flex h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#708b79] ${
+                      className={`flex h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
                         option.value === value
-                          ? "bg-[#eaf2ed] font-semibold text-[#214b36]"
-                          : "text-[#354139] hover:bg-[#f4f6f3]"
+                          ? "bg-accent-soft font-semibold text-accent-strong"
+                          : "text-ink-muted hover:bg-surface-muted"
                       }`}
                       key={option.value}
                       onClick={() => selectOption(option)}
@@ -247,7 +247,7 @@ export function CompactDropdown({
                       role="option"
                       type="button"
                     >
-                      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-white text-[#4f705d] ring-1 ring-[#e3e7e2]">
+                      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface text-accent ring-1 ring-border">
                         {renderIcon(option.value)}
                       </span>
                       <span className="min-w-0 flex-1 truncate">{option.label}</span>
@@ -257,7 +257,7 @@ export function CompactDropdown({
                     </button>
                   ))
                 ) : (
-                  <p className="px-3 py-5 text-center text-xs text-[#7b847e]">
+                  <p className="px-3 py-5 text-center text-xs text-ink-subtle">
                     {noResultsLabel}
                   </p>
                 )}

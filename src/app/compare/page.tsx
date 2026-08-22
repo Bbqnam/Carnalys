@@ -192,7 +192,7 @@ export default function ComparePage() {
 
       <div className="mx-auto max-w-[1800px] px-5 py-8 sm:px-8 lg:px-12">
         <button
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#526058] hover:text-[#19231d]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:text-ink"
           onClick={() => router.back()}
           type="button"
         >
@@ -204,7 +204,7 @@ export default function ComparePage() {
           <h1 className="text-2xl font-semibold tracking-[-0.03em] text-ink">{copy.compare.title}</h1>
           {compared.length > 0 ? (
             <button
-              className="text-sm font-medium text-[#737b75] hover:text-ink"
+              className="text-sm font-medium text-ink-muted hover:text-ink"
               onClick={clear}
               type="button"
             >
@@ -216,17 +216,17 @@ export default function ComparePage() {
         {results === null ? (
           <p className="mt-6 text-sm text-ink-muted">…</p>
         ) : results.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-border bg-white p-8 text-center">
+          <div className="mt-6 rounded-2xl border border-border bg-surface p-8 text-center">
             <p className="text-sm text-ink-muted">{copy.compare.emptyBody}</p>
             <Link
-              className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-white transition hover:bg-[#1a231d]"
+              className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-surface transition hover:opacity-90"
               href="/"
             >
               {copy.compare.browseCta}
             </Link>
           </div>
         ) : (
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-white">
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-surface">
             <table
               className="table-fixed border-collapse text-sm"
               style={{ width: 160 + 380 * results.length }}
@@ -239,13 +239,13 @@ export default function ComparePage() {
               </colgroup>
               <thead>
                 <tr>
-                  <th className="shrink-0 border-b border-border p-4 text-left align-bottom text-xs font-medium uppercase tracking-[0.04em] text-[#8a918c]" />
+                  <th className="shrink-0 border-b border-border p-4 text-left align-bottom text-xs font-medium uppercase tracking-[0.04em] text-ink-subtle" />
                   {results.map((result) => (
                     <th
                       className="overflow-hidden border-b border-l border-border p-4 text-left align-bottom"
                       key={result.listing.id}
                     >
-                      <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[#e9e8e3]">
+                      <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-surface-muted">
                         {result.listing.images[0] ? (
                           <Image
                             alt={result.listing.images[0].alt ?? result.listing.title}
@@ -257,7 +257,7 @@ export default function ComparePage() {
                         ) : null}
                         <button
                           aria-label={copy.compare.remove}
-                          className="absolute right-1.5 top-1.5 grid size-7 shrink-0 place-items-center rounded-full bg-white/90 text-[#8a918c] transition hover:bg-white hover:text-ink"
+                          className="absolute right-1.5 top-1.5 grid size-7 shrink-0 place-items-center rounded-full bg-surface/90 text-ink-subtle transition hover:bg-surface hover:text-ink"
                           onClick={() => remove(result.listing.id)}
                           type="button"
                         >
@@ -281,7 +281,7 @@ export default function ComparePage() {
                         </span>
                       </Link>
                       <a
-                        className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-[#334139] hover:underline"
+                        className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-ink hover:underline"
                         href={result.listing.source.url}
                         rel="noopener noreferrer"
                         target="_blank"
@@ -299,7 +299,7 @@ export default function ComparePage() {
                   return (
                     <tr key={row.label}>
                       <th
-                        className="border-b border-border p-4 text-left text-xs font-medium text-[#8a918c]"
+                        className="border-b border-border p-4 text-left text-xs font-medium text-ink-subtle"
                         scope="row"
                       >
                         {row.label}
@@ -308,8 +308,8 @@ export default function ComparePage() {
                         <td
                           className={`overflow-hidden border-b border-l border-border p-4 font-medium ${
                             bestIds.has(result.listing.id)
-                              ? "bg-[#eef2ed] text-positive"
-                              : "text-[#26332b]"
+                              ? "bg-accent-soft text-positive"
+                              : "text-ink"
                           }`}
                           key={result.listing.id}
                         >

@@ -58,7 +58,7 @@ export default function SavedPage() {
 
       <div className="mx-auto max-w-[1800px] px-5 py-8 sm:px-8 lg:px-12">
         <button
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#526058] hover:text-[#19231d]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:text-ink"
           onClick={() => router.back()}
           type="button"
         >

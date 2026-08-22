@@ -28,7 +28,7 @@ function SynchronizationStatusMessage({ message }: { message: string }) {
   return (
     <p
       aria-live="polite"
-      className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-64 rounded-xl border border-[#dfe4de] bg-white px-3 py-2.5 text-xs leading-5 text-[#526058] shadow-[0_10px_30px_rgba(24,36,28,0.12)]"
+      className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-64 rounded-xl border border-border bg-surface px-3 py-2.5 text-xs leading-5 text-ink-muted shadow-[0_10px_30px_rgba(24,36,28,0.12)]"
       id="synchronization-status"
     >
       {message}
@@ -132,7 +132,7 @@ export function SynchronizationButton({
   return (
     <div className="relative flex items-center gap-2">
       {progressLabel ? (
-        <span className="hidden shrink-0 whitespace-nowrap text-xs font-medium tabular-nums text-[#737b75] sm:inline">
+        <span className="hidden shrink-0 whitespace-nowrap text-xs font-medium tabular-nums text-ink-muted sm:inline">
           {progressLabel}
         </span>
       ) : null}
@@ -142,7 +142,7 @@ export function SynchronizationButton({
             actionMessage && !pending ? "synchronization-status" : undefined
           }
           aria-label={label}
-          className="flex h-11 items-center gap-2 rounded-xl border border-[#d6ddd7] bg-[#f3f7f4] px-3.5 text-sm font-semibold text-[#315441] shadow-sm transition hover:border-[#aebeb3] hover:bg-white hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-65"
+          className="flex h-11 items-center gap-2 rounded-xl border border-border bg-surface-muted px-3.5 text-sm font-semibold text-accent-strong shadow-sm transition hover:border-border-strong hover:bg-surface hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-65"
           disabled={pending || isBusy}
           type="submit"
         >
