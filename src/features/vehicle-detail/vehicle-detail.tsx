@@ -79,19 +79,11 @@ function ScoreCard({
             const factorText = scoreFactorText(locale, factor);
             return (
               <li key={factor.key}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-[#26332b]">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-[#26332b]">
                     {factorText.label}
                   </span>
-                  <span
-                    aria-label={copy.detail.factorImpact[factor.impact]}
-                    className={`shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold ${factorChipTone(factor.impact)}`}
-                  >
-                    {copy.detail.factorTiers[factorTierIndex(factor.score)]}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center gap-2">
-                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#e9e8e3]">
+                  <div className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-[#e9e8e3]">
                     <div
                       className={`h-full rounded-full ${factorBarTone(factor.impact)}`}
                       style={{
@@ -99,6 +91,12 @@ function ScoreCard({
                       }}
                     />
                   </div>
+                  <span
+                    aria-label={copy.detail.factorImpact[factor.impact]}
+                    className={`shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold ${factorChipTone(factor.impact)}`}
+                  >
+                    {copy.detail.factorTiers[factorTierIndex(factor.score)]}
+                  </span>
                 </div>
                 <p className="mt-1 text-[11px] leading-snug text-[#8a918c]">
                   {factorText.explanation}
@@ -471,7 +469,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           </a>
         </div>
 
-        <div className="space-y-3">
+        <div className="max-w-[480px] space-y-3">
           <ScoreCard
             factors={analysis.dealScore.factors}
             locale={locale}
