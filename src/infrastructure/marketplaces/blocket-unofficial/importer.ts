@@ -9,8 +9,9 @@ import {
   BlocketUnofficialClient,
 } from "./client";
 import { parseListingPageSpecifications } from "./listing-page-parser";
-import { normalizeBlocketListing } from "./normalizer";
+import { isMissingCriticalSpecifications, normalizeBlocketListing } from "./normalizer";
 import { parseBlocketDetail, parseBlocketSearchResponse } from "./parser";
+import type { BlocketListingDetail } from "./types";
 
 // Probed directly against the live API (16 concurrent requests, all 200 OK,
 // sub-second): it comfortably absorbs far more than the previous 4 lanes /
@@ -117,14 +118,17 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         this.detailLaneLastRequestAt[laneIndex] = Date.now();
         const detail = parseBlocketDetail(payload);
 
-        if (Object.keys(detail.specifications).length === 0) {
+        if (
+          Object.keys(detail.specifications).length === 0 ||
+          isMissingCriticalSpecifications(detail.specifications)
+        ) {
           await this.paceLane(laneIndex);
           try {
             const html = await this.client.getListingPageHtml(document.canonicalUrl);
             this.detailLaneLastRequestAt[laneIndex] = Date.now();
             const scraped = parseListingPageSpecifications(html);
             if (Object.keys(scraped).length > 0) {
-              return { ...detail, specifications: scraped };
+              return { ...detail, specifications: { ...detail.specifications, ...scraped } };
             }
           } catch {
             this.detailLaneLastRequestAt[laneIndex] = Date.now();
@@ -202,8 +206,22 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
             )
           : new Map<string, unknown>();
 
+        // A cached detail payload can itself be missing the "Specifikationer"
+        // block (see fetchDetail's HTML-fallback above) — most commonly
+        // because it was cached before that fallback existed. Re-parsing here
+        // and dropping incomplete entries lets already-cached listings
+        // self-heal through the normal sync sweep instead of staying broken
+        // forever just because *a* detail payload was once cached for them.
+        const parsedCachedByExternalId = new Map<string, BlocketListingDetail>();
+        for (const [externalId, rawDetail] of cachedDetailByExternalId) {
+          const parsedDetail = parseBlocketDetail(rawDetail);
+          if (!isMissingCriticalSpecifications(parsedDetail.specifications)) {
+            parsedCachedByExternalId.set(externalId, parsedDetail);
+          }
+        }
+
         const uncachedDocuments = parsed.documents.filter(
-          (document) => !cachedDetailByExternalId.has(document.id),
+          (document) => !parsedCachedByExternalId.has(document.id),
         );
         const uncachedDetails = await this.fetchDetailsConcurrently(uncachedDocuments);
         const fetchedDetailById = new Map(
@@ -211,8 +229,8 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         );
 
         const listings = parsed.documents.map((document) => {
-          const cached = cachedDetailByExternalId.get(document.id);
-          const detail = cached ? parseBlocketDetail(cached) : fetchedDetailById.get(document.id);
+          const detail =
+            parsedCachedByExternalId.get(document.id) ?? fetchedDetailById.get(document.id);
           return normalizeBlocketListing(document, detail, this.scope);
         });
 

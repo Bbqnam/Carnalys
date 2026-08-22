@@ -347,6 +347,8 @@ export const uiCopy = {
       ownershipCostCaption: (km: number) =>
         `Based on ${km.toLocaleString("en-SE")} km per year`,
       equipmentTitle: "Equipment",
+      equipmentShowAll: (count: number) => `Show all ${count}`,
+      equipmentShowLess: "Show less",
       specificationsTitle: "Specifications",
       engine: "Engine",
       horsepower: "Horsepower",
@@ -604,6 +606,8 @@ export const uiCopy = {
       ownershipCostCaption: (km: number) =>
         `Baserat på ${km.toLocaleString("sv-SE")} km per år`,
       equipmentTitle: "Utrustning",
+      equipmentShowAll: (count: number) => `Visa alla ${count}`,
+      equipmentShowLess: "Visa färre",
       specificationsTitle: "Specifikationer",
       engine: "Motor",
       horsepower: "Effekt",

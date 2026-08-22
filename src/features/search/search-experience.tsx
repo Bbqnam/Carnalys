@@ -620,7 +620,7 @@ export function SearchExperience({
             <div className="min-w-0">
               {results.length > 0 ? (
                 <>
-                  <div className="grid min-w-0 gap-5 xl:grid-cols-2 2xl:grid-cols-3">
+                  <div className="grid min-w-0 gap-5 lg:grid-cols-2 xl:grid-cols-3">
                     <AnimatePresence initial={false}>
                       {results.map((result, index) => (
                         <motion.div

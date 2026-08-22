@@ -78,6 +78,23 @@ function findConsumptionValue(specifications: Record<string, string>) {
   return key ? specifications[key] : undefined;
 }
 
+// The unofficial API's detail response sometimes carries most of the
+// "Specifikationer" block but drops individual keys — body style in
+// particular, since the deal score and body-style filter rely on it. An
+// entirely-empty specifications object already triggers an HTML fallback in
+// the importer; this lets it also trigger when just body style is missing
+// from an otherwise-populated response.
+//
+// Deliberately NOT applied to fuel/energy consumption: most Blocket sellers
+// simply never fill that field in (it's optional on their listing form), so
+// its absence is normal sparse data, not a fetch failure — treating it as
+// "critical" would make every listing look permanently broken and trigger a
+// pointless re-fetch/re-scrape on every sync, forever, for data that was
+// never going to be there.
+export function isMissingCriticalSpecifications(specifications: Record<string, string>) {
+  return !("Biltyp" in specifications);
+}
+
 export function normalizeBlocketListing(
   document: BlocketSearchDocument,
   detail: BlocketListingDetail | undefined,

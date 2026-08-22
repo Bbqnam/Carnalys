@@ -110,7 +110,7 @@ export function VehicleCard({
             onError={() => setImageFailed(true)}
             placeholder="blur"
             preload={priority}
-            sizes="(max-width: 767px) 100vw, (max-width: 1279px) 50vw, 33vw"
+            sizes="(max-width: 1023px) 100vw, (max-width: 1279px) 50vw, 33vw"
             src={image.url}
           />
         ) : (
@@ -118,7 +118,7 @@ export function VehicleCard({
             alt={copy.card.missingImage}
             className="object-cover"
             fill
-            sizes="(max-width: 767px) 100vw, (max-width: 1279px) 50vw, 33vw"
+            sizes="(max-width: 1023px) 100vw, (max-width: 1279px) 50vw, 33vw"
             src="/images/vehicle-fallback.svg"
           />
         )}

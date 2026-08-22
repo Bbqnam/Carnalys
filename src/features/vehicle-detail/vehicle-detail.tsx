@@ -28,6 +28,7 @@ import {
 } from "@/features/search/format";
 import {
   ArrowRightIcon,
+  CheckIcon,
   CompareIcon,
   ExternalLinkIcon,
   HeartIcon,
@@ -114,6 +115,7 @@ function ScoreCard({
 export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const router = useRouter();
   const [activeImage, setActiveImage] = useState(0);
+  const [showAllEquipment, setShowAllEquipment] = useState(false);
   const { favorites, toggle } = useFavorites();
   const {
     compared,
@@ -138,6 +140,11 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const hasMarketEstimate = analysis.marketValue.comparableListingCount >= 3;
   const images = listing.images.length > 0 ? listing.images : undefined;
   const currentImage = images?.[activeImage] ?? images?.[0];
+  const equipmentItems = listing.equipment.filter((item) => !item.startsWith("*"));
+  const equipmentPreviewCount = 18;
+  const visibleEquipment = showAllEquipment
+    ? equipmentItems
+    : equipmentItems.slice(0, equipmentPreviewCount);
   const listingDateValue = listing.publishedAt ?? listing.source.firstSeenAt;
   const listingDateLabel = listing.publishedAt ? copy.card.posted : copy.card.firstSeen;
   const distanceKm =
@@ -398,19 +405,30 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             </dl>
           </div>
 
-          {listing.equipment.length > 0 ? (
+          {equipmentItems.length > 0 ? (
             <div className="mt-6">
-              <h2 className="text-sm font-semibold text-[#19231d]">{copy.detail.equipmentTitle}</h2>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {listing.equipment.map((item) => (
-                  <span
-                    className="rounded-full border border-border bg-surface-muted px-2.5 py-1 text-xs text-[#354139]"
-                    key={item}
-                  >
-                    {item}
-                  </span>
+              <h2 className="text-sm font-semibold text-[#19231d]">
+                {copy.detail.equipmentTitle}
+              </h2>
+              <ul className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+                {visibleEquipment.map((item) => (
+                  <li className="flex items-start gap-2 text-sm text-[#354139]" key={item}>
+                    <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-[#8c948e]" />
+                    <span className="min-w-0">{item}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
+              {equipmentItems.length > equipmentPreviewCount ? (
+                <button
+                  className="mt-4 text-xs font-semibold text-[#354139] underline-offset-4 hover:underline"
+                  onClick={() => setShowAllEquipment((current) => !current)}
+                  type="button"
+                >
+                  {showAllEquipment
+                    ? copy.detail.equipmentShowLess
+                    : copy.detail.equipmentShowAll(equipmentItems.length)}
+                </button>
+              ) : null}
             </div>
           ) : null}
 
