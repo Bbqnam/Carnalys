@@ -3,10 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSavedListings } from "@/app/actions";
+import { CompareTray } from "@/features/search/compare-tray";
 import { uiCopy, type Locale } from "@/features/search/copy";
 import { ArrowRightIcon } from "@/features/search/icons";
-import { defaultLocale, readLocaleCookie, setLocaleCookie } from "@/features/search/locale";
+import { useLocaleCookie } from "@/features/search/use-locale-cookie";
 import { SiteHeader } from "@/features/search/site-header";
+import { useCompare } from "@/features/search/use-compare";
 import { useFavorites } from "@/features/search/use-favorites";
 import { VehicleCard } from "@/features/search/vehicle-card";
 import type { VehicleSearchResult } from "@/features/search/types";
@@ -14,7 +16,15 @@ import type { VehicleSearchResult } from "@/features/search/types";
 export default function SavedPage() {
   const router = useRouter();
   const { favorites, toggle } = useFavorites();
-  const [locale, setLocale] = useState<Locale>(() => readLocaleCookie() ?? defaultLocale);
+  const {
+    compared,
+    toggle: toggleCompare,
+    remove: removeCompare,
+    clear: clearCompare,
+    isFull: compareFull,
+  } = useCompare();
+  const comparedIds = new Set(compared.map((vehicle) => vehicle.id));
+  const [locale, writeLocale] = useLocaleCookie();
   const [listings, setListings] = useState<VehicleSearchResult[] | null>(null);
   const copy = uiCopy[locale];
 
@@ -32,8 +42,7 @@ export default function SavedPage() {
   const visibleListings = favorites.size === 0 ? [] : listings;
 
   function changeLocale(nextLocale: Locale) {
-    setLocale(nextLocale);
-    setLocaleCookie(nextLocale);
+    writeLocale(nextLocale);
     document.documentElement.lang = nextLocale;
   }
 
@@ -44,9 +53,10 @@ export default function SavedPage() {
         locale={locale}
         onLocaleChange={changeLocale}
         savedCount={favorites.size}
+        compareCount={compared.length}
       />
 
-      <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-12">
+      <div className="mx-auto max-w-[1800px] px-5 py-8 sm:px-8 lg:px-12">
         <button
           className="inline-flex items-center gap-1.5 text-sm font-medium text-[#526058] hover:text-[#19231d]"
           onClick={() => router.back()}
@@ -69,15 +79,33 @@ export default function SavedPage() {
             {visibleListings.map((result) => (
               <VehicleCard
                 isFavorite={favorites.has(result.listing.id)}
+                isCompared={comparedIds.has(result.listing.id)}
+                compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
                 key={result.listing.id}
                 locale={locale}
                 onToggleFavorite={() => toggle(result.listing.id)}
+                onToggleCompare={() =>
+                  toggleCompare({
+                    id: result.listing.id,
+                    make: result.vehicle.identity.make,
+                    model: result.vehicle.identity.model,
+                    variant: result.vehicle.identity.variant,
+                    imageUrl: result.listing.images[0]?.url,
+                  })
+                }
                 result={result}
               />
             ))}
           </div>
         )}
       </div>
+
+      <CompareTray
+        compared={compared}
+        locale={locale}
+        onClear={clearCompare}
+        onRemove={removeCompare}
+      />
     </div>
   );
 }

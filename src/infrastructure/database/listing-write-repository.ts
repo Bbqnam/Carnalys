@@ -43,33 +43,154 @@ function listingHashes(normalized: NormalizedVehicleListing) {
   };
 }
 
-async function resolveVehicleId(
-  database: Prisma.TransactionClient,
-  listing: NormalizedVehicleListing,
-) {
-  const identifiers = [
-    listing.vehicle.vin ? { vin: listing.vehicle.vin } : undefined,
-    listing.vehicle.registrationNumber
-      ? { registrationNumber: listing.vehicle.registrationNumber }
-      : undefined,
-  ].filter(
-    (value): value is { vin: string } | { registrationNumber: string } =>
-      Boolean(value),
-  );
+/**
+ * Resolves a stable vehicleId for every listing in a batch, in one pass.
+ *
+ * Two listings can be the same physical car (matching VIN or registration
+ * number) — e.g. a relisting, or the same car posted more than once. This
+ * used to be resolved per-listing, inside each listing's own write
+ * transaction: safe when the whole batch ran in one shared transaction
+ * (an earlier listing's in-flight insert was visible to a later lookup in
+ * the same transaction), but not once listings started writing in their own
+ * independent concurrent transactions — two such listings could both check
+ * "does this vehicle exist yet?", both see no, and both try to create it,
+ * colliding on the registrationNumber/vin unique constraint.
+ *
+ * Resolving every id upfront removes the race, but naively picking one
+ * identifier per listing (VIN if present, else registration number) isn't
+ * enough on its own: if listing A has both VIN and regno but listing B (the
+ * same car) only has the regno, they'd hash to different keys and still
+ * collide. This groups listings that share *either* identifier — VIN or
+ * regno, transitively — using union-find, so every listing referring to the
+ * same physical car always resolves to the same id, whichever identifiers
+ * it happens to report.
+ */
+async function resolveVehicleIds(
+  listings: readonly NormalizedVehicleListing[],
+): Promise<{
+  vehicleIdByListing: Map<NormalizedVehicleListing, string>;
+  mergedVehicleIds: Map<string, string>;
+}> {
+  const vins = listings
+    .map((listing) => listing.vehicle.vin)
+    .filter((vin): vin is string => Boolean(vin));
+  const registrationNumbers = listings
+    .map((listing) => listing.vehicle.registrationNumber)
+    .filter((value): value is string => Boolean(value));
 
-  if (identifiers.length > 0) {
-    const existing = await database.vehicleRecord.findFirst({
-      where: { OR: identifiers },
-      select: { id: true },
-    });
-    if (existing) return existing.id;
+  const existingRows =
+    vins.length > 0 || registrationNumbers.length > 0
+      ? await prisma.vehicleRecord.findMany({
+          where: {
+            OR: [
+              ...(vins.length > 0 ? [{ vin: { in: vins } }] : []),
+              ...(registrationNumbers.length > 0
+                ? [{ registrationNumber: { in: registrationNumbers } }]
+                : []),
+            ],
+          },
+          select: { id: true, vin: true, registrationNumber: true },
+        })
+      : [];
+
+  const idByIdentifier = new Map<string, string>();
+  for (const row of existingRows) {
+    if (row.vin) idByIdentifier.set(`vin:${row.vin}`, row.id);
+    if (row.registrationNumber) {
+      idByIdentifier.set(`regno:${row.registrationNumber}`, row.id);
+    }
   }
 
-  const identity =
-    listing.vehicle.vin ??
-    listing.vehicle.registrationNumber ??
-    `${listing.source.provider}:${listing.source.externalId}`;
-  return stableId("vehicle", identity);
+  const parent = new Map<string, string>();
+  function ensure(token: string) {
+    if (!parent.has(token)) parent.set(token, token);
+  }
+  function find(token: string): string {
+    let root = token;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    let cursor = token;
+    while (parent.get(cursor) !== root) {
+      const next = parent.get(cursor)!;
+      parent.set(cursor, root);
+      cursor = next;
+    }
+    return root;
+  }
+  function union(a: string, b: string) {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent.set(rootA, rootB);
+  }
+
+  const fallbackTokenByListing = new Map<NormalizedVehicleListing, string>();
+  for (const listing of listings) {
+    const fallback = `listing:${listing.source.provider}:${listing.source.externalId}`;
+    fallbackTokenByListing.set(listing, fallback);
+    ensure(fallback);
+
+    const vinToken = listing.vehicle.vin ? `vin:${listing.vehicle.vin}` : undefined;
+    const regnoToken = listing.vehicle.registrationNumber
+      ? `regno:${listing.vehicle.registrationNumber}`
+      : undefined;
+    if (vinToken) {
+      ensure(vinToken);
+      union(fallback, vinToken);
+    }
+    if (regnoToken) {
+      ensure(regnoToken);
+      union(fallback, regnoToken);
+    }
+  }
+
+  // Prefer an existing DB id for the group; otherwise derive a stable id from
+  // the group's best-available identifier (VIN over regno over listing key),
+  // so a re-run of the same batch (e.g. retrying after a failure) resolves
+  // to the same generated id.
+  const tokenPriority = (token: string) =>
+    token.startsWith("vin:") ? 0 : token.startsWith("regno:") ? 1 : 2;
+  const tokensByRoot = new Map<string, string[]>();
+  for (const token of parent.keys()) {
+    const root = find(token);
+    const tokens = tokensByRoot.get(root) ?? [];
+    tokens.push(token);
+    tokensByRoot.set(root, tokens);
+  }
+
+  // A root can span tokens that belonged to two *different*, previously
+  // separate VehicleRecord rows (e.g. one row known by VIN, another only by
+  // registration number, now linked by a new listing reporting both) — that's
+  // a genuine merge, not just a fresh id assignment. Only one canonical id
+  // survives per root; every other pre-existing id in that root is recorded
+  // here so every listing anywhere in the DB still pointing at it — not just
+  // ones in this batch — can be repointed, otherwise the physical car stays
+  // permanently split across two vehicle rows.
+  const idByRoot = new Map<string, string>();
+  const mergedVehicleIds = new Map<string, string>();
+  for (const [root, tokens] of tokensByRoot) {
+    const existingIdsInRoot = [
+      ...new Set(
+        tokens
+          .map((token) => idByIdentifier.get(token))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const canonicalToken = [...tokens].sort(
+      (a, b) => tokenPriority(a) - tokenPriority(b),
+    )[0];
+    const canonicalId = existingIdsInRoot[0] ?? stableId("vehicle", canonicalToken);
+    idByRoot.set(root, canonicalId);
+    for (const losingId of existingIdsInRoot.slice(1)) {
+      mergedVehicleIds.set(losingId, canonicalId);
+    }
+  }
+
+  const vehicleIdByListing = new Map<NormalizedVehicleListing, string>();
+  for (const listing of listings) {
+    const fallback = fallbackTokenByListing.get(listing)!;
+    vehicleIdByListing.set(listing, idByRoot.get(find(fallback))!);
+  }
+
+  return { vehicleIdByListing, mergedVehicleIds };
 }
 
 function neutralAnalysis(priceAmount: number) {
@@ -102,6 +223,7 @@ async function writeListing(
   normalized: NormalizedVehicleListing,
   synchronizedAt: Date,
   existing: ExistingListingState | undefined,
+  vehicleId: string,
 ) {
   const hashes = listingHashes(normalized);
   const listingId =
@@ -129,47 +251,37 @@ async function writeListing(
     return { listingId, state: "unchanged" as const };
   }
 
-  const vehicleId = await resolveVehicleId(transaction, normalized);
   const vehicle = normalized.vehicle;
   const listing = normalized.listing;
 
+  const vehicleFields = {
+    vin: vehicle.vin,
+    registrationNumber: vehicle.registrationNumber,
+    make: vehicle.make,
+    model: vehicle.model,
+    variant: vehicle.variant,
+    modelYear: vehicle.modelYear,
+    registrationYear: vehicle.registrationYear,
+    bodyStyle: vehicle.bodyStyle,
+    fuelType: vehicle.fuelType,
+    transmission: vehicle.transmission,
+    drivetrain: vehicle.drivetrain,
+    horsepower: vehicle.horsepower,
+    engineDescription: vehicle.engineDescription,
+    engineDisplacement: vehicle.engineDisplacementCc,
+    fuelConsumption: vehicle.fuelConsumption,
+    firstRegistration: vehicle.firstRegistration,
+  };
+
+  // A P2002 collision here (VIN or registration number already held by a
+  // different vehicle row) is handled by the caller: Postgres aborts the
+  // whole transaction the instant one statement errors, so any retry has to
+  // happen in a fresh transaction, not this one — see
+  // `clearConflictingVehicleIdentifiers` in `upsertNormalizedListings`.
   await transaction.vehicleRecord.upsert({
     where: { id: vehicleId },
-    create: {
-      id: vehicleId,
-      vin: vehicle.vin,
-      registrationNumber: vehicle.registrationNumber,
-      make: vehicle.make,
-      model: vehicle.model,
-      variant: vehicle.variant,
-      modelYear: vehicle.modelYear,
-      registrationYear: vehicle.registrationYear,
-      bodyStyle: vehicle.bodyStyle,
-      fuelType: vehicle.fuelType,
-      transmission: vehicle.transmission,
-      drivetrain: vehicle.drivetrain,
-      horsepower: vehicle.horsepower,
-      engineDescription: vehicle.engineDescription,
-      engineDisplacement: vehicle.engineDisplacementCc,
-      firstRegistration: vehicle.firstRegistration,
-    },
-    update: {
-      vin: vehicle.vin,
-      registrationNumber: vehicle.registrationNumber,
-      make: vehicle.make,
-      model: vehicle.model,
-      variant: vehicle.variant,
-      modelYear: vehicle.modelYear,
-      registrationYear: vehicle.registrationYear,
-      bodyStyle: vehicle.bodyStyle,
-      fuelType: vehicle.fuelType,
-      transmission: vehicle.transmission,
-      drivetrain: vehicle.drivetrain,
-      horsepower: vehicle.horsepower,
-      engineDescription: vehicle.engineDescription,
-      engineDisplacement: vehicle.engineDisplacementCc,
-      firstRegistration: vehicle.firstRegistration,
-    },
+    create: { id: vehicleId, ...vehicleFields },
+    update: vehicleFields,
   });
 
   await transaction.listingRecord.upsert({
@@ -263,19 +375,24 @@ async function writeListing(
     }
   }
 
-  await transaction.listingAnalysisRecord.upsert({
-    where: { listingId },
-    create: {
-      listingId,
-      ...neutralAnalysis(listing.priceAmount),
-      calculatedAt: synchronizedAt,
-      sourceSynchronizedAt: synchronizedAt,
-    },
-    update: {
-      ...neutralAnalysis(listing.priceAmount),
-      calculatedAt: synchronizedAt,
-      sourceSynchronizedAt: synchronizedAt,
-    },
+  // Only seed the neutral placeholder for listings that don't have an
+  // analysis row yet (skipDuplicates makes this a no-op otherwise). A plain
+  // content change (e.g. a spec field newly resolving) must not stomp a
+  // listing's real, comparable-based analysis back down to this flat
+  // placeholder — refreshStoredListingAnalyses recomputes the real analysis
+  // for changedListingIds shortly after, but only up to a per-run cap, so
+  // anything beyond that cap would otherwise be left permanently neutral
+  // instead of keeping its last known-good analysis.
+  await transaction.listingAnalysisRecord.createMany({
+    data: [
+      {
+        listingId,
+        ...neutralAnalysis(listing.priceAmount),
+        calculatedAt: synchronizedAt,
+        sourceSynchronizedAt: synchronizedAt,
+      },
+    ],
+    skipDuplicates: true,
   });
 
   return { listingId, state: existing ? ("updated" as const) : ("created" as const) };
@@ -287,6 +404,22 @@ export interface ListingWriteResult {
   unchangedCount: number;
   changedListingIds: readonly string[];
 }
+
+// Each listing's writes (vehicle, listing, images, equipment, analysis — several
+// sequential round trips) previously ran inside one shared transaction, one
+// listing at a time, so a page of 50 paid its DB round-trip latency 50x over
+// with no overlap. Listings are independent of each other, so each now gets
+// its own short transaction and a small pool of these runs concurrently —
+// same total DB work, but overlapped instead of serialized. If any listing's
+// transaction fails, the ones that already committed stay committed (unlike
+// the old shared transaction, which rolled back the whole page); the error
+// still propagates so the caller's checkpoint doesn't advance, and retrying
+// is safe since writes are idempotent (content-hash short-circuited).
+// Not independently load-tested against the DB the way the marketplace API's
+// concurrency was — kept a few connections under the pool's new max (see
+// prisma.ts) so this doesn't starve the process's other concurrent queries
+// (checkpoint advancement, facet refresh) of a connection.
+const writeConcurrency = 10;
 
 export async function upsertNormalizedListings(
   listings: readonly NormalizedVehicleListing[],
@@ -302,58 +435,105 @@ export async function upsertNormalizedListings(
     };
   }
 
-  return prisma.$transaction(
-    async (transaction) => {
-      const providers = [...new Set(listings.map(({ source }) => source.provider))];
-      const externalIds = listings.map(({ source }) => source.externalId);
-      const existingRows = await transaction.listingRecord.findMany({
-        where: {
-          provider: { in: providers },
-          externalId: { in: externalIds },
-        },
-        select: {
-          id: true,
-          provider: true,
-          externalId: true,
-          vehicleId: true,
-          status: true,
-          contentHash: true,
-          imageHash: true,
-          equipmentHash: true,
-        },
-      });
-      const existingBySource = new Map(
-        existingRows.map((row) => [`${row.provider}:${row.externalId}`, row]),
-      );
-      let createdCount = 0;
-      let updatedCount = 0;
-      let unchangedCount = 0;
-      const changedListingIds: string[] = [];
-
-      for (const listing of listings) {
-        const result = await writeListing(
-          transaction,
-          listing,
-          synchronizedAt,
-          existingBySource.get(
-            `${listing.source.provider}:${listing.source.externalId}`,
-          ),
-        );
-        if (result.state === "created") createdCount += 1;
-        if (result.state === "updated") updatedCount += 1;
-        if (result.state === "unchanged") unchangedCount += 1;
-        if (result.state !== "unchanged") changedListingIds.push(result.listingId);
-      }
-
-      return {
-        createdCount,
-        updatedCount,
-        unchangedCount,
-        changedListingIds,
-      };
+  const providers = [...new Set(listings.map(({ source }) => source.provider))];
+  const externalIds = listings.map(({ source }) => source.externalId);
+  const existingRows = await prisma.listingRecord.findMany({
+    where: {
+      provider: { in: providers },
+      externalId: { in: externalIds },
     },
-    { timeout: 30_000 },
+    select: {
+      id: true,
+      provider: true,
+      externalId: true,
+      vehicleId: true,
+      status: true,
+      contentHash: true,
+      imageHash: true,
+      equipmentHash: true,
+    },
+  });
+  const existingBySource = new Map(
+    existingRows.map((row) => [`${row.provider}:${row.externalId}`, row]),
   );
+  const { vehicleIdByListing, mergedVehicleIds } = await resolveVehicleIds(listings);
+
+  for (const [losingId, canonicalId] of mergedVehicleIds) {
+    await prisma.listingRecord.updateMany({
+      where: { vehicleId: losingId },
+      data: { vehicleId: canonicalId },
+    });
+  }
+
+  const results: { state: "created" | "updated" | "unchanged"; listingId: string }[] =
+    new Array(listings.length);
+  let nextIndex = 0;
+
+  const runLane = async () => {
+    while (nextIndex < listings.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const listing = listings[index];
+      const existing = existingBySource.get(
+        `${listing.source.provider}:${listing.source.externalId}`,
+      );
+      const vehicleId = vehicleIdByListing.get(listing)!;
+      const run = () =>
+        prisma.$transaction(
+          (transaction) => writeListing(transaction, listing, synchronizedAt, existing, vehicleId),
+          { timeout: 30_000 },
+        );
+
+      try {
+        results[index] = await run();
+      } catch (error) {
+        // VIN and registration number are unique, but neither is
+        // permanently tied to one physical car: a plate can be reassigned
+        // after a car is scrapped or exported, and a VIN can be
+        // mistyped-then-corrected by a seller. When that happens, an older
+        // vehicle row can still be holding the identifier a *new* car now
+        // legitimately reports, and the upsert collides on it. The failed
+        // transaction is already rolled back by this point (Postgres aborts
+        // it on the first error), so the identifier is cleared in a fresh
+        // transaction before retrying once, rather than reusing the dead one.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const vehicle = listing.vehicle;
+          if (vehicle.vin) {
+            await prisma.vehicleRecord.updateMany({
+              where: { vin: vehicle.vin, NOT: { id: vehicleId } },
+              data: { vin: null },
+            });
+          }
+          if (vehicle.registrationNumber) {
+            await prisma.vehicleRecord.updateMany({
+              where: { registrationNumber: vehicle.registrationNumber, NOT: { id: vehicleId } },
+              data: { registrationNumber: null },
+            });
+          }
+          results[index] = await run();
+        } else {
+          throw error;
+        }
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(writeConcurrency, listings.length) }, () => runLane()),
+  );
+
+  let createdCount = 0;
+  let updatedCount = 0;
+  let unchangedCount = 0;
+  const changedListingIds: string[] = [];
+  for (const result of results) {
+    if (result.state === "created") createdCount += 1;
+    if (result.state === "updated") updatedCount += 1;
+    if (result.state === "unchanged") unchangedCount += 1;
+    if (result.state !== "unchanged") changedListingIds.push(result.listingId);
+  }
+
+  return { createdCount, updatedCount, unchangedCount, changedListingIds };
 }
 
 export async function existingListingExternalIds(

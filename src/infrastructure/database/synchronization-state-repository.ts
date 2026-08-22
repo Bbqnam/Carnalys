@@ -8,6 +8,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { initializeDatabase, prisma } from "./prisma";
 
 const staleHeartbeatMilliseconds = 5 * 60 * 1_000;
+const manualSynchronizationCooldownMilliseconds = 30 * 1_000;
 
 export class SynchronizationAlreadyRunningError extends Error {
   constructor(
@@ -112,6 +113,32 @@ async function releaseStaleOrAssertAvailable(
   }
 }
 
+// The manual "Update listings" server action has no auth boundary (unlike
+// /api/sync, which requires CRON_SECRET) since it's meant to be triggered by
+// any visitor clicking the button. The synchronization lock only blocks
+// *concurrent* runs and is released the instant a run finishes, so without
+// this a scripted caller could re-trigger a real Blocket scrape back-to-back
+// indefinitely. This adds a short cooldown independent of the lock.
+export async function assertManualSynchronizationNotThrottled(provider: string) {
+  await initializeDatabase();
+  const recent = await prisma.importRun.findFirst({
+    where: { provider },
+    orderBy: { startedAt: "desc" },
+    select: { startedAt: true, mode: true },
+  });
+  if (
+    recent &&
+    recent.startedAt.getTime() >
+      Date.now() - manualSynchronizationCooldownMilliseconds
+  ) {
+    throw new SynchronizationAlreadyRunningError(
+      provider,
+      recent.mode,
+      recent.startedAt,
+    );
+  }
+}
+
 export async function startSynchronizationRun({
   provider,
   sourceScope,
@@ -126,7 +153,7 @@ export async function startSynchronizationRun({
   await initializeDatabase();
   const now = new Date();
 
-  return prisma.$transaction(async (transaction) => {
+  const attempt = () => prisma.$transaction(async (transaction) => {
     await releaseStaleOrAssertAvailable(transaction, provider, now);
 
     const resumable =
@@ -194,6 +221,23 @@ export async function startSynchronizationRun({
       cleanupEligible: run.cleanupEligible,
     };
   });
+
+  try {
+    return await attempt();
+  } catch (error) {
+    // Check-then-create isn't atomic under Read Committed: two near-
+    // simultaneous callers can both pass releaseStaleOrAssertAvailable's
+    // "no active lock" check, and the loser's synchronizationLock.create
+    // collides on the provider's unique constraint instead of hitting the
+    // normal SynchronizationAlreadyRunningError path.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new SynchronizationAlreadyRunningError(provider, mode, now);
+    }
+    throw error;
+  }
 }
 
 async function assertAndRefreshLock(

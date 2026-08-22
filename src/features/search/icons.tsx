@@ -28,6 +28,15 @@ export function HeartIcon({ fill = "none", ...props }: IconProps) {
   );
 }
 
+export function CompareIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M4 7h13M14 4l3 3-3 3" />
+      <path d="M20 17H7M10 14l-3 3 3 3" />
+    </svg>
+  );
+}
+
 export function SlidersIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>

@@ -21,6 +21,8 @@ export type {
 
 export {
   buildVehicleInsightBenchmarks,
+  estimateFuelConsumptionL100km,
+  estimateOwnershipCost,
   generateVehicleInsights,
 } from "./analysis/index";
 

@@ -23,6 +23,7 @@ model VehicleRecord {
   horsepower         Int?
   engineDescription  String?
   engineDisplacement Int?
+  fuelConsumption    String?
   firstRegistration  DateTime?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
@@ -87,6 +88,7 @@ model ListingAnalysisRecord {
   marketValueMinimum   Int
   marketValueMaximum   Int
   comparableCount      Int
+  comparablePrices     Int[]         @default([])
   confidence           String
   dealScore            Int
   dealScoreFactors     Json          @default("[]")

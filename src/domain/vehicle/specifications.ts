@@ -38,6 +38,7 @@ export interface VehiclePowertrain {
   powerHp?: number;
   batteryCapacityKwh?: number;
   electricRangeKm?: number;
+  fuelConsumption?: string;
 }
 
 export interface VehicleSpecification {

@@ -141,7 +141,12 @@ export function parseVehicleSearchOptions(
       models: stringValues(parameters.model),
       fuelType: enumValue(parameters.fuel, fuelTypes),
       transmission: enumValue(parameters.transmission, transmissions),
-      minYear: minimumYear ?? (legacyYears.length ? Math.min(...legacyYears) : null),
+      minYear:
+        minimumYear !== null && (maximumYear === null || minimumYear <= maximumYear)
+          ? minimumYear
+          : minimumYear === null && legacyYears.length
+            ? Math.min(...legacyYears)
+            : null,
       maxYear: maximumYear ?? (legacyYears.length ? Math.max(...legacyYears) : null),
       minMileageMil:
         minimumMileage !== null &&

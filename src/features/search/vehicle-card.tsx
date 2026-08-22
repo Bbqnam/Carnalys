@@ -14,6 +14,7 @@ import {
 } from "./format";
 import {
   CalendarFilterIcon,
+  CompareIcon,
   ExternalLinkIcon,
   HeartIcon,
   MapPinIcon,
@@ -24,9 +25,12 @@ interface VehicleCardProps {
   result: VehicleSearchResult;
   currentLocation?: { latitude: number; longitude: number };
   isFavorite: boolean;
+  isCompared: boolean;
+  compareDisabled?: boolean;
   locale: Locale;
   priority?: boolean;
   onToggleFavorite: () => void;
+  onToggleCompare: () => void;
 }
 
 const imagePlaceholder =
@@ -36,9 +40,12 @@ export function VehicleCard({
   result,
   currentLocation,
   isFavorite,
+  isCompared,
+  compareDisabled = false,
   locale,
   priority = false,
   onToggleFavorite,
+  onToggleCompare,
 }: VehicleCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
   const { vehicle, listing, analysis } = result;
@@ -125,19 +132,41 @@ export function VehicleCard({
             </span>
             {analysis.dealScore.value}
           </span>
-          <button
-            aria-label={isFavorite ? copy.card.removeSaved : copy.card.saveCar}
-            aria-pressed={isFavorite}
-            className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 ${
-              isFavorite
-                ? "border-[#a84c45] bg-[#fff8f7] text-[#a84c45]"
-                : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
-            }`}
-            onClick={onToggleFavorite}
-            type="button"
-          >
-            <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              aria-label={
+                isCompared
+                  ? copy.card.removeFromCompare
+                  : compareDisabled
+                    ? copy.card.compareLimitReached
+                    : copy.card.addToCompare
+              }
+              aria-pressed={isCompared}
+              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${
+                isCompared
+                  ? "border-[#255e45] bg-[#eef6f1] text-[#255e45]"
+                  : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
+              }`}
+              disabled={compareDisabled && !isCompared}
+              onClick={onToggleCompare}
+              type="button"
+            >
+              <CompareIcon className="size-[18px]" />
+            </button>
+            <button
+              aria-label={isFavorite ? copy.card.removeSaved : copy.card.saveCar}
+              aria-pressed={isFavorite}
+              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 ${
+                isFavorite
+                  ? "border-[#a84c45] bg-[#fff8f7] text-[#a84c45]"
+                  : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
+              }`}
+              onClick={onToggleFavorite}
+              type="button"
+            >
+              <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
+            </button>
+          </div>
         </div>
       </div>
 

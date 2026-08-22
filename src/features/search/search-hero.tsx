@@ -7,6 +7,7 @@ interface SearchHeroProps {
   query: string;
   totalListings: number;
   savedCount: number;
+  compareCount: number;
   locationStatus: "idle" | "locating" | "ready" | "unavailable";
   onLocaleChange: (locale: Locale) => void;
   onQueryChange: (query: string) => void;
@@ -19,6 +20,7 @@ export function SearchHero({
   query,
   totalListings,
   savedCount,
+  compareCount,
   locationStatus,
   onLocaleChange,
   onQueryChange,
@@ -37,11 +39,12 @@ export function SearchHero({
         onLocaleChange={onLocaleChange}
         onRequestLocation={onRequestLocation}
         savedCount={savedCount}
+        compareCount={compareCount}
       />
 
       <div
         id="top"
-        className="relative mx-auto max-w-[1440px] px-5 py-5 sm:px-8 sm:py-6 lg:px-12"
+        className="relative mx-auto max-w-[1800px] px-5 py-5 sm:px-8 sm:py-6 lg:px-12"
       >
         <form
           className="mx-auto flex max-w-5xl flex-col gap-2 rounded-[1.2rem] border border-[#e1e3dc] bg-white p-1.5 shadow-[0_8px_28px_rgba(42,53,46,0.08)] transition-[box-shadow,border-color] duration-200 focus-within:border-[#9eafa4] focus-within:shadow-[0_10px_32px_rgba(42,53,46,0.12)] sm:flex-row sm:rounded-full"

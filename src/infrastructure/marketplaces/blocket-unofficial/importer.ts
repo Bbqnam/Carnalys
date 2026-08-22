@@ -8,11 +8,26 @@ import {
   BlocketRequestError,
   BlocketUnofficialClient,
 } from "./client";
+import { parseListingPageSpecifications } from "./listing-page-parser";
 import { normalizeBlocketListing } from "./normalizer";
 import { parseBlocketDetail, parseBlocketSearchResponse } from "./parser";
 
-const requestIntervalMs = 300;
+// Probed directly against the live API (16 concurrent requests, all 200 OK,
+// sub-second): it comfortably absorbs far more than the previous 4 lanes /
+// 250ms ever sent it, so the pacing here was leaving real headroom on the
+// table. Kept below the tested ceiling since this runs sustained, not as a
+// one-off burst.
+const requestIntervalMs = 120;
+// Detail fetches dominate a full reconciliation (one request per never-enriched
+// listing), so they run across a small pool of independent lanes instead of
+// one sequential connection — each lane still paces itself at
+// requestIntervalMs, so this multiplies throughput without bursting requests.
+const detailFetchConcurrency = 8;
 const maximumRequestAttempts = 7;
+// A single transient failure (timeout, rate-limit blip) shouldn't permanently
+// mark a listing as "attempted" with no real detail — retry a few times
+// before falling back to search-only data.
+const maximumDetailAttempts = 3;
 
 function midpoint(from: number, to: number) {
   return from + Math.floor((to - from) / 2);
@@ -47,6 +62,7 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
   readonly scope: string;
   readonly maximumResultsPerPartition = 2_450;
   private lastRequestAt = 0;
+  private readonly detailLaneLastRequestAt = new Array<number>(detailFetchConcurrency).fill(0);
   private readonly query: string;
 
   /**
@@ -72,22 +88,86 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
     }
   }
 
+  private async paceLane(laneIndex: number) {
+    const elapsed = Date.now() - this.detailLaneLastRequestAt[laneIndex];
+    if (elapsed < requestIntervalMs) {
+      await new Promise((resolve) => setTimeout(resolve, requestIntervalMs - elapsed));
+    }
+  }
+
   /**
    * The search response alone omits body style, engine, drivetrain, and
    * equipment — those only exist on the per-listing detail endpoint. A
    * single failed detail fetch shouldn't drop the whole listing, so this
    * falls back to `undefined` (search-only data) rather than throwing.
+   *
+   * The unofficial API's detail endpoint itself omits the "Specifikationer"
+   * block (horsepower, engine, drivetrain, ...) for most listings even
+   * though Blocket's own page always renders it — when that happens, this
+   * scrapes that block directly from the listing page as a fallback.
+   *
+   * Runs on an independent lane (its own pacing clock) so a pool of these
+   * can run concurrently — see `fetchDetailsConcurrently`.
    */
-  private async fetchDetail(id: string) {
-    await this.throttle();
-    try {
-      const payload = await this.client.getCar(id);
-      this.lastRequestAt = Date.now();
-      return parseBlocketDetail(payload);
-    } catch {
-      this.lastRequestAt = Date.now();
-      return undefined;
+  private async fetchDetail(document: { id: string; canonicalUrl: string }, laneIndex: number) {
+    for (let attempt = 1; attempt <= maximumDetailAttempts; attempt += 1) {
+      await this.paceLane(laneIndex);
+      try {
+        const payload = await this.client.getCar(document.id);
+        this.detailLaneLastRequestAt[laneIndex] = Date.now();
+        const detail = parseBlocketDetail(payload);
+
+        if (Object.keys(detail.specifications).length === 0) {
+          await this.paceLane(laneIndex);
+          try {
+            const html = await this.client.getListingPageHtml(document.canonicalUrl);
+            this.detailLaneLastRequestAt[laneIndex] = Date.now();
+            const scraped = parseListingPageSpecifications(html);
+            if (Object.keys(scraped).length > 0) {
+              return { ...detail, specifications: scraped };
+            }
+          } catch {
+            this.detailLaneLastRequestAt[laneIndex] = Date.now();
+          }
+        }
+
+        return detail;
+      } catch {
+        this.detailLaneLastRequestAt[laneIndex] = Date.now();
+        if (attempt < maximumDetailAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 750 * 2 ** (attempt - 1)));
+        }
+      }
     }
+    return undefined;
+  }
+
+  /**
+   * Fetches detail for every given document across a small pool of lanes
+   * running in parallel, preserving input order in the result.
+   */
+  private async fetchDetailsConcurrently(
+    documents: readonly { id: string; canonicalUrl: string }[],
+  ): Promise<(Awaited<ReturnType<BlocketUnofficialImporter["fetchDetail"]>>)[]> {
+    const details = new Array<Awaited<ReturnType<BlocketUnofficialImporter["fetchDetail"]>>>(
+      documents.length,
+    );
+    let nextIndex = 0;
+
+    const runLane = async (laneIndex: number) => {
+      while (nextIndex < documents.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        details[index] = await this.fetchDetail(documents[index], laneIndex);
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(detailFetchConcurrency, documents.length) }, (_, laneIndex) =>
+        runLane(laneIndex),
+      ),
+    );
+    return details;
   }
 
   async fetchPage(
@@ -122,14 +202,19 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
             )
           : new Map<string, unknown>();
 
-        const listings = [];
-        for (const document of parsed.documents) {
+        const uncachedDocuments = parsed.documents.filter(
+          (document) => !cachedDetailByExternalId.has(document.id),
+        );
+        const uncachedDetails = await this.fetchDetailsConcurrently(uncachedDocuments);
+        const fetchedDetailById = new Map(
+          uncachedDocuments.map((document, index) => [document.id, uncachedDetails[index]]),
+        );
+
+        const listings = parsed.documents.map((document) => {
           const cached = cachedDetailByExternalId.get(document.id);
-          const detail = cached
-            ? parseBlocketDetail(cached)
-            : await this.fetchDetail(document.id);
-          listings.push(normalizeBlocketListing(document, detail, this.scope));
-        }
+          const detail = cached ? parseBlocketDetail(cached) : fetchedDetailById.get(document.id);
+          return normalizeBlocketListing(document, detail, this.scope);
+        });
 
         return {
           listings,

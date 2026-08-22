@@ -5,13 +5,15 @@ import type {
   BodyStyle,
   Drivetrain,
   FuelType,
-  OwnershipCostItem,
+  ListingStatus,
   ScoreFactor,
   ServiceHistoryStatus,
   TransmissionType,
+  VehicleSpecification,
 } from "@/domain/vehicle";
 import {
   buildVehicleInsightBenchmarks,
+  estimateOwnershipCost,
   generateVehicleInsights,
 } from "@/domain/vehicle";
 import type {
@@ -36,6 +38,7 @@ const storedListingSelect = {
   lastSeenAt: true,
   sellerName: true,
   sellerType: true,
+  status: true,
   priceAmount: true,
   previousPriceAmount: true,
   monthlyCostAmount: true,
@@ -63,6 +66,7 @@ const storedListingSelect = {
       horsepower: true,
       engineDescription: true,
       engineDisplacement: true,
+      fuelConsumption: true,
       registrationNumber: true,
       vin: true,
       firstRegistration: true,
@@ -81,6 +85,7 @@ const storedListingSelect = {
       marketValueMinimum: true,
       marketValueMaximum: true,
       comparableCount: true,
+      comparablePrices: true,
       confidence: true,
       dealScore: true,
       dealScoreFactors: true,
@@ -138,6 +143,12 @@ const analysisConfidences = new Set<AnalysisConfidence>([
   "medium",
   "high",
 ]);
+const listingStatuses = new Set<ListingStatus>([
+  "active",
+  "reserved",
+  "sold",
+  "removed",
+]);
 
 function enumValue<T extends string>(
   value: string | null,
@@ -153,6 +164,7 @@ function roundedThousands(value: number) {
 
 function createStoredAnalysis(
   result: StoredListing,
+  specification: VehicleSpecification,
 ): VehicleSearchResult["analysis"] {
   const stored = result.analysis;
   const askingPrice = result.priceAmount;
@@ -191,23 +203,22 @@ function createStoredAnalysis(
       },
       confidence,
       comparableListingCount: comparableCount,
+      comparablePrices: stored?.comparablePrices ?? [],
       explanation:
         comparableCount >= 3
           ? `Medianpris från ${comparableCount} jämförbara aktiva annonser.`
           : "För få jämförbara annonser; värderingen visas neutralt.",
     },
-    ownershipCost: {
-      annualCost: {
-        amount:
-          stored?.annualOwnershipCost ??
-          Math.round(34_000 + askingPrice * 0.065),
-        currency: "SEK",
-      },
-      estimatedForAnnualDistanceKm: 15_000,
-      confidence: "low",
-      items: (stored?.ownershipCostItems as OwnershipCostItem[] | undefined) ?? [],
-      assumptions: ["1 500 mil per år", "Tillfällig kostnadsmodell"],
-    },
+    // Unlike market value / deal score, ownership cost depends only on this
+    // one car's own price, age, and powertrain — never on other listings —
+    // so it's computed live here instead of read from a precomputed,
+    // batch-refreshed column. A formula change takes effect immediately for
+    // every listing, with nothing to backfill.
+    ownershipCost: estimateOwnershipCost(
+      specification,
+      askingPrice,
+      result.vehicle.modelYear,
+    ),
     dealScore: {
       kind: "deal",
       value: stored?.dealScore ?? 70,
@@ -238,6 +249,20 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
     transmissions,
     "other",
   );
+  const specification: VehicleSpecification = {
+    bodyStyle,
+    powertrain: {
+      fuelType,
+      transmission,
+      drivetrain: record.vehicle.drivetrain
+        ? enumValue(record.vehicle.drivetrain, drivetrains, "other")
+        : undefined,
+      powerHp: record.vehicle.horsepower ?? undefined,
+      engineDisplacementCc: record.vehicle.engineDisplacement ?? undefined,
+      engineDescription: record.vehicle.engineDescription ?? undefined,
+      fuelConsumption: record.vehicle.fuelConsumption ?? undefined,
+    },
+  };
 
   return {
     vehicle: {
@@ -249,19 +274,7 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
         modelYear: record.vehicle.modelYear,
         registrationYear: record.vehicle.registrationYear ?? undefined,
       },
-      specification: {
-        bodyStyle,
-        powertrain: {
-          fuelType,
-          transmission,
-          drivetrain: record.vehicle.drivetrain
-            ? enumValue(record.vehicle.drivetrain, drivetrains, "other")
-            : undefined,
-          powerHp: record.vehicle.horsepower ?? undefined,
-          engineDisplacementCc: record.vehicle.engineDisplacement ?? undefined,
-          engineDescription: record.vehicle.engineDescription ?? undefined,
-        },
-      },
+      specification,
       registrationNumber: record.vehicle.registrationNumber ?? undefined,
       vin: record.vehicle.vin ?? undefined,
       firstRegistrationDate: record.vehicle.firstRegistration
@@ -298,7 +311,7 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
         latitude: record.latitude ?? undefined,
         longitude: record.longitude ?? undefined,
       },
-      status: "active",
+      status: enumValue(record.status, listingStatuses, "active"),
       title: `${record.vehicle.make} ${record.vehicle.model} ${record.vehicle.variant ?? ""}`.trim(),
       description: record.description ?? undefined,
       mileageKm: record.mileageKm,
@@ -317,7 +330,7 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
       publishedAt: record.publishedAt?.toISOString(),
       observedAt: record.synchronizedAt.toISOString(),
     },
-    analysis: createStoredAnalysis(record),
+    analysis: createStoredAnalysis(record, specification),
   };
 }
 
@@ -356,7 +369,7 @@ function buildListingWhere(
   }
   if (filters.bodyStyle) vehicleFilter.bodyStyle = filters.bodyStyle;
 
-  const query = filters.query.trim();
+  const queryTokens = filters.query.trim().split(/\s+/).filter(Boolean);
 
   return {
     status: "active",
@@ -379,14 +392,16 @@ function buildListingWhere(
     ...(Object.keys(vehicleFilter).length > 0
       ? { vehicle: { is: vehicleFilter } }
       : {}),
-    ...(query
+    ...(queryTokens.length > 0
       ? {
-          OR: [
-            { sellerName: { contains: query, mode: "insensitive" } },
-            { vehicle: { is: { make: { contains: query, mode: "insensitive" } } } },
-            { vehicle: { is: { model: { contains: query, mode: "insensitive" } } } },
-            { vehicle: { is: { variant: { contains: query, mode: "insensitive" } } } },
-          ],
+          AND: queryTokens.map((token) => ({
+            OR: [
+              { sellerName: { contains: token, mode: "insensitive" } },
+              { vehicle: { is: { make: { contains: token, mode: "insensitive" } } } },
+              { vehicle: { is: { model: { contains: token, mode: "insensitive" } } } },
+              { vehicle: { is: { variant: { contains: token, mode: "insensitive" } } } },
+            ],
+          })),
         }
       : {}),
   };
@@ -467,7 +482,7 @@ export async function getListingById(
     where: { id: listingId },
     select: storedListingSelect,
   });
-  if (!record) return null;
+  if (!record || record.status !== "active") return null;
 
   const target = mapStoredListing(record);
   const comparableRecords = await prisma.listingRecord.findMany({
@@ -504,17 +519,31 @@ export async function getListingsByIds(
   if (listingIds.length === 0) return [];
 
   const records = await prisma.listingRecord.findMany({
-    where: { id: { in: [...listingIds] } },
+    where: { id: { in: [...listingIds] }, status: "active" },
     select: storedListingSelect,
   });
   const baseResults = records.map(mapStoredListing);
   const benchmarks = buildVehicleInsightBenchmarks(baseResults);
 
-  return baseResults.map((result) => ({
+  // `id: { in: [...] }` doesn't preserve input order, but callers (compare
+  // table columns, saved-list ordering) rely on getting results back in the
+  // order they asked for.
+  const orderById = new Map(listingIds.map((id, index) => [id, index]));
+  const results = baseResults.map((result) => ({
     ...result,
     analysis: {
       ...result.analysis,
       insights: generateVehicleInsights(result, benchmarks),
     },
   }));
+  results.sort(
+    (a, b) =>
+      orderById.get(a.listing.id)! - orderById.get(b.listing.id)!,
+  );
+  return results;
+}
+
+export async function getActiveListingCount(): Promise<number> {
+  await initializeDatabase();
+  return prisma.listingRecord.count({ where: { status: "active" } });
 }

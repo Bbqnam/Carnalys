@@ -82,4 +82,28 @@ export class BlocketUnofficialClient {
   getCar(id: string) {
     return this.fetchJson(`/v1/ad/car?id=${encodeURIComponent(id)}`);
   }
+
+  // The unofficial API's detail endpoint omits the "Specifikationer" block
+  // (horsepower, engine, drivetrain, etc.) for most listings even though
+  // Blocket's own listing page always shows it — fetched directly as a
+  // fallback when that happens. See listing-page-parser.ts for the scrape.
+  async getListingPageHtml(url: string) {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "text/html",
+        "User-Agent": "CarnalysisDevelopmentImporter/1.0",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      throw new BlocketRequestError(
+        `Blocket-annonssidan svarade med HTTP ${response.status}.`,
+        response.status,
+        url,
+      );
+    }
+
+    return response.text();
+  }
 }

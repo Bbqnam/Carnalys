@@ -40,7 +40,13 @@ interface SegmentComparableRow {
   priceAmount: number;
 }
 
-const methodologyVersion = "value-quality-composite-7.0";
+const methodologyVersion = "value-quality-composite-8.0";
+
+// A broken/placeholder scrape (price 0, 1 kr, etc.) has no floor otherwise,
+// and a single one of these landing in a small comparable pool (common for
+// the "low confidence" cohorts this feeds) can badly skew the percentile-
+// based market value range. No legitimate running car is priced this low.
+const minimumSaneComparablePrice = 5_000;
 
 function clampScore(value: number) {
   return Math.max(10, Math.min(95, Math.round(value)));
@@ -143,6 +149,23 @@ function percentile(sortedValues: readonly number[], fraction: number) {
   return lower + (upper - lower) * (position - lowerIndex);
 }
 
+const comparableDisplaySampleSize = 40;
+
+// The median/percentile math uses every matching comparable — no cap, for
+// statistical accuracy. Storing (and rendering) all of them isn't
+// reasonable once a popular cohort has 1,000+ active listings, so the
+// *display* sample is a separate, bounded, evenly-spaced pick across the
+// sorted full set — this preserves the true shape of the distribution
+// (including its extremes) rather than just showing e.g. the cheapest N.
+function evenlySampled(sortedValues: readonly number[], sampleSize: number) {
+  if (sortedValues.length <= sampleSize) return sortedValues;
+  const step = (sortedValues.length - 1) / (sampleSize - 1);
+  return Array.from(
+    { length: sampleSize },
+    (_, index) => sortedValues[Math.round(index * step)],
+  );
+}
+
 async function loadTargets(
   listingIds: readonly string[] | undefined,
   limit: number,
@@ -223,7 +246,7 @@ export async function refreshStoredListingAnalyses(
     INNER JOIN "ListingRecord" AS listing
       ON listing."vehicleId" = vehicle."id"
       AND listing."status" = 'active'
-    WHERE listing."priceAmount" > 0
+    WHERE listing."priceAmount" >= ${minimumSaneComparablePrice}
   `);
   const comparablesByCohort = new Map<string, MarketComparableRow[]>();
   for (const comparable of comparables) {
@@ -248,7 +271,6 @@ export async function refreshStoredListingAnalyses(
             (Math.abs(right.modelYear - target.vehicle.modelYear) * 60_000 +
               Math.abs(right.mileageKm - target.mileageKm)),
       )
-      .slice(0, 25)
       .map(({ priceAmount }) => Number(priceAmount));
   }
 
@@ -301,7 +323,6 @@ export async function refreshStoredListingAnalyses(
           Math.abs(left.modelYear - target.vehicle.modelYear) -
           Math.abs(right.modelYear - target.vehicle.modelYear),
       )
-      .slice(0, 25)
       .map(({ priceAmount }) => Number(priceAmount));
   }
 
@@ -360,6 +381,7 @@ export async function refreshStoredListingAnalyses(
           ? roundedThousands(percentile(prices, 0.75))
           : roundedThousands(target.priceAmount * 1.1),
         comparableCount: prices.length,
+        comparablePrices: [...evenlySampled(prices, comparableDisplaySampleSize)],
         confidence,
         dealScore: qualityScores.dealScore,
         dealScoreFactors: buildDealScoreFactors(

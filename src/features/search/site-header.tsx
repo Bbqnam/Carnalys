@@ -1,14 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
-import { HeartIcon, MapPinIcon } from "./icons";
+import { CompareIcon, HeartIcon, MapPinIcon } from "./icons";
 import { uiCopy, type Locale } from "./copy";
 
 type LocationStatus = "idle" | "locating" | "ready" | "unavailable";
 
 interface SiteHeaderProps {
-  activePage?: "cars" | "saved";
+  activePage?: "cars" | "saved" | "compare";
   locale: Locale;
   savedCount: number;
+  compareCount: number;
   onLocaleChange: (locale: Locale) => void;
   logoHref?: string;
   locationStatus?: LocationStatus;
@@ -19,6 +20,7 @@ export function SiteHeader({
   activePage,
   locale,
   savedCount,
+  compareCount,
   onLocaleChange,
   logoHref = "/",
   locationStatus,
@@ -36,7 +38,7 @@ export function SiteHeader({
 
   return (
     <header className="relative border-b border-[#24362b]/[0.06]">
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-5 sm:h-[4.5rem] sm:px-8 lg:px-12">
+      <div className="mx-auto flex h-16 max-w-[1800px] items-center justify-between px-5 sm:h-[4.5rem] sm:px-8 lg:px-12">
         <Link
           aria-label={copy.nav.home}
           className="group flex items-center gap-2.5 rounded-lg"
@@ -74,6 +76,18 @@ export function SiteHeader({
                 {locationLabel}
               </button>
             ) : null}
+            <Link
+              aria-current={activePage === "compare" ? "page" : undefined}
+              className={`rounded-full px-3 py-2 font-medium transition-colors ${
+                activePage === "compare"
+                  ? "bg-white/80 text-ink shadow-sm"
+                  : "text-[#354139] hover:bg-white/55 hover:text-ink"
+              }`}
+              href="/compare"
+            >
+              {copy.nav.compare}{" "}
+              <span className="text-[#8c948f]">{compareCount}</span>
+            </Link>
             <Link
               aria-current={activePage === "saved" ? "page" : undefined}
               className={`rounded-full px-3 py-2 font-medium transition-colors ${
@@ -125,6 +139,27 @@ export function SiteHeader({
               <MapPinIcon className="size-4" />
             </button>
           ) : null}
+
+          <Link
+            aria-label={copy.nav.compareCars(compareCount)}
+            aria-current={activePage === "compare" ? "page" : undefined}
+            className={`relative grid size-10 place-items-center rounded-full border text-ink shadow-sm backdrop-blur transition md:hidden ${
+              activePage === "compare"
+                ? "border-[#bcc8bf] bg-white"
+                : "border-[#d9d7d0] bg-white/70 hover:bg-white"
+            }`}
+            href="/compare"
+          >
+            <CompareIcon className="size-4" />
+            {compareCount > 0 ? (
+              <span
+                aria-hidden="true"
+                className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[#f4f1ea]"
+              >
+                {compareCount}
+              </span>
+            ) : null}
+          </Link>
 
           <Link
             aria-label={copy.nav.savedCars(savedCount)}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { uiCopy, type Locale } from "./copy";
+import { CompareMobileBar, CompareTrayPanel } from "./compare-tray";
 import { FilterPanel } from "./filter-panel";
 import {
   ChevronDownIcon,
@@ -16,6 +17,7 @@ import { SearchHero } from "./search-hero";
 import { SynchronizationButton } from "./synchronization-button";
 import { defaultSearchFilters, vehicleSearchUrl } from "./search-state";
 import { setLocaleCookie } from "./locale";
+import { useCompare } from "./use-compare";
 import { useFavorites } from "./use-favorites";
 import type {
   AvailableVehicleFilters,
@@ -125,6 +127,14 @@ export function SearchExperience({
   });
   const [renderedSearchState, setRenderedSearchState] = useState(incomingSearchState);
   const { favorites, toggle: toggleFavorite } = useFavorites();
+  const {
+    compared,
+    toggle: toggleCompare,
+    remove: removeCompare,
+    clear: clearCompare,
+    isFull: compareFull,
+  } = useCompare();
+  const comparedIds = new Set(compared.map((vehicle) => vehicle.id));
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation>();
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
@@ -444,6 +454,7 @@ export function SearchExperience({
         onSearch={scrollToResults}
         query={filters.query}
         savedCount={favorites.size}
+        compareCount={compared.length}
         totalListings={pagination.totalListings}
       />
 
@@ -452,7 +463,7 @@ export function SearchExperience({
         className="scroll-mt-3 bg-[#fafaf7] px-5 py-9 sm:px-8 sm:py-11 lg:px-12 lg:py-12"
         id="cars"
       >
-        <div className="mx-auto max-w-[1440px]">
+        <div className="mx-auto max-w-[1800px]">
           <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6d7b72]">
@@ -569,7 +580,13 @@ export function SearchExperience({
             ) : null}
           </div>
 
-          <div className="grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-8">
+          <div
+            className={
+              compared.length > 0
+                ? "grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)_250px] xl:grid-cols-[280px_minmax(0,1fr)_260px] xl:gap-8"
+                : "grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-8"
+            }
+          >
             <aside className="hidden min-w-0 self-stretch md:block">
               <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#e2e2dc] bg-white p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <FilterPanel
@@ -602,8 +619,19 @@ export function SearchExperience({
                           <VehicleCard
                             currentLocation={userLocation}
                             isFavorite={favorites.has(result.listing.id)}
+                            isCompared={comparedIds.has(result.listing.id)}
+                            compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
                             locale={locale}
                             onToggleFavorite={() => toggleFavorite(result.listing.id)}
+                            onToggleCompare={() =>
+                              toggleCompare({
+                                id: result.listing.id,
+                                make: result.vehicle.identity.make,
+                                model: result.vehicle.identity.model,
+                                variant: result.vehicle.identity.variant,
+                                imageUrl: result.listing.images[0]?.url,
+                              })
+                            }
                             priority={index < 2}
                             result={result}
                           />
@@ -733,12 +761,25 @@ export function SearchExperience({
                 </div>
               )}
             </div>
+
+            {compared.length > 0 ? (
+              <aside className="hidden min-w-0 self-stretch lg:block">
+                <div className="sticky top-4">
+                  <CompareTrayPanel
+                    compared={compared}
+                    locale={locale}
+                    onClear={clearCompare}
+                    onRemove={removeCompare}
+                  />
+                </div>
+              </aside>
+            ) : null}
           </div>
         </div>
       </section>
 
       <footer className="border-t border-[#e8e8e2] bg-[#fafaf7] px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-2 text-xs text-[#747e78] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-2 text-xs text-[#747e78] sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 Carnalysis. {copy.footer.tagline}</p>
           <p>{copy.footer.disclaimer}</p>
         </div>
@@ -809,6 +850,13 @@ export function SearchExperience({
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      <CompareMobileBar
+        compared={compared}
+        locale={locale}
+        onClear={clearCompare}
+        onRemove={removeCompare}
+      />
     </main>
   );
 }

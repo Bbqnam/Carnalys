@@ -15,6 +15,8 @@ export interface MarketValueEstimate {
   };
   confidence: AnalysisConfidence;
   comparableListingCount: number;
+  /** Asking prices of the comparable listings the estimate was derived from. */
+  comparablePrices: readonly number[];
   explanation: string;
 }
 

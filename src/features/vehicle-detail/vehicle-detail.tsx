@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BrandLogo } from "@/features/search/brand-logo";
+import { PriceDistribution } from "./price-distribution";
 import {
   buyConfidenceSummaryText,
   dealScoreSummaryText,
@@ -27,16 +28,19 @@ import {
 } from "@/features/search/format";
 import {
   ArrowRightIcon,
+  CompareIcon,
   ExternalLinkIcon,
   HeartIcon,
   MapPinIcon,
 } from "@/features/search/icons";
 import { setLocaleCookie } from "@/features/search/locale";
+import { CompareTray } from "@/features/search/compare-tray";
 import { SiteHeader } from "@/features/search/site-header";
+import { useCompare } from "@/features/search/use-compare";
 import { useCurrentLocation } from "@/features/search/use-current-location";
 import { useFavorites } from "@/features/search/use-favorites";
 import type { VehicleSearchResult } from "@/features/search/types";
-import type { ScoreFactor } from "@/domain/vehicle";
+import { estimateFuelConsumptionL100km, type ScoreFactor } from "@/domain/vehicle";
 
 interface VehicleDetailProps {
   result: VehicleSearchResult;
@@ -111,6 +115,13 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const router = useRouter();
   const [activeImage, setActiveImage] = useState(0);
   const { favorites, toggle } = useFavorites();
+  const {
+    compared,
+    toggle: toggleCompare,
+    remove: removeCompare,
+    clear: clearCompare,
+    isFull: compareFull,
+  } = useCompare();
   const { location, status: locationStatus, requestCurrentLocation } = useCurrentLocation();
   const { vehicle, listing, analysis } = result;
   const { identity, specification } = vehicle;
@@ -118,6 +129,11 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const moneyFormatter = createMoneyFormatter(locale);
   const numberFormatter = createNumberFormatter(locale);
   const isFavorite = favorites.has(listing.id);
+  const isCompared = compared.some((vehicle) => vehicle.id === listing.id);
+  const compareDisabled = compareFull && !isCompared;
+  const estimatedFuelConsumption = specification.powertrain.fuelConsumption
+    ? undefined
+    : estimateFuelConsumptionL100km(specification);
   const askingPrice = listing.price.askingPrice.amount;
   const hasMarketEstimate = analysis.marketValue.comparableListingCount >= 3;
   const images = listing.images.length > 0 ? listing.images : undefined;
@@ -153,6 +169,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         onLocaleChange={changeLocale}
         onRequestLocation={requestCurrentLocation}
         savedCount={favorites.size}
+        compareCount={compared.length}
       />
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -186,19 +203,49 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 src="/images/vehicle-fallback.svg"
               />
             )}
-            <button
-              aria-label={isFavorite ? copy.card.removeSaved : copy.card.saveCar}
-              aria-pressed={isFavorite}
-              className={`absolute right-3.5 top-3.5 grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 ${
-                isFavorite
-                  ? "border-[#a84c45] bg-[#fff8f7] text-[#a84c45]"
-                  : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
-              }`}
-              onClick={() => toggle(listing.id)}
-              type="button"
-            >
-              <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
-            </button>
+            <div className="absolute right-3.5 top-3.5 flex items-center gap-2">
+              <button
+                aria-label={
+                  isCompared
+                    ? copy.card.removeFromCompare
+                    : compareDisabled
+                      ? copy.card.compareLimitReached
+                      : copy.card.addToCompare
+                }
+                aria-pressed={isCompared}
+                className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${
+                  isCompared
+                    ? "border-[#255e45] bg-[#eef6f1] text-[#255e45]"
+                    : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
+                }`}
+                disabled={compareDisabled}
+                onClick={() =>
+                  toggleCompare({
+                    id: listing.id,
+                    make: identity.make,
+                    model: identity.model,
+                    variant: identity.variant,
+                    imageUrl: listing.images[0]?.url,
+                  })
+                }
+                type="button"
+              >
+                <CompareIcon className="size-[18px]" />
+              </button>
+              <button
+                aria-label={isFavorite ? copy.card.removeSaved : copy.card.saveCar}
+                aria-pressed={isFavorite}
+                className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 ${
+                  isFavorite
+                    ? "border-[#a84c45] bg-[#fff8f7] text-[#a84c45]"
+                    : "border-white/60 bg-white/85 text-[#26332b] hover:bg-white"
+                }`}
+                onClick={() => toggle(listing.id)}
+                type="button"
+              >
+                <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
+              </button>
+            </div>
           </div>
           {images && images.length > 1 ? (
             <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
@@ -216,7 +263,6 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ))}
             </div>
           ) : null}
-
           <div className="mt-6 flex items-center gap-2 text-xs text-[#737b75]">
             <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-surface-muted ring-1 ring-inset ring-[#e2e6e1]">
               <BrandLogo className="size-5.5" make={identity.make} />
@@ -315,6 +361,23 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                   <dt className="text-[#8a918c]">{copy.detail.horsepower}</dt>
                   <dd className="font-medium text-[#26332b]">
                     {specification.powertrain.powerHp} hk
+                  </dd>
+                </div>
+              ) : null}
+              {specification.powertrain.fuelConsumption ? (
+                <div>
+                  <dt className="text-[#8a918c]">{copy.detail.fuelConsumption}</dt>
+                  <dd className="font-medium text-[#26332b]">
+                    {specification.powertrain.fuelConsumption}
+                  </dd>
+                </div>
+              ) : estimatedFuelConsumption !== undefined ? (
+                <div>
+                  <dt className="text-[#8a918c]">{copy.detail.fuelConsumption}</dt>
+                  <dd className="font-medium text-ink-muted">
+                    {copy.detail.fuelConsumptionEstimated(
+                      `${numberFormatter.format(estimatedFuelConsumption)} L/100 km`,
+                    )}
                   </dd>
                 </div>
               ) : null}
@@ -424,6 +487,17 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                   {" – "}
                   {moneyFormatter.format(analysis.marketValue.range.maximum.amount)}
                 </p>
+                {analysis.marketValue.comparablePrices.length > 0 ? (
+                  <PriceDistribution
+                    comparableLabel={copy.detail.comparablePricesLabel}
+                    likelyRangeMaximum={analysis.marketValue.range.maximum.amount}
+                    likelyRangeMinimum={analysis.marketValue.range.minimum.amount}
+                    locale={locale}
+                    prices={analysis.marketValue.comparablePrices}
+                    targetLabel={copy.detail.thisCarLabel}
+                    targetPrice={askingPrice}
+                  />
+                ) : null}
               </>
             ) : (
               <p className="mt-2 text-sm text-ink-muted">{copy.card.marketEstimatePending}</p>
@@ -489,6 +563,13 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         </div>
       </div>
       </div>
+
+      <CompareTray
+        compared={compared}
+        locale={locale}
+        onClear={clearCompare}
+        onRemove={removeCompare}
+      />
     </div>
   );
 }

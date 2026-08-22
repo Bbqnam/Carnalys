@@ -11,7 +11,7 @@ const provider = "blocket_unofficial";
 
 function normalizeFuel(value?: string): FuelType {
   const fuel = value?.toLocaleLowerCase("sv-SE") ?? "";
-  if (fuel.includes("laddhybrid") || (fuel.includes("el") && fuel.includes("bensin")))
+  if (fuel.includes("laddhybrid") || (/\bel\b/.test(fuel) && fuel.includes("bensin")))
     return "plug_in_hybrid";
   if (fuel.includes("hybrid")) return "self_charging_hybrid";
   if (fuel === "el" || fuel.includes("elektrisk")) return "electric";
@@ -64,6 +64,20 @@ function parseDate(value?: string) {
   return Number.isNaN(date.valueOf()) ? undefined : date;
 }
 
+// Blocket's fuel/energy consumption spec key isn't stable text — it's a
+// label plus a baked-in tooltip explanation (and varies between the NEDC
+// and WLTP test cycles), e.g. "Bränsleförbrukning(NEDC)NEDC var den
+// officiella testcykeln…" or "Energiförbrukning(WLTP)WLTP är ett värde…".
+// The value itself (e.g. "7,5 L/100 km") is clean, so match by prefix.
+function findConsumptionValue(specifications: Record<string, string>) {
+  const key = Object.keys(specifications).find(
+    (candidate) =>
+      candidate.startsWith("Bränsleförbrukning") ||
+      candidate.startsWith("Energiförbrukning"),
+  );
+  return key ? specifications[key] : undefined;
+}
+
 export function normalizeBlocketListing(
   document: BlocketSearchDocument,
   detail: BlocketListingDetail | undefined,
@@ -103,6 +117,7 @@ export function normalizeBlocketListing(
       horsepower: horsepower ? Math.round(horsepower) : undefined,
       engineDescription: specifications.Motorvolym,
       engineDisplacementCc: engineLiters ? Math.round(engineLiters * 1000) : undefined,
+      fuelConsumption: findConsumptionValue(specifications)?.trim() || undefined,
     },
     listing: {
       sellerName: document.organisationName,

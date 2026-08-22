@@ -13,7 +13,12 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const adapter = new PrismaPg({ connectionString: databaseUrl });
+  // `pg.Pool`'s default max is 10, which under-serves the concurrent listing
+  // writes during a full reconciliation (see writeConcurrency in
+  // listing-write-repository.ts) — raised with room to spare for the
+  // process's other concurrent queries (checkpoint/facet updates) that share
+  // this same pool.
+  const adapter = new PrismaPg({ connectionString: databaseUrl, max: 15 });
   return new PrismaClient({ adapter });
 }
 

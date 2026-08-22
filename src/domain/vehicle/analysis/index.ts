@@ -4,6 +4,13 @@ export type {
   OwnershipCostItem,
 } from "./ownership-cost";
 
+export {
+  estimateFuelConsumptionL100km,
+  parseFuelConsumptionValue,
+} from "./fuel-consumption-estimate";
+
+export { estimateOwnershipCost } from "./ownership-cost-estimate";
+
 export type {
   AnalysisConfidence,
   BuyConfidenceScore,

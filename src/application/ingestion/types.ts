@@ -41,6 +41,7 @@ export interface NormalizedVehicleListing {
     horsepower?: number;
     engineDescription?: string;
     engineDisplacementCc?: number;
+    fuelConsumption?: string;
   };
   listing: {
     sellerName?: string;

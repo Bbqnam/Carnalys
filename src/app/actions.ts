@@ -4,9 +4,14 @@ import { revalidatePath } from "next/cache";
 import { synchronizeMarketplace } from "@/application/ingestion/synchronize-marketplace";
 import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
 import {
+  assertManualSynchronizationNotThrottled,
+  getActiveSynchronization,
   SynchronizationAlreadyRunningError,
 } from "@/infrastructure/database/synchronization-state-repository";
-import { getListingsByIds } from "@/infrastructure/database/vehicle-listing-repository";
+import {
+  getActiveListingCount,
+  getListingsByIds,
+} from "@/infrastructure/database/vehicle-listing-repository";
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
 
 export interface ManualSynchronizationState {
@@ -25,6 +30,7 @@ export async function synchronizeLatestListings(
   void _previousState;
 
   try {
+    await assertManualSynchronizationNotThrottled("blocket_unofficial");
     const result = await synchronizeMarketplace(
       new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
       {
@@ -63,4 +69,33 @@ export async function synchronizeLatestListings(
 
 export async function getSavedListings(listingIds: readonly string[]) {
   return getListingsByIds(listingIds.slice(0, 200));
+}
+
+export async function getComparedListings(listingIds: readonly string[]) {
+  return getListingsByIds(listingIds.slice(0, 4));
+}
+
+export interface SynchronizationProgress {
+  mode: string;
+  phase: string;
+  fetchedCount: number;
+  pagesProcessed: number;
+  totalListings: number;
+}
+
+export async function getSynchronizationProgress(): Promise<
+  SynchronizationProgress | undefined
+> {
+  const [active, totalListings] = await Promise.all([
+    getActiveSynchronization("blocket_unofficial"),
+    getActiveListingCount(),
+  ]);
+  if (!active) return undefined;
+  return {
+    mode: active.mode,
+    phase: active.phase,
+    fetchedCount: active.fetchedCount,
+    pagesProcessed: active.pagesProcessed,
+    totalListings,
+  };
 }
