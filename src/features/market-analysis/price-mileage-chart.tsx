@@ -84,6 +84,19 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
     return () => cancelAnimationFrame(frame);
   }, [measured]);
 
+  // The nearest-mark fallback measures from the data, so while marks are still
+  // travelling to a new filter's positions it would offer up a mark that is not
+  // yet where it is being measured. For that window only a direct hit counts.
+  const initialPoints = useRef(data.points);
+  const [settled, setSettled] = useState(true);
+
+  useEffect(() => {
+    if (data.points === initialPoints.current) return;
+    setSettled(false);
+    const timer = setTimeout(() => setSettled(true), 560);
+    return () => clearTimeout(timer);
+  }, [data.points]);
+
   const width = measuredWidth ?? fallbackWidth;
   const height = chartHeight(width);
   const isNarrow = width < 520;
@@ -168,6 +181,8 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
     if (target instanceof SVGElement && target.dataset.index !== undefined) {
       return Number(target.dataset.index);
     }
+
+    if (!settled) return null;
 
     const coarse =
       "pointerType" in event ? event.pointerType !== "mouse" : false;
@@ -270,42 +285,42 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
         {/* Position lives in a CSS transform rather than cx/cy so it can be
             transitioned. Keyed by listing id, so React reuses the same node for
             a car that survives a filter change and the browser animates it to
-            its new place. */}
+            its new place.
+
+            The selected car is drawn by growing its own mark, not by placing a
+            second circle over it. A separate marker had to be positioned from
+            the data, which put it at the mark's destination while the mark
+            itself was still travelling there — the selected mark blanked out in
+            one place and a ring appeared in another. A mark cannot come apart
+            from itself. */}
         <g fillOpacity={0.75}>
-          {data.points.map((point, index) => (
-            <circle
-              className={
-                animatePositions
-                  ? "scatter-point scatter-point-animated"
-                  : "scatter-point"
-              }
-              cx={0}
-              cy={0}
-              data-index={index}
-              fill={colorFor(point.modelYear)}
-              fillOpacity={point.listingId === activeId ? 0 : undefined}
-              key={point.listingId}
-              r={2.8}
-              style={{
-                transform: `translate(${scale.x(point.mileageKm)}px, ${scale.y(point.price)}px)`,
-              }}
-            />
-          ))}
+          {data.points.map((point, index) => {
+            const isActive = point.listingId === activeId;
+
+            return (
+              <circle
+                className={
+                  animatePositions
+                    ? "scatter-point scatter-point-animated"
+                    : "scatter-point"
+                }
+                cx={0}
+                cy={0}
+                data-index={index}
+                fill={colorFor(point.modelYear)}
+                fillOpacity={isActive ? 1 : undefined}
+                key={point.listingId}
+                r={isActive ? 5.5 : 2.8}
+                stroke={isActive ? "var(--surface)" : undefined}
+                strokeWidth={isActive ? 2 : undefined}
+                style={{
+                  transform: `translate(${scale.x(point.mileageKm)}px, ${scale.y(point.price)}px)`,
+                }}
+              />
+            );
+          })}
         </g>
 
-        {active ? (
-          // Draws over the mark it replaces, so it must not take the pointer
-          // away from it.
-          <circle
-            cx={scale.x(active.mileageKm)}
-            cy={scale.y(active.price)}
-            fill={colorFor(active.modelYear)}
-            pointerEvents="none"
-            r={5.5}
-            stroke="var(--surface)"
-            strokeWidth={2}
-          />
-        ) : null}
       </svg>
 
       {active ? (
@@ -319,7 +334,13 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
             // fully on screen rather than hanging off it.
             left: Math.min(Math.max(scale.x(active.mileageKm), 110), width - 110),
             top: scale.y(active.price),
-            transform: "translate(-50%, calc(-100% - 12px))",
+            // Above the mark by default, below it for the dearest cars — a card
+            // for a point near the top of the plot used to hang over the
+            // section heading.
+            transform:
+              scale.y(active.price) < 170
+                ? "translate(-50%, 12px)"
+                : "translate(-50%, calc(-100% - 12px))",
           }}
         >
           <p className="truncate text-[13px] font-semibold tracking-[-0.01em] text-ink">
