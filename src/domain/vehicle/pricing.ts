@@ -1,6 +1,6 @@
 import type { Money } from "./types";
 
-/** Pricing claimed by the listing source, not a Carnalysis valuation. */
+/** Pricing claimed by the listing source, not a Carnalys valuation. */
 export interface ListingPrice {
   askingPrice: Money;
   previousAskingPrice?: Money;

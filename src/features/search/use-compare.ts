@@ -10,7 +10,7 @@ export interface ComparedVehicle {
   imageUrl?: string;
 }
 
-const storageKey = "carnalysis:compare:v2";
+const storageKey = "carnalys:compare:v2";
 const maxCompared = 4;
 const listeners = new Set<() => void>();
 

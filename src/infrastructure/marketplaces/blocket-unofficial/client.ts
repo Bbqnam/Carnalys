@@ -35,7 +35,7 @@ export class BlocketUnofficialClient {
     const response = await fetch(new URL(path, this.baseUrl), {
       headers: {
         Accept: "application/json",
-        "User-Agent": "CarnalysisDevelopmentImporter/1.0",
+        "User-Agent": "CarnalysDevelopmentImporter/1.0",
       },
       signal: AbortSignal.timeout(15_000),
     });
@@ -91,7 +91,7 @@ export class BlocketUnofficialClient {
     const response = await fetch(url, {
       headers: {
         Accept: "text/html",
-        "User-Agent": "CarnalysisDevelopmentImporter/1.0",
+        "User-Agent": "CarnalysDevelopmentImporter/1.0",
       },
       signal: AbortSignal.timeout(15_000),
     });

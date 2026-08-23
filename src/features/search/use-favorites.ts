@@ -2,7 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
-const storageKey = "carnalysis:favorites:v1";
+const storageKey = "carnalys:favorites:v1";
 const listeners = new Set<() => void>();
 
 function readStoredFavorites(): Set<string> {

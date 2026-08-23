@@ -1,6 +1,6 @@
 import type { Locale } from "./copy";
 
-export const localeCookieName = "carnalysis-locale";
+export const localeCookieName = "carnalys-locale";
 export const defaultLocale: Locale = "en";
 
 export function isLocale(value: string | undefined): value is Locale {

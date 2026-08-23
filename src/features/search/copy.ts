@@ -159,7 +159,7 @@ export const uiCopy = {
     lightTheme: "Light",
     darkTheme: "Dark",
     nav: {
-      home: "Carnalysis home",
+      home: "Carnalys home",
       howItWorks: "How it works",
       analysis: "Analysis",
       saved: "Saved",
@@ -169,7 +169,7 @@ export const uiCopy = {
     },
     hero: {
       eyebrow: "Smarter car buying starts here",
-      title: "Carnalysis",
+      title: "Carnalys",
       description:
         "We compare market value, ownership cost and reliability so you can find the best buys—not just more listings.",
       searchLabel: "Search by make or model",
@@ -422,7 +422,7 @@ export const uiCopy = {
     lightTheme: "Ljust",
     darkTheme: "Mörkt",
     nav: {
-      home: "Carnalysis hem",
+      home: "Carnalys hem",
       howItWorks: "Så fungerar det",
       analysis: "Analys",
       saved: "Sparade",
@@ -432,7 +432,7 @@ export const uiCopy = {
     },
     hero: {
       eyebrow: "Smartare bilköp börjar här",
-      title: "Carnalysis",
+      title: "Carnalys",
       description:
         "Vi jämför marknadsvärde, ägandekostnad och tillförlitlighet så att du hittar de bästa köpen — inte bara fler annonser.",
       searchLabel: "Sök efter märke eller modell",

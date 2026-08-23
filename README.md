@@ -1,6 +1,6 @@
-# Carnalysis
+# Carnalys
 
-Carnalysis is a Swedish vehicle decision platform. The current milestone uses
+Carnalys is a Swedish vehicle decision platform. The current milestone uses
 real marketplace listings while keeping source ingestion, normalized data,
 analysis, and UI concerns separate.
 

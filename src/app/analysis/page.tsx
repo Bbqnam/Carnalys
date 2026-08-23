@@ -11,7 +11,7 @@ import { getPreparedCatalogFilters } from "@/infrastructure/database/catalog-fac
 import { getCachedMarketAnalysis } from "@/infrastructure/database/market-analysis-repository";
 
 export const metadata = {
-  title: "Market analysis · Carnalysis",
+  title: "Market analysis · Carnalys",
   description:
     "See which version of a car gives the best value and when the Swedish used-car market favours buyers, from live listing data.",
 };

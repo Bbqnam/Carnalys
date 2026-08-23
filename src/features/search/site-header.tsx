@@ -58,11 +58,11 @@ export function SiteHeader({
             className="size-9 object-contain transition-transform duration-300 group-hover:scale-105"
             height={36}
             priority
-            src="/brand/carnalysis-mark.png"
+            src="/brand/carnalys-mark.png"
             width={36}
           />
           <span className="text-[17px] font-semibold tracking-[-0.035em] text-ink max-[390px]:hidden">
-            Carnalysis
+            Carnalys
           </span>
         </Link>
 

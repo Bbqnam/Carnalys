@@ -26,7 +26,7 @@ import type {
 import { vehiclePageSizes } from "./types";
 import { VehicleCard } from "./vehicle-card";
 
-const savedSearchKey = "carnalysis:search-state:v1";
+const savedSearchKey = "carnalys:search-state:v1";
 
 function saveSearchState(url: string) {
   try {
@@ -761,7 +761,7 @@ export function SearchExperience({
 
       <footer className="border-t border-border bg-background px-5 py-8 sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-[1800px] flex-col gap-2 text-xs text-ink-subtle sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 Carnalysis. {copy.footer.tagline}</p>
+          <p>© 2026 Carnalys. {copy.footer.tagline}</p>
           <p>{copy.footer.disclaimer}</p>
         </div>
       </footer>

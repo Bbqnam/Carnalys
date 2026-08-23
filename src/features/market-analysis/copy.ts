@@ -226,7 +226,7 @@ export const analysisCopy = {
       since: (date: string) => `Recording since ${date}`,
       emptyTitle: "History starts now",
       emptyBody:
-        "Carnalysis began recording price and availability changes on this catalogue recently. Every sync adds to it, and this calendar fills in as the months pass — nothing here is estimated or filled in for you.",
+        "Carnalys began recording price and availability changes on this catalogue recently. Every sync adds to it, and this calendar fills in as the months pass — nothing here is estimated or filled in for you.",
       disclaimer:
         "Based on advertised prices and how long listings stay live. A listing disappearing is a market exit, not proof of a sale.",
       selectMonth: "Select a month",
@@ -449,7 +449,7 @@ export const analysisCopy = {
       since: (date: string) => `Registrerar sedan ${date}`,
       emptyTitle: "Historiken börjar nu",
       emptyBody:
-        "Carnalysis började nyligen registrera pris- och tillgänglighetsförändringar i den här katalogen. Varje synk fyller på, och kalendern växer fram månad för månad — inget här är uppskattat eller ifyllt åt dig.",
+        "Carnalys började nyligen registrera pris- och tillgänglighetsförändringar i den här katalogen. Varje synk fyller på, och kalendern växer fram månad för månad — inget här är uppskattat eller ifyllt åt dig.",
       disclaimer:
         "Baserat på utgångspriser och hur länge annonser ligger kvar. Att en annons försvinner är ett marknadsutträde, inte ett bevis på försäljning.",
       selectMonth: "Välj en månad",
