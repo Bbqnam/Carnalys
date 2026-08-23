@@ -109,6 +109,13 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
   };
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
+  /**
+   * Air under the cheapest car. The axis floor is the lowest plotted price, so
+   * without it the bottom of the cloud is drawn centred on the baseline and
+   * half of every one of those marks falls below the line — right next to the
+   * mileage labels, where it reads as listings priced under the axis minimum.
+   */
+  const floorGutter = 10;
 
   const scale = useMemo(() => {
     const priceMaximum = Math.max(data.priceMaximum, 1);
@@ -123,13 +130,14 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
         padding.left + (mileageKm / mileageMaximum) * plotWidth,
       y: (price: number) =>
         padding.top +
-        plotHeight *
+        (plotHeight - floorGutter) *
           (1 - (price - priceMinimum) / Math.max(1, priceMaximum - priceMinimum)),
     };
   }, [
     data.mileageMaximumKm,
     data.priceMaximum,
     data.priceMinimum,
+    floorGutter,
     padding.left,
     padding.top,
     plotHeight,
