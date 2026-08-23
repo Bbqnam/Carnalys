@@ -362,10 +362,20 @@ select:focus-visible {
    animate in, which is what `scatter-point-in` is for. */
 .scatter-point {
   transition:
-    transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
     fill 380ms ease,
     r 380ms ease;
   animation: scatter-point-in 420ms ease-out both;
+}
+
+/* Travel is added only once the chart has been measured and painted. Until
+   then the marks are still moving from the server-rendered layout to the real
+   one, and a mark in flight is drawn somewhere the pointer test — which works
+   from the destination — does not agree with. */
+.scatter-point-animated {
+  transition:
+    transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    fill 380ms ease,
+    r 380ms ease;
 }
 
 @keyframes scatter-point-in {

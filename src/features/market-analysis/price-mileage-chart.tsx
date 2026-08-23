@@ -47,7 +47,13 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
   const copy = analysisCopy[locale].scatter;
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [width, setWidth] = useState(fallbackWidth);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+  // Points animate between positions, but not into their first one. The server
+  // renders at `fallbackWidth`, so the first measurement moves every point at
+  // once — and for the length of that transition the pointer would select
+  // points by where they are heading rather than where they are drawn, which
+  // reads as the hover being offset from the cloud.
+  const [animatePositions, setAnimatePositions] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   // Hover is a transient preview; clicking pins the same card so it can hold a
   // link to the listing without the pointer having to leave the chart to reach
@@ -59,12 +65,23 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
     if (!element) return;
 
     const observer = new ResizeObserver(([entry]) => {
-      setWidth(Math.max(280, Math.round(entry.contentRect.width)));
+      setMeasuredWidth(Math.max(280, Math.round(entry.contentRect.width)));
     });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
+  const measured = measuredWidth !== null;
+
+  useEffect(() => {
+    if (!measured) return;
+    // A frame after the measured layout has been painted, so enabling the
+    // transition can never coincide with a position change.
+    const frame = requestAnimationFrame(() => setAnimatePositions(true));
+    return () => cancelAnimationFrame(frame);
+  }, [measured]);
+
+  const width = measuredWidth ?? fallbackWidth;
   const height = chartHeight(width);
   const isNarrow = width < 520;
   const padding = {
@@ -132,13 +149,23 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
 
   // 1,200 points is small enough that a linear nearest-point scan per pointer
   // move stays well inside a frame, so no spatial index is warranted.
-  function nearestPointIndex(clientX: number, clientY: number) {
+  //
+  // A mouse is placed precisely and should feel like it selects the point it is
+  // on; a fingertip cannot be, and needs the older, more forgiving reach.
+  function nearestPointIndex(event: React.PointerEvent | React.MouseEvent) {
     const svg = svgRef.current;
     if (!svg || data.points.length === 0) return null;
 
+    const coarse =
+      "pointerType" in event ? event.pointerType !== "mouse" : false;
+    const reach = coarse ? 18 : 9;
     const rect = svg.getBoundingClientRect();
-    const pointerX = clientX - rect.left;
-    const pointerY = clientY - rect.top;
+    // The viewBox is sized from the measured container, so one unit is one
+    // pixel — but only to within the rounding, and the pointer has to be
+    // converted rather than assumed.
+    const scaleFactor = rect.width > 0 ? width / rect.width : 1;
+    const pointerX = (event.clientX - rect.left) * scaleFactor;
+    const pointerY = (event.clientY - rect.top) * scaleFactor;
 
     let nearest = -1;
     let nearestDistance = Number.POSITIVE_INFINITY;
@@ -152,7 +179,7 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
       }
     });
 
-    return nearestDistance <= 16 ** 2 ? nearest : null;
+    return nearestDistance <= reach ** 2 ? nearest : null;
   }
 
   const activeIndex = pinnedIndex ?? hoveredIndex;
@@ -172,13 +199,9 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
       <svg
         className="block w-full touch-pan-y select-none"
         height={height}
-        onClick={(event) =>
-          setPinnedIndex(nearestPointIndex(event.clientX, event.clientY))
-        }
+        onClick={(event) => setPinnedIndex(nearestPointIndex(event))}
         onPointerLeave={() => setHoveredIndex(null)}
-        onPointerMove={(event) =>
-          setHoveredIndex(nearestPointIndex(event.clientX, event.clientY))
-        }
+        onPointerMove={(event) => setHoveredIndex(nearestPointIndex(event))}
         ref={svgRef}
         role="img"
         aria-label={`${copy.priceAxis} / ${copy.mileageAxis}`}
@@ -228,7 +251,11 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
         <g fillOpacity={0.75}>
           {data.points.map((point, index) => (
             <circle
-              className="scatter-point"
+              className={
+                animatePositions
+                  ? "scatter-point scatter-point-animated"
+                  : "scatter-point"
+              }
               cx={0}
               cy={0}
               fill={colorFor(point.modelYear)}
