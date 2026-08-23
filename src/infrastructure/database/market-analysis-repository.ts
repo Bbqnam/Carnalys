@@ -39,9 +39,13 @@ import { initializeDatabase, prisma } from "./prisma";
 const scatterSampleLimit = 1_200;
 
 /**
- * Listings the equipment analysis draws on. Well past the point where a
- * per-option median stops moving, and far enough below the full catalogue to
- * keep the multi-million-row equipment join bounded.
+ * Listings the equipment analysis draws on, chosen to keep the
+ * multi-million-row equipment join bounded.
+ *
+ * Not a number to trim for speed: halving it to 12,000 moves the published
+ * premiums by around half a percentage point on a list whose whole range is
+ * ±2.4%, and reorders the top ten. The per-option medians are still settling
+ * at this size, so the sample buys accuracy, not just headroom.
  */
 const equipmentSampleLimit = 25_000;
 
@@ -1214,14 +1218,14 @@ export const marketAnalysisCacheTag = "market-analysis";
 export const getCachedMarketAnalysis = unstable_cache(
   (filters: MarketAnalysisFilters) => getMarketAnalysis(filters),
   ["market-analysis"],
-  // An hour rather than fifteen minutes, because the underlying data only
-  // moves when a synchronization run writes — nightly, or on a manual sync,
-  // both of which invalidate the tag explicitly. The window is not what keeps
-  // the page correct; the tag is. Widening it only means fewer readers pay for
-  // a rebuild, and the unfiltered view is the expensive one to rebuild: about
-  // 3.5 seconds against the full catalogue, versus well under a second for any
-  // filtered selection.
-  { revalidate: 3600, tags: [marketAnalysisCacheTag] },
+  // A day, not an hour. The window is not what keeps the page correct — the
+  // tag is, and every writer invalidates it — so a shorter window buys nothing
+  // and costs a full rebuild. That rebuild is the most expensive thing the
+  // product does: ten aggregates over the whole catalogue, about forty seconds
+  // of database time for the unfiltered view. At an hour it was paid twenty-four
+  // times a day per filter combination anyone happened to revisit, for data
+  // that had not moved since the nightly sync.
+  { revalidate: 86_400, tags: [marketAnalysisCacheTag] },
 );
 
 export async function getMarketAnalysis(

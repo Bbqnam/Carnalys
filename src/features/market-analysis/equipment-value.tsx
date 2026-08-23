@@ -41,11 +41,15 @@ export function EquipmentValue({ data, locale }: EquipmentValueProps) {
             <span className="min-w-0 truncate text-[13px] text-ink">
               {item.label}
             </span>
+            {/* A decimal place, unlike the other modules. Equipment premiums
+                are all inside a couple of percent of each other, so whole
+                numbers printed −2% against four different bar lengths and the
+                list read as though the figures were identical. */}
             <span
               className="text-[13px] font-semibold tabular-nums"
               style={{ color: positive ? "var(--positive)" : "var(--negative)" }}
             >
-              {formatPercent(item.premiumPercent, locale, 0)}
+              {formatPercent(item.premiumPercent, locale, 1)}
             </span>
             <span
               aria-hidden="true"
