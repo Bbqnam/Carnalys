@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { PriceMileageChart as PriceMileageData } from "@/domain/market/types";
 import type { Locale } from "@/features/search/copy";
 import { analysisCopy } from "./copy";
@@ -45,6 +45,7 @@ function axisTicks(maximum: number, count: number) {
 
 export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
   const copy = analysisCopy[locale].scatter;
+  const plotClipId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
@@ -287,13 +288,33 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
             a car that survives a filter change and the browser animates it to
             its new place.
 
+            The group is clipped to the plot. Narrowing a filter rescales the
+            axes at once while the marks take half a second to travel, so for
+            that moment a mark's old pixel position can sit well below the new
+            floor or past the right edge — cars drawn under the mileage labels,
+            reading as a chart that had come unstuck from its own axis.
+
             The selected car is drawn by growing its own mark, not by placing a
             second circle over it. A separate marker had to be positioned from
             the data, which put it at the mark's destination while the mark
             itself was still travelling there — the selected mark blanked out in
             one place and a ring appeared in another. A mark cannot come apart
             from itself. */}
-        <g fillOpacity={0.75}>
+        <defs>
+          {/* Slack around the plot so a mark sitting on an axis keeps its whole
+              circle, while one still in transit from the previous filter is
+              hidden rather than drawn outside the frame. */}
+          <clipPath id={plotClipId}>
+            <rect
+              height={plotHeight + 16}
+              width={plotWidth + 16}
+              x={padding.left - 8}
+              y={padding.top - 8}
+            />
+          </clipPath>
+        </defs>
+
+        <g clipPath={`url(#${plotClipId})`} fillOpacity={0.75}>
           {data.points.map((point, index) => {
             const isActive = point.listingId === activeId;
 
