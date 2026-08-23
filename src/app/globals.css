@@ -38,6 +38,48 @@
      most are dark-on-transparent. They read fine on the light theme, so no
      chip is drawn there; see the dark override. */
   --brand-chip: transparent;
+
+  /* ---- Data visualization ramps (Analysis page) ----
+     Three colour families, each doing exactly one job, so nothing on the page
+     has to be read twice:
+
+       viz-year   sequential, one hue  — model year on the price/mileage plot
+       viz-price  sequential, one hue  — asking price on the value map
+       viz-buy    diverging, two hues  — buying conditions on the calendar
+
+     Step 1 is always the low end and step 5 the high end, whichever way round
+     the theme renders them: light mode runs pale→deep, and the dark overrides
+     flip the anchor so "more" stays the brighter end against a dark surface.
+     Every ramp was checked with the data-viz validator for monotone lightness,
+     visible step gaps (ΔL ≥ 0.06) and a single hue — don't hand-tune a step
+     without re-running it.
+
+     viz-price is deliberately a tint ramp rather than a saturated one, and so
+     does not meet the validator's "light end ≥ 2:1 against the surface" floor.
+     That floor exists so the palest cell is still distinguishable from the
+     page; here a hairline border on every cell does that job instead. The
+     trade buys something worth more: cell labels stay in the theme's own ink
+     at every step (worst case 6.4:1 light, 5.6:1 dark) rather than inverting
+     to white halfway up a saturated ramp, where the crossover step could only
+     reach about 3:1 either way. */
+  --viz-year-1: #8ab4e0;
+  --viz-year-2: #5f95cf;
+  --viz-year-3: #3d72b8;
+  --viz-year-4: #255291;
+  --viz-year-5: #143562;
+
+  --viz-price-1: #f8f2e6;
+  --viz-price-2: #ecdcb9;
+  --viz-price-3: #dfc78d;
+  --viz-price-4: #d1b269;
+  --viz-price-5: #bf9c4c;
+
+  /* Diverging: green favours the buyer, red favours the seller, with a plain
+     neutral in the middle so "normal" never reads as a weak verdict. */
+  --viz-buy-great: #cfe4d5;
+  --viz-buy-good: #e5efe8;
+  --viz-buy-neutral: #eceeea;
+  --viz-buy-expensive: #f5dbd6;
 }
 
 /* Dark values, applied when the OS prefers dark and the user hasn't made an
@@ -69,6 +111,24 @@
     --hero-glow-2: rgba(90, 80, 55, 0.3);
     /* Light chip so dark manufacturer marks stay legible. */
     --brand-chip: #e9ede8;
+    /* Anchor flipped for the dark surface: the high end of each sequential
+       ramp is the brighter step, so "more" still reads as "stronger". */
+    --viz-year-1: #2c5b8e;
+    --viz-year-2: #487fba;
+    --viz-year-3: #6fa2d8;
+    --viz-year-4: #9ec4ec;
+    --viz-year-5: #c9e0f7;
+
+    --viz-price-1: #1b1710;
+    --viz-price-2: #2d2517;
+    --viz-price-3: #41361e;
+    --viz-price-4: #574729;
+    --viz-price-5: #705d36;
+
+    --viz-buy-great: #204634;
+    --viz-buy-good: #182a20;
+    --viz-buy-neutral: #1d271f;
+    --viz-buy-expensive: #402722;
   }
 }
 
@@ -99,6 +159,24 @@
   --hero-glow-2: rgba(90, 80, 55, 0.3);
   /* Light chip so dark manufacturer marks stay legible. */
   --brand-chip: #e9ede8;
+  /* Anchor flipped for the dark surface: the high end of each sequential
+     ramp is the brighter step, so "more" still reads as "stronger". */
+  --viz-year-1: #2c5b8e;
+  --viz-year-2: #487fba;
+  --viz-year-3: #6fa2d8;
+  --viz-year-4: #9ec4ec;
+  --viz-year-5: #c9e0f7;
+
+  --viz-price-1: #1b1710;
+  --viz-price-2: #2d2517;
+  --viz-price-3: #41361e;
+  --viz-price-4: #574729;
+  --viz-price-5: #705d36;
+
+  --viz-buy-great: #204634;
+  --viz-buy-good: #182a20;
+  --viz-buy-neutral: #1d271f;
+  --viz-buy-expensive: #402722;
 }
 
 @theme inline {
@@ -122,6 +200,11 @@
   --color-negative-soft: var(--negative-soft);
   --color-gold: var(--gold);
   --color-brand-chip: var(--brand-chip);
+
+  --color-viz-buy-great: var(--viz-buy-great);
+  --color-viz-buy-good: var(--viz-buy-good);
+  --color-viz-buy-neutral: var(--viz-buy-neutral);
+  --color-viz-buy-expensive: var(--viz-buy-expensive);
 }
 
 html {
@@ -271,6 +354,28 @@ select:focus-visible {
   );
   background-size: 220% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Scatter marks glide between filter results rather than cutting: the sample
+   is deterministic, so a listing that survives a filter change keeps its DOM
+   node and simply travels to its new position. Only genuinely new points
+   animate in, which is what `scatter-point-in` is for. */
+.scatter-point {
+  transition:
+    transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    fill 380ms ease,
+    r 380ms ease;
+  animation: scatter-point-in 420ms ease-out both;
+}
+
+@keyframes scatter-point-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes shimmer {

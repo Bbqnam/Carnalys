@@ -213,9 +213,37 @@ interface ExistingListingState {
   id: string;
   vehicleId: string;
   status: string;
+  priceAmount: number;
+  mileageKm: number;
   contentHash: string | null;
   imageHash: string | null;
   equipmentHash: string | null;
+}
+
+/**
+ * Decides whether this sync saw anything worth writing to the permanent
+ * observation log, and what to call it.
+ *
+ * The log exists to answer historical questions ("what did this cost in
+ * March?", "how often do sellers cut prices?"), so it records *market state*
+ * only: price, mileage, and whether the ad is live. A seller rewriting the
+ * description or swapping photos changes the listing's content hash but not
+ * its market state, and writing a row for that would inflate the table
+ * without teaching us anything. Returning `undefined` here is the normal case
+ * — most listings, most runs, change nothing.
+ */
+function observationKind(
+  existing: ExistingListingState | undefined,
+  listing: NormalizedVehicleListing["listing"],
+) {
+  if (!existing) return "first_seen" as const;
+  // The ad is back after we recorded it gone. Not the same event as a new
+  // listing: the car was on the market before, which matters when measuring
+  // how long stock sits.
+  if (existing.status !== "active") return "relisted" as const;
+  if (existing.priceAmount !== listing.priceAmount) return "price_change" as const;
+  if (existing.mileageKm !== listing.mileageKm) return "mileage_change" as const;
+  return undefined;
 }
 
 async function writeListing(
@@ -375,6 +403,34 @@ async function writeListing(
     }
   }
 
+  const kind = observationKind(existing, listing);
+  if (kind) {
+    // Same transaction as the listing write, so the log can never claim a
+    // state the listing row never reached (or miss one it did). Duplicates
+    // are skipped rather than thrown: a retried batch re-runs with the same
+    // synchronizedAt, and re-recording an identical observation is a no-op,
+    // not a failure worth aborting a page of listings for.
+    await transaction.listingObservation.createMany({
+      data: [
+        {
+          listingId,
+          provider: normalized.source.provider,
+          observedAt: synchronizedAt,
+          kind,
+          priceAmount: listing.priceAmount,
+          previousPriceAmount:
+            kind === "price_change"
+              ? existing!.priceAmount
+              : listing.previousPriceAmount,
+          mileageKm: listing.mileageKm,
+          sellerType: listing.sellerType,
+          status: "active",
+        },
+      ],
+      skipDuplicates: true,
+    });
+  }
+
   // Only seed the neutral placeholder for listings that don't have an
   // analysis row yet (skipDuplicates makes this a no-op otherwise). A plain
   // content change (e.g. a spec field newly resolving) must not stomp a
@@ -448,6 +504,8 @@ export async function upsertNormalizedListings(
       externalId: true,
       vehicleId: true,
       status: true,
+      priceAmount: true,
+      mileageKm: true,
       contentHash: true,
       imageHash: true,
       equipmentHash: true,
@@ -595,6 +653,25 @@ export async function markMissingListingsRemovedSafely(
       },
       data: { missingReconciliationCount: { increment: 1 } },
     });
+    // Capture the last state we ever observed *before* flipping the status,
+    // so the exit observation carries the price the ad actually left the
+    // market at rather than nothing at all.
+    const disappearing = await transaction.listingRecord.findMany({
+      where: {
+        provider,
+        sourceScope,
+        status: "active",
+        lastSeenAt: { lt: runStartedAt },
+        missingReconciliationCount: { gte: 2 },
+      },
+      select: {
+        id: true,
+        priceAmount: true,
+        previousPriceAmount: true,
+        mileageKm: true,
+        sellerType: true,
+      },
+    });
     const result = await transaction.listingRecord.updateMany({
       where: {
         provider,
@@ -605,6 +682,26 @@ export async function markMissingListingsRemovedSafely(
       },
       data: { status: "removed", removedAt },
     });
+    // The ad is gone; that is all we know. It may have sold, been withdrawn,
+    // expired, or been relisted elsewhere, so this records a disappearance and
+    // never a sale — and the row stays in the log permanently even though the
+    // listing has left the marketplace.
+    if (disappearing.length > 0) {
+      await transaction.listingObservation.createMany({
+        data: disappearing.map((listing) => ({
+          listingId: listing.id,
+          provider,
+          observedAt: removedAt,
+          kind: "disappeared",
+          priceAmount: listing.priceAmount,
+          previousPriceAmount: listing.previousPriceAmount,
+          mileageKm: listing.mileageKm,
+          sellerType: listing.sellerType,
+          status: "removed",
+        })),
+        skipDuplicates: true,
+      });
+    }
     await transaction.importRun.update({
       where: { id: runId },
       data: {

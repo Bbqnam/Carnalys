@@ -37,6 +37,103 @@ export function CompareIcon(props: IconProps) {
   );
 }
 
+export function InfoIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </svg>
+  );
+}
+
+export function ScatterIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M4 19V5M4 19h16" />
+      <circle cx="8.5" cy="9" r="1.3" />
+      <circle cx="12" cy="12.5" r="1.3" />
+      <circle cx="16" cy="10.5" r="1.3" />
+      <circle cx="18.5" cy="15" r="1.3" />
+    </svg>
+  );
+}
+
+export function DepreciationIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M4 19V5M4 19h16" />
+      <path d="M7 8c3.5 0 4.5 8 12 8" />
+      <path d="M16 16h3v-3" />
+    </svg>
+  );
+}
+
+export function GridIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <rect height="15" rx="2" width="16" x="4" y="4.5" />
+      <path d="M4 9.5h16M4 14.5h16M9.5 4.5v15M14.5 4.5v15" />
+    </svg>
+  );
+}
+
+export function TrophyIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" />
+      <path d="M8 5.5H5.5v1a3 3 0 0 0 3 3" />
+      <path d="M16 5.5h2.5v1a3 3 0 0 1-3 3" />
+      <path d="M12 13v3.5M9 20h6l-.5-3.5h-5L9 20Z" />
+    </svg>
+  );
+}
+
+export function ScalesIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M12 5v15M8 20h8M5 8h14" />
+      <path d="M5 8 2.5 14h5L5 8ZM19 8l-2.5 6h5L19 8Z" />
+    </svg>
+  );
+}
+
+export function OptionsIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="m12 4 1.9 4.3 4.6.5-3.4 3.1 1 4.6L12 14.2 7.9 16.5l1-4.6-3.4-3.1 4.6-.5L12 4Z" />
+    </svg>
+  );
+}
+
+export function RegionIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M9 5.5 4.5 7v12L9 17.5l6 2 4.5-1.5v-12L15 7.5l-6-2Z" />
+      <path d="M9 5.5v12M15 7.5v12" />
+    </svg>
+  );
+}
+
+export function CalendarIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <rect height="15" rx="2" width="16" x="4" y="5" />
+      <path d="M4 10h16M9 3.5v3M15 3.5v3" />
+    </svg>
+  );
+}
+
+export function MarketAnalysisIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M4 19V5" />
+      <path d="M4 19h16" />
+      <path d="m7.5 14.5 3.5-4 3 2.5 4.5-6" />
+    </svg>
+  );
+}
+
 export function SlidersIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>

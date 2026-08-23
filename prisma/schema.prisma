@@ -82,6 +82,45 @@ model ListingRecord {
   @@index([lastSeenAt])
 }
 
+/// Append-only log of everything we have ever observed about a listing's
+/// market state. This is the only place historical market data lives —
+/// `ListingRecord` holds just the current state, which is overwritten on
+/// every sync.
+///
+/// A row is written only when an observed value actually *changes* (or on
+/// first/last sighting), never once per crawler run: a listing seen
+/// unchanged 300 times produces one row, not 300. See
+/// `recordListingObservations` for the change detection.
+///
+/// Deliberately has no foreign key to `ListingRecord`. History must survive
+/// the listing row it describes — including a future cascade from
+/// `VehicleRecord` — because a disappearance is not a deletion of what we
+/// learned. Nothing in the application ever deletes from this table.
+model ListingObservation {
+  id                  BigInt   @id @default(autoincrement())
+  listingId           String
+  provider            String
+  /// When this state was first observed by us — not when the seller changed
+  /// it, which the marketplace does not tell us.
+  observedAt          DateTime
+  /// first_seen | price_change | mileage_change | status_change | disappeared | relisted
+  kind                String
+  priceAmount         Int
+  previousPriceAmount Int?
+  mileageKm           Int
+  sellerType          String
+  /// Listing status *as we observed it*: active | reserved | sold | removed.
+  /// "removed" means the ad left the marketplace, which is not evidence of a
+  /// sale — see the `disappeared` kind.
+  status              String
+  createdAt           DateTime @default(now())
+
+  @@unique([listingId, observedAt, kind])
+  @@index([listingId, observedAt])
+  @@index([observedAt])
+  @@index([kind, observedAt])
+}
+
 model ListingAnalysisRecord {
   listingId            String        @id
   marketValueAmount    Int

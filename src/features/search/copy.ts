@@ -161,6 +161,7 @@ export const uiCopy = {
     nav: {
       home: "Carnalysis home",
       howItWorks: "How it works",
+      analysis: "Analysis",
       saved: "Saved",
       savedCars: (count: number) => `${count} saved cars`,
       compare: "Compare",
@@ -423,6 +424,7 @@ export const uiCopy = {
     nav: {
       home: "Carnalysis hem",
       howItWorks: "Så fungerar det",
+      analysis: "Analys",
       saved: "Sparade",
       savedCars: (count: number) => `${count} sparade bilar`,
       compare: "Jämför",

@@ -1,4 +1,8 @@
 import { Prisma } from "@/generated/prisma/client";
+import {
+  minimumPlausibleAskingPrice,
+  plausibleAskingPriceSql,
+} from "@/domain/vehicle/pricing";
 import { buildOwnershipCostItems } from "@/domain/vehicle/analysis/ownership-cost-items";
 import {
   buildBuyConfidenceFactors,
@@ -40,13 +44,18 @@ interface SegmentComparableRow {
   priceAmount: number;
 }
 
-const methodologyVersion = "value-quality-composite-8.0";
+const methodologyVersion = "value-quality-composite-8.1";
 
-// A broken/placeholder scrape (price 0, 1 kr, etc.) has no floor otherwise,
-// and a single one of these landing in a small comparable pool (common for
-// the "low confidence" cohorts this feeds) can badly skew the percentile-
-// based market value range. No legitimate running car is priced this low.
-const minimumSaneComparablePrice = 5_000;
+/**
+ * The least a listing can ask, as a share of its own comparable market value,
+ * before the price stops being credible as the price of that car.
+ *
+ * Deliberately generous: genuinely good deals, accident-damaged cars and
+ * urgent private sales do reach 30-40% under market, and those must keep their
+ * Deal Score. What this excludes is the 90%+ discount that only ever means the
+ * advertised figure is a leasing rate, a deposit, or a placeholder.
+ */
+const minimumCredibleMarketValueShare = 0.35;
 
 function clampScore(value: number) {
   return Math.max(10, Math.min(95, Math.round(value)));
@@ -113,23 +122,16 @@ function vehicleQualityScores(target: AnalysisTarget, priceDelta: number, year: 
   };
 }
 
-// Note: deliberately excludes bodyStyle. It's only populated from detail
-// data (see importer.ts), so during the transition while most of the
-// catalog is still un-enriched, requiring an exact bodyStyle match would
-// isolate freshly-enriched listings from the (still-"other") bulk of their
-// own real comparables.
-function cohortKey({
-  make,
-  model,
-  fuelType,
-  transmission,
-}: {
-  make: string;
-  model: string;
-  fuelType: string;
-  transmission: string;
-}) {
-  return JSON.stringify([make, model, fuelType, transmission]);
+/**
+ * Comparables are pooled by make and model, then narrowed in memory — the
+ * exact cohort adds gearbox and fuel, the wide tier drops them. Body style is
+ * deliberately never part of it: it's only populated from detail data (see
+ * importer.ts), so while most of the catalog is still un-enriched, matching on
+ * it would isolate freshly-enriched listings from the (still-"other") bulk of
+ * their own real comparables.
+ */
+function modelKey({ make, model }: { make: string; model: string }) {
+  return JSON.stringify([make, model]);
 }
 
 function segmentKey({ make }: { make: string }) {
@@ -212,19 +214,20 @@ export async function refreshStoredListingAnalyses(
   const targets = await loadTargets(listingIds, limit);
   if (targets.length === 0) return 0;
 
+  // One year for the whole batch, so every plausibility check and age
+  // calculation in this run agrees even if it straddles midnight on New Year.
+  const analysisYear = new Date().getFullYear();
+
   const cohorts = [
     ...new Map(
-      targets.map(({ vehicle }) => [cohortKey(vehicle), vehicle] as const),
+      targets.map(({ vehicle }) => [modelKey(vehicle), vehicle] as const),
     ).values(),
   ];
   const comparables = await prisma.$queryRaw<MarketComparableRow[]>(Prisma.sql`
-    WITH "target_cohorts" (
-      "make", "model", "fuelType", "transmission"
-    ) AS (
+    WITH "target_cohorts" ("make", "model") AS (
       VALUES ${Prisma.join(
         cohorts.map(
-          (vehicle) =>
-            Prisma.sql`(${vehicle.make}, ${vehicle.model}, ${vehicle.fuelType}, ${vehicle.transmission})`,
+          (vehicle) => Prisma.sql`(${vehicle.make}, ${vehicle.model})`,
         ),
       )}
     )
@@ -241,26 +244,32 @@ export async function refreshStoredListingAnalyses(
     INNER JOIN "VehicleRecord" AS vehicle
       ON vehicle."make" = cohort."make"
       AND vehicle."model" = cohort."model"
-      AND vehicle."fuelType" = cohort."fuelType"
-      AND vehicle."transmission" = cohort."transmission"
     INNER JOIN "ListingRecord" AS listing
       ON listing."vehicleId" = vehicle."id"
       AND listing."status" = 'active'
-    WHERE listing."priceAmount" >= ${minimumSaneComparablePrice}
+    WHERE ${Prisma.raw(
+      plausibleAskingPriceSql(
+        'listing."priceAmount"',
+        'vehicle."modelYear"',
+        analysisYear,
+      ),
+    )}
   `);
-  const comparablesByCohort = new Map<string, MarketComparableRow[]>();
+  const comparablesByModel = new Map<string, MarketComparableRow[]>();
   for (const comparable of comparables) {
-    const key = cohortKey(comparable);
-    const rows = comparablesByCohort.get(key) ?? [];
+    const key = modelKey(comparable);
+    const rows = comparablesByModel.get(key) ?? [];
     rows.push(comparable);
-    comparablesByCohort.set(key, rows);
+    comparablesByModel.set(key, rows);
   }
 
   function tier1Prices(target: AnalysisTarget) {
-    return (comparablesByCohort.get(cohortKey(target.vehicle)) ?? [])
+    return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
       .filter(
         (comparable) =>
           comparable.id !== target.id &&
+          comparable.fuelType === target.vehicle.fuelType &&
+          comparable.transmission === target.vehicle.transmission &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 3 &&
           Math.abs(comparable.mileageKm - target.mileageKm) <= 120_000,
       )
@@ -274,12 +283,37 @@ export async function refreshStoredListingAnalyses(
       .map(({ priceAmount }) => Number(priceAmount));
   }
 
-  // Rare/exotic vehicles (e.g. a Ferrari) rarely have 3+ exact make+model
-  // matches, so their price signal would otherwise always fall back to a
-  // flat neutral score. For those, widen to same-make (a looser but still
-  // meaningful comparison) instead of giving up.
+  /**
+   * Same model, but ignoring gearbox and fuel and allowing a wider year band.
+   *
+   * Sits between the exact cohort and the same-make fallback because the jump
+   * between those two is enormous: a rare car with two exact matches drops
+   * straight to being compared against every other car the manufacturer makes.
+   * A 1990 Nissan 200SX has three listings in the whole country, and comparing
+   * it against 1990s Micras and Almeras is what made its valuation look wrong.
+   * Another 200SX of a different gearbox is a far better comparison, and this
+   * tier costs no extra query — the pool is already fetched by make and model.
+   */
+  function tier1WidePrices(target: AnalysisTarget) {
+    return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
+      .filter(
+        (comparable) =>
+          comparable.id !== target.id &&
+          Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 8,
+      )
+      .toSorted(
+        (left, right) =>
+          Math.abs(left.modelYear - target.vehicle.modelYear) -
+          Math.abs(right.modelYear - target.vehicle.modelYear),
+      )
+      .map(({ priceAmount }) => Number(priceAmount));
+  }
+
+  // Only vehicles with no usable same-model pool at all fall through to the
+  // same-make comparison.
   const needsSegmentFallback = targets.filter(
-    (target) => tier1Prices(target).length < 3,
+    (target) =>
+      tier1Prices(target).length < 3 && tier1WidePrices(target).length < 3,
   );
   const segmentMakes = [
     ...new Set(needsSegmentFallback.map(({ vehicle }) => vehicle.make)),
@@ -296,7 +330,13 @@ export async function refreshStoredListingAnalyses(
           ON listing."vehicleId" = vehicle."id"
           AND listing."status" = 'active'
         WHERE vehicle."make" IN (${Prisma.join(segmentMakes)})
-          AND listing."priceAmount" > 0
+          AND ${Prisma.raw(
+            plausibleAskingPriceSql(
+              'listing."priceAmount"',
+              'vehicle."modelYear"',
+              analysisYear,
+            ),
+          )}
       `)
     : [];
   const comparablesBySegment = new Map<string, SegmentComparableRow[]>();
@@ -330,18 +370,44 @@ export async function refreshStoredListingAnalyses(
   await prisma.$transaction(
     targets.map((target) => {
       const tier1 = tier1Prices(target);
+      const tier1Wide = tier1.length >= 3 ? [] : tier1WidePrices(target);
+      const selected =
+        tier1.length >= 3
+          ? tier1
+          : tier1Wide.length >= 3
+            ? tier1Wide
+            : tier2Prices(target);
+      // Anything looser than an exact same-model, same-gearbox, same-fuel match
+      // is reported as low confidence, however many rows it found.
       const usedFallbackTier = tier1.length < 3;
-      const prices = (usedFallbackTier ? tier2Prices(target) : tier1).toSorted(
-        (left, right) => left - right,
-      );
+      const prices = selected.toSorted((left, right) => left - right);
       const hasEstimate = prices.length >= 3;
       const marketValue = hasEstimate
         ? roundedThousands(percentile(prices, 0.5))
         : target.priceAmount;
-      const priceDelta =
+      // The listing's *own* price may be a leasing rate or a "call for price"
+      // placeholder rather than the price of the car. Comparing that against a
+      // real market value produced a perfect Deal Score for a 2026 BMW iX1
+      // advertised at 4,995 SEK — and 89% of everything scoring 90+ was this
+      // one bug. The market value stays (the comparables are sound); only the
+      // price comparison is withheld, because the asking price is unknown.
+      // Two tests, because neither alone is enough. The age-relative floor
+      // catches the 1 SEK placeholders, but not a 2026 Audi RS Q8 advertised
+      // at 32,995 SEK — that clears any floor low enough to keep genuine old
+      // bangers. The second test is relative to the car's own comparables: at
+      // 2% of a 1,507,000 SEK market value, that price cannot be what the car
+      // is being sold for. A real bargain is 20-30% under market, not 98%.
+      const askingPriceIsUsable =
+        target.priceAmount >=
+          minimumPlausibleAskingPrice(target.vehicle.modelYear, analysisYear) &&
+        (!hasEstimate ||
+          target.priceAmount >= marketValue * minimumCredibleMarketValueShare);
+      const comparablePriceDelta =
         marketValue > 0 ? (marketValue - target.priceAmount) / marketValue : 0;
+      const priceDelta = askingPriceIsUsable ? comparablePriceDelta : 0;
+      const canComparePrice = hasEstimate && askingPriceIsUsable;
       const confidence =
-        !hasEstimate || usedFallbackTier
+        !canComparePrice || usedFallbackTier
           ? "low"
           : prices.length >= 15
             ? "high"
@@ -351,17 +417,32 @@ export async function refreshStoredListingAnalyses(
       const fuelMultiplier = target.vehicle.fuelType === "electric" ? 0.8 : 1;
       const qualityScores = vehicleQualityScores(
         target,
-        hasEstimate ? priceDelta : 0,
-        calculatedAt.getFullYear(),
+        canComparePrice ? priceDelta : 0,
+        analysisYear,
       );
+      /**
+       * A Deal Score is a statement about price, so a listing whose price we
+       * cannot read does not get one — it gets the neutral midpoint.
+       *
+       * Neutralising the price comparison alone was not enough: with the
+       * asking price withheld, a brand-new zero-mileage placeholder still
+       * scored 84 out of age, mileage and "affordability", the last of which
+       * was reading the 1,389 SEK placeholder as an extremely cheap car. The
+       * composite is built from four components and three of them were
+       * rewarding the very thing that makes the listing unusable.
+       *
+       * Buy Confidence is left alone: it describes the car's age, mileage and
+       * ownership history, which are still perfectly valid.
+       */
+      const dealScore = askingPriceIsUsable ? qualityScores.dealScore : 50;
       const factorInputs = {
-        hasMarketEstimate: hasEstimate,
-        priceDelta: hasEstimate ? priceDelta : 0,
+        hasMarketEstimate: canComparePrice,
+        priceDelta: canComparePrice ? priceDelta : 0,
         priceValueScore: qualityScores.priceValueScore,
         ageScore: qualityScores.ageScore,
         mileageScore: qualityScores.mileageScore,
         affordabilityScore: qualityScores.affordabilityScore,
-        dealScore: qualityScores.dealScore,
+        dealScore,
         ownerScore: qualityScores.ownerScore,
         ownerCount: target.ownerCount ?? undefined,
         age: qualityScores.age,
@@ -380,10 +461,12 @@ export async function refreshStoredListingAnalyses(
         marketValueMaximum: hasEstimate
           ? roundedThousands(percentile(prices, 0.75))
           : roundedThousands(target.priceAmount * 1.1),
+        // Reported so the UI can distinguish "we could not value this car"
+        // from "this car is a bargain".
         comparableCount: prices.length,
         comparablePrices: [...evenlySampled(prices, comparableDisplaySampleSize)],
         confidence,
-        dealScore: qualityScores.dealScore,
+        dealScore,
         dealScoreFactors: buildDealScoreFactors(
           factorInputs,
         ) as unknown as Prisma.InputJsonValue,

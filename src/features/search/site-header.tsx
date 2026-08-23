@@ -1,13 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CompareIcon, HeartIcon, MapPinIcon } from "./icons";
+import {
+  CompareIcon,
+  HeartIcon,
+  MapPinIcon,
+  MarketAnalysisIcon,
+} from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { uiCopy, type Locale } from "./copy";
 
 import type { LocationStatus } from "./use-current-location";
 
 interface SiteHeaderProps {
-  activePage?: "cars" | "saved" | "compare";
+  activePage?: "cars" | "saved" | "compare" | "analysis";
   locale: Locale;
   savedCount: number;
   compareCount: number;
@@ -80,6 +85,17 @@ export function SiteHeader({
               </button>
             ) : null}
             <Link
+              aria-current={activePage === "analysis" ? "page" : undefined}
+              className={`rounded-full px-3 py-2 font-medium transition-colors ${
+                activePage === "analysis"
+                  ? "bg-surface/80 text-ink shadow-sm"
+                  : "text-ink-muted hover:bg-surface/55 hover:text-ink"
+              }`}
+              href="/analysis"
+            >
+              {copy.nav.analysis}
+            </Link>
+            <Link
               aria-current={activePage === "compare" ? "page" : undefined}
               className={`rounded-full px-3 py-2 font-medium transition-colors ${
                 activePage === "compare"
@@ -149,6 +165,19 @@ export function SiteHeader({
               <MapPinIcon className="size-4" />
             </button>
           ) : null}
+
+          <Link
+            aria-label={copy.nav.analysis}
+            aria-current={activePage === "analysis" ? "page" : undefined}
+            className={`grid size-10 place-items-center rounded-full border text-ink shadow-sm backdrop-blur transition md:hidden ${
+              activePage === "analysis"
+                ? "border-border-strong bg-surface"
+                : "border-border bg-surface/70 hover:bg-surface"
+            }`}
+            href="/analysis"
+          >
+            <MarketAnalysisIcon className="size-4" />
+          </Link>
 
           <Link
             aria-label={copy.nav.compareCars(compareCount)}

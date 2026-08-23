@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { synchronizeMarketplace } from "@/application/ingestion/synchronize-marketplace";
 import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
 import {
@@ -8,6 +8,7 @@ import {
   getActiveSynchronization,
   SynchronizationAlreadyRunningError,
 } from "@/infrastructure/database/synchronization-state-repository";
+import { marketAnalysisCacheTag } from "@/infrastructure/database/market-analysis-repository";
 import {
   getActiveListingCount,
   getListingsByIds,
@@ -50,6 +51,10 @@ export async function synchronizeLatestListings(
       },
     );
     revalidatePath("/");
+    // The Analysis page's aggregates are cached for a window that outlives a
+    // manual sync, so they have to be dropped explicitly or a freshly synced
+    // catalog would show stale market figures.
+    revalidateTag(marketAnalysisCacheTag, "max");
     return {
       outcome: result.failedCount > 0 ? "warning" : "completed",
       createdCount: result.createdCount,

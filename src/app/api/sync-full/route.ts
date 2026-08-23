@@ -1,5 +1,7 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { synchronizeMarketplace } from "@/application/ingestion/synchronize-marketplace";
+import { marketAnalysisCacheTag } from "@/infrastructure/database/market-analysis-repository";
 import { initializeDatabase } from "@/infrastructure/database/prisma";
 import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
 import { SynchronizationAlreadyRunningError } from "@/infrastructure/database/synchronization-state-repository";
@@ -37,6 +39,9 @@ export async function GET(request: Request) {
       new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
       { mode: "reconciliation" },
     );
+
+    // Fresh listings mean the Analysis page's cached aggregates are stale.
+    revalidateTag(marketAnalysisCacheTag, "max");
 
     return NextResponse.json({
       status: "completed",
