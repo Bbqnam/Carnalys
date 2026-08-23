@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { VariantValueRanking } from "@/domain/market/types";
 import type { Locale } from "@/features/search/copy";
 import { analysisCopy } from "./copy";
@@ -11,8 +10,6 @@ interface VariantValueProps {
   locale: Locale;
 }
 
-const collapsedCount = 6;
-
 /**
  * The page's answer to "which version should I buy". Each version is shown
  * against what its own model year and mileage predict, so a cheap-looking base
@@ -21,22 +18,25 @@ const collapsedCount = 6;
  */
 export function VariantValue({ data, locale }: VariantValueProps) {
   const copy = analysisCopy[locale].variants;
-  const [expanded, setExpanded] = useState(false);
 
   if (data.variants.length === 0) {
     return <p className="text-xs text-ink-muted">{copy.empty}</p>;
   }
 
-  const visible = expanded ? data.variants : data.variants.slice(0, collapsedCount);
   const widest = Math.max(
     ...data.variants.map((variant) => Math.abs(variant.valuePercent)),
     1,
   );
 
   return (
-    <div>
-      <ol className="space-y-2">
-        {visible.map((variant) => {
+    // The ranking is long and open-ended, so it scrolls inside the module
+    // rather than setting the height of the row it shares with the value map.
+    // On a phone there is no row to match, so it falls back to a fixed frame.
+    <div className="flex h-full min-h-0 flex-col">
+      {/* The bottom edge fades rather than cutting, so it is obvious the
+          ranking continues past the frame. */}
+      <ol className="min-h-0 max-h-[26rem] flex-1 space-y-2 overflow-y-auto pr-1 [mask-image:linear-gradient(to_bottom,black_calc(100%-1.75rem),transparent)]">
+        {data.variants.map((variant) => {
           const isBargain = variant.valuePercent < 0;
           const width = (Math.abs(variant.valuePercent) / widest) * 50;
 
@@ -88,18 +88,6 @@ export function VariantValue({ data, locale }: VariantValueProps) {
           );
         })}
       </ol>
-
-      {data.variants.length > collapsedCount ? (
-        <button
-          className="mt-3 text-[11px] font-semibold text-ink-muted transition hover:text-ink"
-          onClick={() => setExpanded((current) => !current)}
-          type="button"
-        >
-          {expanded
-            ? copy.showLess
-            : copy.showAll(data.variants.length - collapsedCount)}
-        </button>
-      ) : null}
     </div>
   );
 }

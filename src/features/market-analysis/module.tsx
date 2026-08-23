@@ -98,7 +98,9 @@ export function Module({
           </span>
         ) : null}
       </div>
-      <div className="min-w-0 flex-1">{children}</div>
+      {/* `min-h-0` lets a module whose content scrolls resolve against the row
+          height the grid gives it, instead of growing the row to fit. */}
+      <div className="min-h-0 min-w-0 flex-1">{children}</div>
     </section>
   );
 }

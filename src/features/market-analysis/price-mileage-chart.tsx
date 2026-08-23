@@ -54,11 +54,14 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
   // points by where they are heading rather than where they are drawn, which
   // reads as the hover being offset from the cloud.
   const [animatePositions, setAnimatePositions] = useState(false);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  // Selection is held by listing, not by position in the array. Held by index,
+  // it survived a filter change as a number pointing into a different sample —
+  // marking some unrelated car, and blanking the mark drawn for it.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   // Hover is a transient preview; clicking pins the same card so it can hold a
   // link to the listing without the pointer having to leave the chart to reach
   // it — and so the card is reachable at all on touch.
-  const [pinnedIndex, setPinnedIndex] = useState<number | null>(null);
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -147,14 +150,24 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
     [isNarrow, scale.mileageMaximum],
   );
 
-  // 1,200 points is small enough that a linear nearest-point scan per pointer
-  // move stays well inside a frame, so no spatial index is warranted.
-  //
-  // A mouse is placed precisely and should feel like it selects the point it is
-  // on; a fingertip cannot be, and needs the older, more forgiving reach.
-  function nearestPointIndex(event: React.PointerEvent | React.MouseEvent) {
+  /**
+   * The mark under the pointer, or the nearest one within reach of it.
+   *
+   * The direct hit comes first because the browser tests against what is
+   * actually on screen: a mark still travelling to a new filter's position is
+   * selectable where it is drawn, and one mark stacked exactly on another
+   * resolves to the one on top rather than to whichever the data happens to
+   * list first. The scan then covers the near misses, which is most of them —
+   * a mark is under three pixels across.
+   */
+  function pointIndexFor(event: React.PointerEvent | React.MouseEvent) {
     const svg = svgRef.current;
     if (!svg || data.points.length === 0) return null;
+
+    const target = event.target;
+    if (target instanceof SVGElement && target.dataset.index !== undefined) {
+      return Number(target.dataset.index);
+    }
 
     const coarse =
       "pointerType" in event ? event.pointerType !== "mouse" : false;
@@ -167,6 +180,8 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
     const pointerX = (event.clientX - rect.left) * scaleFactor;
     const pointerY = (event.clientY - rect.top) * scaleFactor;
 
+    // 1,200 points is small enough that a linear scan per pointer move stays
+    // well inside a frame, so no spatial index is warranted.
     let nearest = -1;
     let nearestDistance = Number.POSITIVE_INFINITY;
     data.points.forEach((point, index) => {
@@ -182,9 +197,17 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
     return nearestDistance <= reach ** 2 ? nearest : null;
   }
 
-  const activeIndex = pinnedIndex ?? hoveredIndex;
-  const active = activeIndex === null ? null : data.points[activeIndex];
-  const isPinned = pinnedIndex !== null;
+  function listingIdFor(event: React.PointerEvent | React.MouseEvent) {
+    const index = pointIndexFor(event);
+    return index === null ? null : data.points[index].listingId;
+  }
+
+  const activeId = pinnedId ?? hoveredId;
+  const active =
+    activeId === null
+      ? null
+      : (data.points.find((point) => point.listingId === activeId) ?? null);
+  const isPinned = pinnedId !== null && active !== null;
 
   if (data.points.length === 0) {
     return (
@@ -199,9 +222,9 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
       <svg
         className="block w-full touch-pan-y select-none"
         height={height}
-        onClick={(event) => setPinnedIndex(nearestPointIndex(event))}
-        onPointerLeave={() => setHoveredIndex(null)}
-        onPointerMove={(event) => setHoveredIndex(nearestPointIndex(event))}
+        onClick={(event) => setPinnedId(listingIdFor(event))}
+        onPointerLeave={() => setHoveredId(null)}
+        onPointerMove={(event) => setHoveredId(listingIdFor(event))}
         ref={svgRef}
         role="img"
         aria-label={`${copy.priceAxis} / ${copy.mileageAxis}`}
@@ -258,8 +281,9 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
               }
               cx={0}
               cy={0}
+              data-index={index}
               fill={colorFor(point.modelYear)}
-              fillOpacity={index === activeIndex ? 0 : undefined}
+              fillOpacity={point.listingId === activeId ? 0 : undefined}
               key={point.listingId}
               r={2.8}
               style={{
@@ -270,10 +294,13 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
         </g>
 
         {active ? (
+          // Draws over the mark it replaces, so it must not take the pointer
+          // away from it.
           <circle
             cx={scale.x(active.mileageKm)}
             cy={scale.y(active.price)}
             fill={colorFor(active.modelYear)}
+            pointerEvents="none"
             r={5.5}
             stroke="var(--surface)"
             strokeWidth={2}
@@ -282,10 +309,11 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
       </svg>
 
       {active ? (
+        // The card floats over the cloud, so it never takes the pointer: it
+        // used to cover a couple of hundred pixels of chart that could not be
+        // hovered or clicked while a point was pinned. Only its link does.
         <div
-          className={`absolute z-10 w-52 rounded-xl border border-border bg-surface p-3 shadow-[0_12px_32px_rgba(20,30,24,0.16)] ${
-            isPinned ? "" : "pointer-events-none"
-          }`}
+          className="pointer-events-none absolute z-10 w-52 rounded-xl border border-border bg-surface p-3 shadow-[0_12px_32px_rgba(20,30,24,0.16)]"
           style={{
             // Clamped to the plot so a card for a point near either edge stays
             // fully on screen rather than hanging off it.
@@ -314,7 +342,7 @@ export function PriceMileageChart({ data, locale }: PriceMileageChartProps) {
           </p>
           {isPinned ? (
             <Link
-              className="mt-2 inline-flex text-[11px] font-semibold text-accent hover:text-accent-strong"
+              className="pointer-events-auto mt-2 inline-flex text-[11px] font-semibold text-accent hover:text-accent-strong"
               href={`/vehicle/${active.listingId}`}
             >
               {copy.viewListing} →

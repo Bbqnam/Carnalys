@@ -117,7 +117,7 @@ export function ValueMap({ data, locale }: ValueMapProps) {
                         // the palest band distinguishable from the page, which
                         // is why the fill ramp can stay light enough for the
                         // theme's own ink to read on all five steps.
-                        className={`flex h-14 w-full flex-col items-center justify-center rounded-lg border px-1 transition-colors duration-300 ${
+                        className={`flex h-11 w-full flex-col items-center justify-center rounded-lg border px-1 transition-colors duration-300 ${
                           active === key
                             ? "border-ink/40 ring-2 ring-accent/25"
                             : "border-border hover:border-border-strong"
