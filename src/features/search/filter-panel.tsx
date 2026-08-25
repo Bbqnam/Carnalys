@@ -1,5 +1,5 @@
 import type { BodyStyle, FuelType, SellerType, TransmissionType } from "@/domain/vehicle";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "./brand-logo";
 import { uiCopy, type Locale } from "./copy";
 import {
@@ -21,6 +21,83 @@ import {
 } from "./icons";
 import { MultiChoiceDropdown } from "./multi-choice-dropdown";
 import type { SearchFilters, VehicleFilterOption } from "./types";
+
+/**
+ * A budget field you can actually finish typing in.
+ *
+ * The pair used to be controlled straight off the committed filter, and every
+ * keystroke both re-ran the search and passed the half-typed number through
+ * `Math.min`/`Math.max` against the other end of the range. Typing "500000"
+ * into the maximum while a minimum of 100000 was set turned the first
+ * keystroke into "100000" and you were typing into the middle of that; typing
+ * a leading zero anywhere cleared the field, because zero commits as "no
+ * bound" and no bound renders as empty.
+ *
+ * So the keystrokes go into a local draft that nothing clamps and nothing
+ * queries. The value is committed — clamped, and handed upwards — when the
+ * field is left, when Enter is pressed, or after a pause long enough to mean
+ * the typing has stopped. While the field is focused, incoming props are
+ * ignored, so a result landing from an earlier commit can never overwrite
+ * what is being typed now.
+ */
+function BudgetInput({
+  ariaLabel,
+  commitDelayMs = 600,
+  onCommit,
+  placeholder,
+  value,
+}: {
+  ariaLabel: string;
+  commitDelayMs?: number;
+  onCommit: (digits: string) => void;
+  placeholder: string;
+  value: number | null;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const focused = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+
+  function commit(digits: string) {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    onCommit(digits);
+  }
+
+  return (
+    <input
+      aria-label={ariaLabel}
+      className="w-full min-w-0 bg-transparent outline-none"
+      inputMode="numeric"
+      onBlur={(event) => {
+        focused.current = false;
+        setDraft(null);
+        commit(event.target.value.replace(/\D/g, ""));
+      }}
+      onChange={(event) => {
+        const digits = event.target.value.replace(/\D/g, "");
+        setDraft(digits);
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => onCommit(digits), commitDelayMs);
+      }}
+      onFocus={() => {
+        focused.current = true;
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          commit(event.currentTarget.value.replace(/\D/g, ""));
+        }
+      }}
+      placeholder={placeholder}
+      type="text"
+      value={draft ?? (value ?? "")}
+    />
+  );
+}
 
 interface FilterPanelProps {
   locale: Locale;
@@ -327,29 +404,22 @@ export function FilterPanel({
             </div>
             <div className="mt-2 flex items-center gap-2">
               <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold tabular-nums text-ink-muted focus-within:border-accent/50">
-                <span className="sr-only">{copy.minimumBudget}</span>
-                <input
-                  className="w-full min-w-0 bg-transparent outline-none"
-                  inputMode="numeric"
-                  onChange={(event) => {
-                    const digits = event.target.value.replace(/\D/g, "");
+                <BudgetInput
+                  ariaLabel={copy.minimumBudget}
+                  onCommit={(digits) => {
                     const amount = digits === "" ? 0 : Math.min(Number(digits), selectedMaximum);
                     onChange({ ...filters, minPrice: amount === 0 ? null : amount });
                   }}
                   placeholder="0"
-                  type="text"
-                  value={filters.minPrice ?? ""}
+                  value={filters.minPrice}
                 />
                 <span className="shrink-0 text-ink-subtle">SEK</span>
               </label>
               <span className="shrink-0 text-border-strong">–</span>
               <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold tabular-nums text-ink-muted focus-within:border-accent/50">
-                <span className="sr-only">{copy.maximumBudget}</span>
-                <input
-                  className="w-full min-w-0 bg-transparent outline-none"
-                  inputMode="numeric"
-                  onChange={(event) => {
-                    const digits = event.target.value.replace(/\D/g, "");
+                <BudgetInput
+                  ariaLabel={copy.maximumBudget}
+                  onCommit={(digits) => {
                     const amount =
                       digits === "" ? maxBudget : Math.max(Number(digits), selectedMinimum);
                     onChange({
@@ -358,8 +428,7 @@ export function FilterPanel({
                     });
                   }}
                   placeholder={copy.noMaximum}
-                  type="text"
-                  value={filters.maxPrice ?? ""}
+                  value={filters.maxPrice}
                 />
                 <span className="shrink-0 text-ink-subtle">SEK</span>
               </label>
