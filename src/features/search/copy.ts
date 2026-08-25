@@ -276,8 +276,6 @@ export const uiCopy = {
       filterButton: "Filters",
       sortLabel: "Sort",
       sortAria: "Sort results",
-      pageSizeLabel: "Per page",
-      pageSizeAria: "Cars per page",
       postedLabel: "Posted",
       postedAria: "Filter by posted date",
       postedOptions: {
@@ -543,8 +541,6 @@ export const uiCopy = {
       filterButton: "Filter",
       sortLabel: "Sortera",
       sortAria: "Sortera resultat",
-      pageSizeLabel: "Per sida",
-      pageSizeAria: "Bilar per sida",
       postedLabel: "Publicerad",
       postedAria: "Filtrera efter publiceringsdatum",
       postedOptions: {

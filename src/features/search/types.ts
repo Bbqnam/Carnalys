@@ -52,8 +52,9 @@ export type SearchSort =
   | "price_desc"
   | "newest";
 
-export const vehiclePageSizes = [12, 24, 48] as const;
-export type VehiclePageSize = (typeof vehiclePageSizes)[number];
+/** One fixed page size: the results grid is sized for it, and a reader
+ *  choosing a different one only ever traded scroll length for round trips. */
+export type VehiclePageSize = 35;
 
 export interface VehicleSearchOptions {
   filters: SearchFilters;

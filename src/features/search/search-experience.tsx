@@ -23,7 +23,6 @@ import type {
   VehiclePageSize,
   VehicleSearchResult,
 } from "./types";
-import { vehiclePageSizes } from "./types";
 import { VehicleCard } from "./vehicle-card";
 
 const savedSearchKey = "carnalys:search-state:v1";
@@ -374,14 +373,13 @@ export function SearchExperience({
     nextFilters: SearchFilters,
     nextSort: SearchSort,
     delay = 0,
-    nextPageSize = pagination.pageSize,
   ) {
     if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
     const nextUrl = vehicleSearchUrl({
       filters: nextFilters,
       sort: nextSort,
       page: 1,
-      pageSize: nextPageSize,
+      pageSize: pagination.pageSize,
     });
     saveSearchState(nextUrl);
     navigationTimerRef.current = setTimeout(() => {
@@ -399,10 +397,6 @@ export function SearchExperience({
   function changeSort(nextSort: SearchSort) {
     setSort(nextSort);
     navigateToSearch(filters, nextSort);
-  }
-
-  function changePageSize(nextPageSize: VehiclePageSize) {
-    navigateToSearch(filters, sort, 0, nextPageSize);
   }
 
   function resetFilters() {
@@ -518,17 +512,6 @@ export function SearchExperience({
                 }))}
                 value={sort}
               />
-              <SingleChoiceDropdown
-                ariaLabel={copy.results.pageSizeAria}
-                inlineLabel={copy.results.pageSizeLabel}
-                inlineLabelClassName="hidden text-xs font-medium text-ink-subtle xl:inline"
-                onChange={(value) => changePageSize(Number(value) as VehiclePageSize)}
-                options={vehiclePageSizes.map((pageSize) => ({
-                  value: String(pageSize),
-                  label: String(pageSize),
-                }))}
-                value={String(pagination.pageSize)}
-              />
             </div>
           </div>
 
@@ -567,7 +550,14 @@ export function SearchExperience({
             }
           >
             <aside className="hidden min-w-0 self-stretch md:block">
-              <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-surface p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {/* Deliberately not `overscroll-contain`. The panel is a sticky
+                  column beside the results, not a modal: containing the scroll
+                  chain meant a wheel gesture anywhere over the filters stopped
+                  dead — including when the panel fits its column and has
+                  nothing of its own to scroll — so the page appeared frozen
+                  under the cursor. Chaining lets the panel scroll its own
+                  overflow first and hand the rest to the page. */}
+              <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-border bg-surface p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <FilterPanel
                   brands={availableFilters.brands}
                   filters={filters}

@@ -5,7 +5,6 @@ import type {
   TransmissionType,
 } from "@/domain/vehicle";
 import {
-  vehiclePageSizes,
   type PostedWithin,
   type SearchFilters,
   type SearchSort,
@@ -67,7 +66,7 @@ export const defaultSearchFilters: SearchFilters = {
 };
 
 export const defaultSearchSort: SearchSort = "newest";
-export const defaultVehiclePageSize: VehiclePageSize = 24;
+export const defaultVehiclePageSize: VehiclePageSize = 35;
 
 function first(value: SearchParameterValue) {
   return Array.isArray(value) ? value[0] : value;
@@ -122,14 +121,9 @@ export function parseVehicleSearchOptions(
   const maximumYear = positiveInteger(parameters.maxYear);
   const minimumMileage = positiveInteger(parameters.minMileage);
   const maximumMileage = positiveInteger(parameters.maxMileage ?? parameters.mileage);
-  const requestedPageSize = positiveInteger(parameters.perPage);
-  const pageSize = vehiclePageSizes.includes(requestedPageSize as VehiclePageSize)
-    ? (requestedPageSize as VehiclePageSize)
-    : defaultVehiclePageSize;
-
   return {
     page: positiveInteger(parameters.page) ?? 1,
-    pageSize,
+    pageSize: defaultVehiclePageSize,
     sort: sorts.has(stringValue(parameters.sort) as SearchSort)
       ? (stringValue(parameters.sort) as SearchSort)
       : defaultSearchSort,
@@ -164,7 +158,7 @@ export function parseVehicleSearchOptions(
   };
 }
 
-export function vehicleSearchUrl({ filters, sort, page, pageSize }: VehicleSearchOptions) {
+export function vehicleSearchUrl({ filters, sort, page }: VehicleSearchOptions) {
   const parameters = new URLSearchParams();
 
   if (filters.query.trim()) parameters.set("q", filters.query.trim());
@@ -186,9 +180,6 @@ export function vehicleSearchUrl({ filters, sort, page, pageSize }: VehicleSearc
   if (filters.sellerType) parameters.set("seller", filters.sellerType);
   if (filters.postedWithin) parameters.set("posted", filters.postedWithin);
   if (sort !== defaultSearchSort) parameters.set("sort", sort);
-  if (pageSize !== defaultVehiclePageSize) {
-    parameters.set("perPage", pageSize.toString());
-  }
   if (page > 1) parameters.set("page", page.toString());
 
   const query = parameters.toString();
