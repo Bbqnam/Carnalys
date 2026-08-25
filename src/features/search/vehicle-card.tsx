@@ -99,7 +99,15 @@ export function VehicleCard({
       : image?.alt ?? listing.title;
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-surface shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1 hover:border-border-strong hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] focus-within:border-accent/40 focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
+    /* The lift lives on the inner element, not on the one that owns `:hover`.
+       When a card that is itself the hover target translates up, its bottom
+       edge slides out from under a cursor resting there, which drops the
+       hover, which drops the lift, which puts the edge back under the cursor
+       — a loop that reads as the card shaking. The <article> now holds the
+       hover state and never moves, so the state cannot flicker; the 4px the
+       inner card vacates is still inside it. */
+    <article className="group h-full">
+      <div className="flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-surface shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out group-hover:-translate-y-1 group-hover:border-border-strong group-hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] group-focus-within:border-accent/40 group-focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
       <div className="relative aspect-[2/1] overflow-hidden bg-surface-muted">
         {image && !imageFailed ? (
           <Image
@@ -304,6 +312,7 @@ export function VehicleCard({
           {copy.card.viewListing}
           <ExternalLinkIcon className="size-3.5" />
         </a>
+        </div>
       </div>
     </article>
   );

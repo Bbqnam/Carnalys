@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BrandLogo } from "@/features/search/brand-logo";
 import { PriceDistribution } from "./price-distribution";
 import {
@@ -32,6 +32,7 @@ import {
   CheckIcon,
   CompareIcon,
   ExternalLinkIcon,
+  ChevronLeftIcon,
   HeartIcon,
   MapPinIcon,
   MarketAnalysisIcon,
@@ -149,6 +150,15 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   })}`;
   const images = listing.images.length > 0 ? listing.images : undefined;
   const currentImage = images?.[activeImage] ?? images?.[0];
+  const imageCount = images?.length ?? 0;
+  // Wraps in both directions, so the gallery has no dead end at either end.
+  const stepImage = useCallback(
+    (delta: number) =>
+      setActiveImage((index) =>
+        imageCount > 0 ? (index + delta + imageCount) % imageCount : 0,
+      ),
+    [imageCount],
+  );
   const equipmentItems = listing.equipment.filter((item) => !item.startsWith("*"));
   const equipmentPreviewCount = 18;
   const visibleEquipment = showAllEquipment
@@ -170,6 +180,24 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           ),
         )
       : undefined;
+
+  useEffect(() => {
+    if (imageCount < 2) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      // Leave the arrows to whatever the reader is actually operating — a
+      // select, a range slider, a text field — and only claim them when the
+      // page itself has focus.
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) {
+        return;
+      }
+      event.preventDefault();
+      stepImage(event.key === "ArrowRight" ? 1 : -1);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [imageCount, stepImage]);
 
   function changeLocale(nextLocale: Locale) {
     setLocaleCookie(nextLocale);
@@ -212,7 +240,16 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               caps the width too, which left the frame standing short of the
               column with dead space beside it. The column decides the width
               and the ratio decides the height. */}
-          <div className="relative w-full aspect-[4/3] overflow-hidden rounded-2xl bg-surface-muted">
+          {/* The thumbnails stand beside the photo rather than under it. The
+              column's width has to go somewhere: spent on the photo it became
+              height (a 4/3 frame across the whole column ran 570px tall and
+              pushed the price below the fold), and spent on a rail it buys
+              back ~75px of that while putting the other shots where the eye
+              already is. The rail is absolutely positioned so its own content
+              can never stretch the row — it takes the photo's height and
+              scrolls inside it. */}
+          <div className="relative">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-surface-muted sm:mr-[6.25rem]">
             {currentImage ? (
               <Image
                 alt={currentImage.alt ?? listing.title}
@@ -276,23 +313,48 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
               </button>
             </div>
+            {imageCount > 1 ? (
+              <>
+                {([
+                  [-1, copy.detail.previousPhoto, "left-3.5", ""],
+                  [1, copy.detail.nextPhoto, "right-3.5", "rotate-180"],
+                ] as const).map(([delta, label, side, spin]) => (
+                  <button
+                    aria-label={label}
+                    className={`absolute top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition duration-200 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95 ${side}`}
+                    key={delta}
+                    onClick={() => stepImage(delta)}
+                    type="button"
+                  >
+                    <ChevronLeftIcon className={`size-[18px] ${spin}`} />
+                  </button>
+                ))}
+                <p
+                  aria-live="polite"
+                  className="absolute bottom-3.5 left-1/2 -translate-x-1/2 rounded-full border border-surface/60 bg-surface/85 px-2.5 py-1 text-[11px] font-medium tabular-nums text-ink-muted shadow-sm backdrop-blur-md"
+                >
+                  {copy.detail.photoPosition(activeImage + 1, imageCount)}
+                </p>
+              </>
+            ) : null}
           </div>
           {images && images.length > 1 ? (
-            <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1 sm:absolute sm:inset-y-0 sm:right-0 sm:mt-0 sm:w-[5.5rem] sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:pb-0">
               {images.map((image, index) => (
                 <button
-                  className={`relative size-16 shrink-0 overflow-hidden rounded-lg bg-surface-muted ring-2 transition ${
+                  className={`relative aspect-[4/3] w-16 shrink-0 overflow-hidden rounded-lg bg-surface-muted ring-2 transition sm:w-[5.5rem] ${
                     index === activeImage ? "ring-accent" : "ring-transparent hover:ring-border-strong"
                   }`}
                   key={image.url}
                   onClick={() => setActiveImage(index)}
                   type="button"
                 >
-                  <Image alt="" className="object-contain" fill sizes="64px" src={image.url} />
+                  <Image alt="" className="object-contain" fill sizes="88px" src={image.url} />
                 </button>
               ))}
             </div>
           ) : null}
+          </div>
           <div className="mt-6 flex items-center gap-2 text-xs text-ink-muted">
             <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-surface-muted ring-1 ring-inset ring-border">
               <BrandLogo className="size-5.5" make={identity.make} />

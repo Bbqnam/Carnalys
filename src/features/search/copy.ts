@@ -341,6 +341,9 @@ export const uiCopy = {
     },
     detail: {
       back: "Back to results",
+      previousPhoto: "Previous photo",
+      nextPhoto: "Next photo",
+      photoPosition: (index: number, total: number) => `Photo ${index} of ${total}`,
       dealScoreTitle: "Deal Score",
       buyConfidenceTitle: "Buy Confidence",
       whyThisScore: "Why this score",
@@ -605,6 +608,9 @@ export const uiCopy = {
     },
     detail: {
       back: "Tillbaka till resultat",
+      previousPhoto: "Föregående bild",
+      nextPhoto: "Nästa bild",
+      photoPosition: (index: number, total: number) => `Bild ${index} av ${total}`,
       dealScoreTitle: "Deal Score",
       buyConfidenceTitle: "Köptrygghet",
       whyThisScore: "Varför detta betyg",
