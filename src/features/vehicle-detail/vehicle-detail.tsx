@@ -610,13 +610,17 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             <p className="mt-2.5 text-xs text-ink-subtle">
               {marketValueExplanationText(locale, analysis.marketValue.comparableListingCount)}
             </p>
+            {/* This was a 12px muted line under a paragraph — indistinguishable
+                from the caption above it, and nobody who did not already know
+                the analysis page existed would have found it. It is the one
+                action this card leads to, so it looks like one. */}
             <Link
-              className="mt-3 inline-flex items-center gap-1.5 border-t border-border pt-3 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+              className="mt-3.5 flex items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent-soft px-3 py-2.5 text-sm font-semibold text-accent-strong transition hover:border-accent/50 hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
               href={analysisHref}
             >
-              <MarketAnalysisIcon className="size-3.5" />
+              <MarketAnalysisIcon className="size-4" strokeWidth={2.1} />
               {copy.detail.analyseModel(`${identity.make} ${identity.model}`)}
-              <ArrowRightIcon className="size-3.5" />
+              <ArrowRightIcon className="size-4" />
             </Link>
           </div>
 

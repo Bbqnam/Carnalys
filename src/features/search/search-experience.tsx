@@ -530,7 +530,7 @@ export function SearchExperience({
 
           {activeFilters.length > 0 ? (
             <div
-              className="mb-5 flex min-h-9 items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="scrollbar-none mb-5 flex min-h-9 items-center gap-2 overflow-x-auto overflow-y-hidden"
               aria-label={copy.results.activeFilters}
             >
               {activeFilters.map((filter) => (
