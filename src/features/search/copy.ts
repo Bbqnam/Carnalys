@@ -348,6 +348,7 @@ export const uiCopy = {
       marketRange: "Likely range",
       comparablePricesLabel: "Comparable listings",
       thisCarLabel: "This car",
+      analyseModel: (model: string) => `Analyse the ${model} market`,
       ownershipCostTitle: "Estimated annual ownership cost",
       ownershipCostCaption: (km: number) =>
         `Based on ${km.toLocaleString("en-SE")} km per year`,
@@ -611,6 +612,7 @@ export const uiCopy = {
       marketRange: "Trolig prisspann",
       comparablePricesLabel: "Jämförbara annonser",
       thisCarLabel: "Den här bilen",
+      analyseModel: (model: string) => `Analysera marknaden för ${model}`,
       ownershipCostTitle: "Uppskattad årlig ägandekostnad",
       ownershipCostCaption: (km: number) =>
         `Baserat på ${km.toLocaleString("sv-SE")} km per år`,

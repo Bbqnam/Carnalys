@@ -161,8 +161,10 @@ export function normalizeBlocketListing(
       equipment: detail?.equipment ?? [],
       // Keep a useful gallery without multiplying storage by every source
       // image across a six-figure catalog. The original listing retains the
-      // complete gallery.
-      images: document.imageUrls.slice(0, 8).map((url, position) => ({
+      // complete gallery. De-duplicated before the slice so a source that
+      // repeats a URL spends the budget on eight distinct photos rather than
+      // storing the same one twice.
+      images: [...new Set(document.imageUrls)].slice(0, 8).map((url, position) => ({
         url,
         thumbnailUrl: position === 0 ? document.thumbnail?.url : undefined,
         alt: `${document.make} ${document.model} ${document.variant ?? ""}`.trim(),

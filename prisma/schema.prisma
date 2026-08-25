@@ -156,7 +156,12 @@ model ListingImageRecord {
   height       Int?
   listing      ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
-  @@unique([listingId, url])
+  // No unique index on (listingId, url): nothing reads images by URL, the
+  // sync replaces a listing's whole gallery in one delete-then-insert rather
+  // than upserting a row at a time, and the normalizer already de-duplicates
+  // what it stores. At 100k listings x 8 photos that index measured 244 MB —
+  // roughly half this table's total footprint — bought nothing, and turned a
+  // source gallery that repeats a URL into a failed write for that listing.
   @@index([listingId, position])
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BrandLogo } from "@/features/search/brand-logo";
@@ -33,6 +34,7 @@ import {
   ExternalLinkIcon,
   HeartIcon,
   MapPinIcon,
+  MarketAnalysisIcon,
 } from "@/features/search/icons";
 import { setLocaleCookie } from "@/features/search/locale";
 import { CompareTray } from "@/features/search/compare-tray";
@@ -136,6 +138,15 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
     : estimateFuelConsumptionL100km(specification);
   const askingPrice = listing.price.askingPrice.amount;
   const hasMarketEstimate = analysis.marketValue.comparableListingCount >= 3;
+  // The analysis page reads the same `make`/`model` parameters the search page
+  // writes, so linking there needs no dedicated route — just this car's
+  // identity in that shared vocabulary. Fuel and year are deliberately left
+  // out: the question the link answers is how this *model* behaves, and
+  // narrowing further would thin the sample the analysis runs on.
+  const analysisHref = `/analysis?${new URLSearchParams({
+    make: identity.make,
+    model: identity.model,
+  })}`;
   const images = listing.images.length > 0 ? listing.images : undefined;
   const currentImage = images?.[activeImage] ?? images?.[0];
   const equipmentItems = listing.equipment.filter((item) => !item.startsWith("*"));
@@ -189,17 +200,26 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
 
         <div className="mt-5 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
         <div>
-          <div className="relative aspect-[16/10] max-h-[380px] overflow-hidden rounded-2xl bg-surface-muted">
+          {/* 4/3 is what the source galleries mostly shoot, and `object-contain`
+              keeps whatever they didn't whole: a buyer judging a car cannot be
+              shown a cropped one, so an off-ratio photo gets bars on the muted
+              surface rather than losing its roof and wheels. The old
+              `aspect-[16/10] max-h-[380px]` pairing also let the box quietly
+              grow wider than its own ratio once the column passed 608px, which
+              turned `object-cover` into a increasingly severe centre crop. */}
+          <div className="relative aspect-[4/3] max-h-[440px] overflow-hidden rounded-2xl bg-surface-muted">
             {currentImage ? (
               <Image
                 alt={currentImage.alt ?? listing.title}
-                className="object-cover"
+                className="object-contain"
                 fill
                 priority
                 sizes="(max-width: 1023px) 100vw, 60vw"
                 src={currentImage.url}
               />
             ) : (
+              /* The fallback is a drawing sized to the frame, not a car
+                 someone needs to inspect, so it may fill it. */
               <Image
                 alt={copy.card.missingImage}
                 className="object-cover"
@@ -256,14 +276,14 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
               {images.map((image, index) => (
                 <button
-                  className={`relative size-16 shrink-0 overflow-hidden rounded-lg ring-2 transition ${
+                  className={`relative size-16 shrink-0 overflow-hidden rounded-lg bg-surface-muted ring-2 transition ${
                     index === activeImage ? "ring-accent" : "ring-transparent hover:ring-border-strong"
                   }`}
                   key={image.url}
                   onClick={() => setActiveImage(index)}
                   type="button"
                 >
-                  <Image alt="" className="object-cover" fill sizes="64px" src={image.url} />
+                  <Image alt="" className="object-contain" fill sizes="64px" src={image.url} />
                 </button>
               ))}
             </div>
@@ -515,6 +535,14 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             <p className="mt-2.5 text-xs text-ink-subtle">
               {marketValueExplanationText(locale, analysis.marketValue.comparableListingCount)}
             </p>
+            <Link
+              className="mt-3 inline-flex items-center gap-1.5 border-t border-border pt-3 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+              href={analysisHref}
+            >
+              <MarketAnalysisIcon className="size-3.5" />
+              {copy.detail.analyseModel(`${identity.make} ${identity.model}`)}
+              <ArrowRightIcon className="size-3.5" />
+            </Link>
           </div>
 
           <div className="rounded-2xl border border-border bg-surface p-4">
