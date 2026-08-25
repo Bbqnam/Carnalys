@@ -494,6 +494,47 @@ export async function getActiveVehicleListings(
   };
 }
 
+/** Just enough of a listing to title a page; deliberately avoids the
+ *  comparables and analysis work that `getListingById` does. */
+export interface ListingSummary {
+  make: string;
+  model: string;
+  variant?: string;
+  modelYear: number;
+  mileageKm: number;
+  priceAmount: number;
+  municipality: string;
+}
+
+export async function getListingSummaryById(
+  listingId: string,
+): Promise<ListingSummary | null> {
+  await initializeDatabase();
+  const record = await prisma.listingRecord.findUnique({
+    where: { id: listingId },
+    select: {
+      status: true,
+      mileageKm: true,
+      priceAmount: true,
+      municipality: true,
+      vehicle: {
+        select: { make: true, model: true, variant: true, modelYear: true },
+      },
+    },
+  });
+  if (!record || record.status !== "active") return null;
+
+  return {
+    make: record.vehicle.make,
+    model: record.vehicle.model,
+    variant: record.vehicle.variant ?? undefined,
+    modelYear: record.vehicle.modelYear,
+    mileageKm: record.mileageKm,
+    priceAmount: record.priceAmount,
+    municipality: record.municipality,
+  };
+}
+
 export async function getListingById(
   listingId: string,
 ): Promise<VehicleSearchResult | null> {

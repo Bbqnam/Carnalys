@@ -1,12 +1,42 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { createNumberFormatter } from "@/features/search/format";
 import { defaultLocale, isLocale, localeCookieName } from "@/features/search/locale";
 import { VehicleDetail } from "@/features/vehicle-detail/vehicle-detail";
-import { getListingById } from "@/infrastructure/database/vehicle-listing-repository";
+import {
+  getListingById,
+  getListingSummaryById,
+} from "@/infrastructure/database/vehicle-listing-repository";
 
 interface VehiclePageProps {
   params: Promise<{ id: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: VehiclePageProps): Promise<Metadata> {
+  const { id } = await params;
+  const summary = await getListingSummaryById(id);
+  if (!summary) return { title: "Car not found" };
+
+  const { make, model, variant, modelYear, mileageKm, priceAmount } = summary;
+  // The tab is the narrowest place this name is ever shown, so the car leads
+  // and everything optional trails it: "Audi A3 · Sportback 35 TFSI S Tronic".
+  // No "· Carnalys" suffix — the favicon already says whose tab this is, and
+  // the suffix would only eat room the model name needs.
+  const name = `${make} ${model}`;
+  const numbers = createNumberFormatter(defaultLocale);
+
+  return {
+    title: variant ? `${name} · ${variant}` : name,
+    description:
+      `${modelYear} ${name}${variant ? ` ${variant}` : ""}, ` +
+      `${numbers.format(Math.round(mileageKm / 10))} mil, ` +
+      `${numbers.format(priceAmount)} kr in ${summary.municipality}. ` +
+      "See its Deal Score, estimated market value and ownership cost on Carnalys.",
+  };
 }
 
 export default async function VehiclePage({ params }: VehiclePageProps) {

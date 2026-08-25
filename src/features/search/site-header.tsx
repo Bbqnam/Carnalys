@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { CarnalysMark } from "./carnalys-mark";
 import {
   CompareIcon,
   HeartIcon,
@@ -52,16 +52,8 @@ export function SiteHeader({
           className="group flex items-center gap-2.5 rounded-lg"
           href={logoHref}
         >
-          <Image
-            alt=""
-            aria-hidden="true"
-            className="size-9 object-contain transition-transform duration-300 group-hover:scale-105"
-            height={36}
-            priority
-            src="/brand/carnalys-mark.png"
-            width={36}
-          />
-          <span className="text-[17px] font-semibold tracking-[-0.035em] text-ink max-[390px]:hidden">
+          <CarnalysMark className="size-8 text-ink transition-transform duration-300 group-hover:scale-105" />
+          <span className="text-[15px] font-semibold uppercase tracking-[0.16em] text-ink max-[390px]:hidden">
             Carnalys
           </span>
         </Link>
