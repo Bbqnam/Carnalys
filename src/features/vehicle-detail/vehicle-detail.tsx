@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BrandLogo } from "@/features/search/brand-logo";
 import { PriceDistribution } from "./price-distribution";
 import {
@@ -116,6 +116,7 @@ function ScoreCard({
 export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const router = useRouter();
   const [activeImage, setActiveImage] = useState(0);
+  const activeThumbnail = useRef<HTMLButtonElement | null>(null);
   const [showAllEquipment, setShowAllEquipment] = useState(false);
   const { favorites, toggle } = useFavorites();
   const {
@@ -180,6 +181,12 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           ),
         )
       : undefined;
+
+  // `nearest` scrolls the rail only when the selected thumbnail is actually
+  // out of view, and never moves the page under the reader.
+  useEffect(() => {
+    activeThumbnail.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeImage]);
 
   useEffect(() => {
     if (imageCount < 2) return;
@@ -339,7 +346,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             ) : null}
           </div>
           {images && images.length > 1 ? (
-            <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1 sm:absolute sm:inset-y-0 sm:right-0 sm:mt-0 sm:w-[5.5rem] sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:pb-0">
+            <div className="scrollbar-none mt-2.5 flex gap-2 overflow-x-auto pb-1 sm:absolute sm:inset-y-0 sm:right-0 sm:mt-0 sm:w-[5.5rem] sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:pb-0">
               {images.map((image, index) => (
                 <button
                   className={`relative aspect-[4/3] w-16 shrink-0 overflow-hidden rounded-lg bg-surface-muted ring-2 transition sm:w-[5.5rem] ${
@@ -347,6 +354,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                   }`}
                   key={image.url}
                   onClick={() => setActiveImage(index)}
+                  ref={index === activeImage ? activeThumbnail : null}
                   type="button"
                 >
                   <Image alt="" className="object-contain" fill sizes="88px" src={image.url} />

@@ -398,6 +398,21 @@ select:focus-visible {
   }
 }
 
+/* Strips the native scrollbar from a scroll container while leaving it
+   scrollable by wheel, trackpad, touch and keyboard. For strips whose own
+   content already signals that there is more — a half-visible thumbnail at
+   the edge — the platform scrollbar is a chunky, OS-coloured object that
+   belongs to no part of this design. Do not reach for this on a long
+   document, where the scrollbar is the only thing telling a reader where
+   they are. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 ::selection {
   background: var(--selection);
   color: var(--ink);

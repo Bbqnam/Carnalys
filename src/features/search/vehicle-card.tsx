@@ -211,8 +211,16 @@ export function VehicleCard({
           </span>
         </Link>
 
-        <div className="mt-3 flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-2">
-          <p className="whitespace-nowrap text-xl font-semibold leading-none tracking-[-0.04em] text-ink sm:text-2xl">
+        {/* One shape for every card, whatever the verdict says. `flex-wrap`
+            used to drop the market note onto its own row as soon as the pair
+            outgrew the card, so the same row was one line tall on some cards
+            and two on others and nothing below it lined up across the grid.
+            Now the price is the fixed part and the note is the part that
+            gives way, and the note reserves both its lines whether or not it
+            has a second one — so a verdict with a detail line and one without
+            occupy the same height. */}
+        <div className="mt-3 flex min-w-0 items-end justify-between gap-x-3">
+          <p className="shrink-0 whitespace-nowrap text-xl font-semibold leading-none tracking-[-0.04em] text-ink sm:text-2xl">
             {moneyFormatter.format(askingPrice)}
           </p>
           <span
@@ -221,36 +229,31 @@ export function VehicleCard({
                 ? `${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`
                 : copy.card.marketEstimatePending
             }
-            className="group/market relative min-w-0 cursor-help rounded-md text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2"
+            className="group/market relative flex min-h-[2.375rem] min-w-0 flex-col justify-end rounded-md text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 cursor-help"
             tabIndex={0}
           >
             {!hasMarketEstimate ? (
-              <span className="block text-sm font-medium text-ink-muted">
+              <span className="block truncate text-sm font-medium text-ink-muted">
                 {copy.card.marketEstimatePending}
               </span>
             ) : savings > 0 ? (
               <>
-                <strong className="block text-sm font-semibold text-positive">
+                <strong className="block truncate text-sm font-semibold text-positive">
                   {copy.card.save} {moneyFormatter.format(savings)}
                 </strong>
-                <span className="mt-0.5 block text-xs text-ink-muted">
+                <span className="mt-0.5 block truncate text-xs text-ink-muted">
                   {copy.card.belowMarket(marketDifferencePercent)}
                 </span>
               </>
             ) : priceDifference < 0 ? (
-              <span className="block text-sm font-medium text-negative">
+              <span className="block truncate text-sm font-medium text-negative">
                 {copy.card.aboveMarket(marketDifferencePercent)}
               </span>
             ) : (
-              <span className="block text-sm font-medium text-ink-muted">
+              <span className="block truncate text-sm font-medium text-ink-muted">
                 {copy.card.atMarket}
               </span>
             )}
-            {priceReduction > 0 ? (
-              <span className="mt-0.5 block text-xs text-ink-muted">
-                {copy.card.reduced} {moneyFormatter.format(priceReduction)}
-              </span>
-            ) : null}
             <span
               className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] right-0 z-20 w-max max-w-56 translate-y-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-surface opacity-0 shadow-lg transition duration-150 group-hover/market:translate-y-0 group-hover/market:opacity-100 group-focus-visible/market:translate-y-0 group-focus-visible/market:opacity-100"
               role="tooltip"
@@ -288,6 +291,9 @@ export function VehicleCard({
                 >
                   {listingDate}
                 </time>
+                {priceReduction > 0 ? (
+                  <> · {copy.card.reduced} {moneyFormatter.format(priceReduction)}</>
+                ) : null}
               </span>
             </p>
           </div>
