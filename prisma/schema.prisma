@@ -62,6 +62,13 @@ model ListingRecord {
   synchronizedAt             DateTime
   removedAt                  DateTime?
   rawPayload                 Json?
+  /// make + model + variant + sellerName, lowercased, maintained on write.
+  /// Text search used to be an OR across the vehicle relation, which made
+  /// Prisma emit one LEFT JOIN per field per search term — six joins to the
+  /// same table for two words — and put the ILIKE predicates on different join
+  /// aliases, where no index can reach them. One column on the listing, one
+  /// GIN trigram index, no joins.
+  searchText                 String?
   contentHash                String?
   imageHash                  String?
   equipmentHash              String?

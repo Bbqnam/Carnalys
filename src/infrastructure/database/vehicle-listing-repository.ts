@@ -99,6 +99,85 @@ const storedListingSelect = {
   },
 } satisfies Prisma.ListingRecordSelect;
 
+/**
+ * What a result card actually draws.
+ *
+ * The grid was selecting — and serialising to the browser — the shape built for
+ * the detail page: every equipment line, every image, the comparable-price
+ * array, both factor lists and the ownership-cost breakdown, thirty-five times
+ * over. Measured on the running page that was 585 KB of HTML for one screen of
+ * results, of which 199 KB was payload for fields no card renders.
+ *
+ * A card needs one image, the identity, the price, the seller, and two score
+ * values. The detail page keeps `storedListingSelect` and the full shape.
+ */
+const cardListingSelect = {
+  id: true,
+  vehicleId: true,
+  provider: true,
+  externalId: true,
+  listingUrl: true,
+  firstSeenAt: true,
+  lastSeenAt: true,
+  sellerName: true,
+  sellerType: true,
+  status: true,
+  priceAmount: true,
+  previousPriceAmount: true,
+  monthlyCostAmount: true,
+  municipality: true,
+  latitude: true,
+  longitude: true,
+  mileageKm: true,
+  serviceHistory: true,
+  ownerCount: true,
+  publishedAt: true,
+  synchronizedAt: true,
+  vehicle: {
+    select: {
+      id: true,
+      make: true,
+      model: true,
+      variant: true,
+      modelYear: true,
+      registrationYear: true,
+      bodyStyle: true,
+      fuelType: true,
+      transmission: true,
+      drivetrain: true,
+      horsepower: true,
+      engineDisplacement: true,
+      fuelConsumption: true,
+    },
+  },
+  // The card shows the first image and nothing else opens a gallery from here.
+  images: {
+    select: { url: true, alt: true, position: true },
+    orderBy: { position: "asc" as const },
+    take: 1,
+  },
+  analysis: {
+    select: {
+      marketValueAmount: true,
+      marketValueMinimum: true,
+      marketValueMaximum: true,
+      comparableCount: true,
+      confidence: true,
+      dealScore: true,
+      // Kept because the results page sorts on it client-side; the factor
+      // lists behind both scores are detail-page material.
+      buyConfidenceScore: true,
+      annualOwnershipCost: true,
+      methodologyVersion: true,
+      calculatedAt: true,
+    },
+  },
+} satisfies Prisma.ListingRecordSelect;
+
+type CardListing = Prisma.ListingRecordGetPayload<{
+  select: typeof cardListingSelect;
+}>;
+
 type StoredListing = Prisma.ListingRecordGetPayload<{
   select: typeof storedListingSelect;
 }>;
@@ -163,10 +242,16 @@ function roundedThousands(value: number) {
 }
 
 function createStoredAnalysis(
-  result: StoredListing,
+  result: StoredListing | CardListing,
   specification: VehicleSpecification,
+  itemised: boolean,
 ): VehicleSearchResult["analysis"] {
   const stored = result.analysis;
+  // The card select omits the three JSON columns behind the scores; they read
+  // as absent rather than as a separate branch.
+  const narrow = (stored ?? {}) as Partial<
+    NonNullable<StoredListing["analysis"]>
+  >;
   const askingPrice = result.priceAmount;
   const confidence = enumValue(
     stored?.confidence ?? null,
@@ -203,7 +288,7 @@ function createStoredAnalysis(
       },
       confidence,
       comparableListingCount: comparableCount,
-      comparablePrices: stored?.comparablePrices ?? [],
+      comparablePrices: narrow.comparablePrices ?? [],
       explanation:
         comparableCount >= 3
           ? `Medianpris från ${comparableCount} jämförbara aktiva annonser.`
@@ -214,11 +299,23 @@ function createStoredAnalysis(
     // so it's computed live here instead of read from a precomputed,
     // batch-refreshed column. A formula change takes effect immediately for
     // every listing, with nothing to backfill.
-    ownershipCost: estimateOwnershipCost(
-      specification,
-      askingPrice,
-      result.vehicle.modelYear,
-    ),
+    //
+    // The card does not draw any of it. On a page of thirty-five that was six
+    // itemised lines each — with their category, annual cost and explanation —
+    // computed and serialised to the browser for nothing, so the breakdown is
+    // built only when the caller will show it.
+    ownershipCost: itemised
+      ? estimateOwnershipCost(specification, askingPrice, result.vehicle.modelYear)
+      : {
+          annualCost: {
+            amount: stored?.annualOwnershipCost ?? 0,
+            currency: "SEK",
+          },
+          estimatedForAnnualDistanceKm: 15_000,
+          confidence,
+          items: [],
+          assumptions: [],
+        },
     dealScore: {
       kind: "deal",
       value: stored?.dealScore ?? 70,
@@ -227,7 +324,7 @@ function createStoredAnalysis(
         comparableCount >= 3
           ? "Priset jämförs med liknande aktiva annonser."
           : "För få jämförbara annonser för en säker prisbedömning.",
-      factors: (stored?.dealScoreFactors as ScoreFactor[] | undefined) ?? [],
+      factors: (narrow.dealScoreFactors as ScoreFactor[] | undefined) ?? [],
     },
     buyConfidenceScore: {
       kind: "buy_confidence",
@@ -235,13 +332,23 @@ function createStoredAnalysis(
       confidence,
       summary: "Sparad bedömning baserad på tillgänglig annonsdata.",
       factors:
-        (stored?.buyConfidenceFactors as ScoreFactor[] | undefined) ?? [],
+        (narrow.buyConfidenceFactors as ScoreFactor[] | undefined) ?? [],
     },
     insights: [],
   };
 }
 
-function mapStoredListing(record: StoredListing): VehicleSearchResult {
+/**
+ * Accepts either shape. The card select omits the fields only the detail page
+ * draws, so everything it leaves out reads as absent here rather than as a
+ * different code path — one mapper, two payload widths.
+ */
+function mapStoredListing(
+  record: StoredListing | CardListing,
+  { itemisedOwnershipCost = true }: { itemisedOwnershipCost?: boolean } = {},
+): VehicleSearchResult {
+  const detail = record as Partial<StoredListing>;
+  const detailVehicle = record.vehicle as Partial<StoredListing["vehicle"]>;
   const bodyStyle = enumValue(record.vehicle.bodyStyle, bodyStyles, "other");
   const fuelType = enumValue(record.vehicle.fuelType, fuelTypes, "other");
   const transmission = enumValue(
@@ -259,7 +366,7 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
         : undefined,
       powerHp: record.vehicle.horsepower ?? undefined,
       engineDisplacementCc: record.vehicle.engineDisplacement ?? undefined,
-      engineDescription: record.vehicle.engineDescription ?? undefined,
+      engineDescription: detailVehicle.engineDescription ?? undefined,
       fuelConsumption: record.vehicle.fuelConsumption ?? undefined,
     },
   };
@@ -275,9 +382,9 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
         registrationYear: record.vehicle.registrationYear ?? undefined,
       },
       specification,
-      registrationNumber: record.vehicle.registrationNumber ?? undefined,
-      vin: record.vehicle.vin ?? undefined,
-      firstRegistrationDate: record.vehicle.firstRegistration
+      registrationNumber: detailVehicle.registrationNumber ?? undefined,
+      vin: detailVehicle.vin ?? undefined,
+      firstRegistrationDate: detailVehicle.firstRegistration
         ?.toISOString()
         .slice(0, 10),
     },
@@ -313,7 +420,7 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
       },
       status: enumValue(record.status, listingStatuses, "active"),
       title: `${record.vehicle.make} ${record.vehicle.model} ${record.vehicle.variant ?? ""}`.trim(),
-      description: record.description ?? undefined,
+      description: detail.description ?? undefined,
       mileageKm: record.mileageKm,
       serviceHistory: enumValue(
         record.serviceHistory,
@@ -321,7 +428,7 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
         "unknown",
       ),
       ownerCount: record.ownerCount ?? undefined,
-      equipment: record.equipment.map(({ label }) => label),
+      equipment: detail.equipment?.map(({ label }) => label) ?? [],
       images: record.images.map((image) => ({
         url: image.url,
         alt: image.alt ?? undefined,
@@ -330,7 +437,7 @@ function mapStoredListing(record: StoredListing): VehicleSearchResult {
       publishedAt: record.publishedAt?.toISOString(),
       observedAt: record.synchronizedAt.toISOString(),
     },
-    analysis: createStoredAnalysis(record, specification),
+    analysis: createStoredAnalysis(record, specification, itemisedOwnershipCost),
   };
 }
 
@@ -383,13 +490,16 @@ function buildListingWhere(
 
   const queryTokens = filters.query.trim().split(/\s+/).filter(Boolean);
 
+  // Every token is answered by the listing's own `searchText`, which already
+  // holds make, model, variant and seller lowercased. The previous shape — an
+  // OR across the vehicle relation per token — made Prisma join VehicleRecord
+  // three times per token and stranded the predicates on separate join
+  // aliases, so the trigram indexes could not be used and Postgres scanned the
+  // whole catalogue. Lowercasing the token lets this stay a plain `contains`
+  // (LIKE) rather than `mode: "insensitive"` (ILIKE), which is what the GIN
+  // trigram index on the column is built for.
   const andConditions: Prisma.ListingRecordWhereInput[] = queryTokens.map((token) => ({
-    OR: [
-      { sellerName: { contains: token, mode: "insensitive" } },
-      { vehicle: { is: { make: { contains: token, mode: "insensitive" } } } },
-      { vehicle: { is: { model: { contains: token, mode: "insensitive" } } } },
-      { vehicle: { is: { variant: { contains: token, mode: "insensitive" } } } },
-    ],
+    searchText: { contains: token.toLowerCase() },
   }));
 
   if (filters.postedWithin) {
@@ -455,31 +565,31 @@ export async function getActiveVehicleListings(
   await initializeDatabase();
   const where = buildListingWhere(options.filters);
   const pageSize = options.pageSize;
-  const totalListings = await prisma.listingRecord.count({ where });
-  const totalPages = Math.max(
-    1,
-    Math.ceil(totalListings / pageSize),
-  );
-  const page = Math.min(Math.max(1, Math.trunc(options.page)), totalPages);
-  const [records, preparedCatalog] = await Promise.all([
+  // The count only clamps the page, and the facets do not depend on it at all,
+  // so all three go out together and the page is clamped once they are back.
+  // Awaiting the count first put its latency in front of every search — worst
+  // on the queries where the count is slowest.
+  const requestedPage = Math.max(1, Math.trunc(options.page));
+  const [totalListings, records, preparedCatalog] = await Promise.all([
+    prisma.listingRecord.count({ where }),
     prisma.listingRecord.findMany({
       where,
-      select: storedListingSelect,
+      select: cardListingSelect,
       orderBy: listingOrder(options.sort),
-      skip: (page - 1) * pageSize,
+      skip: (requestedPage - 1) * pageSize,
       take: pageSize,
     }),
     getPreparedCatalogFilters(options.filters.brands),
   ]);
-  const baseResults = records.map(mapStoredListing);
-  const benchmarks = buildVehicleInsightBenchmarks(baseResults);
-  const listings = baseResults.map((result) => ({
-    ...result,
-    analysis: {
-      ...result.analysis,
-      insights: generateVehicleInsights(result, benchmarks),
-    },
-  }));
+  const totalPages = Math.max(1, Math.ceil(totalListings / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  // No insights here. `generateVehicleInsights` runs the full rule set per
+  // listing and its output is serialised to the browser for every card — and
+  // nothing in the interface renders it. Building the benchmarks it needs
+  // meant a pass over the page's listings as well.
+  const listings = records.map((record) =>
+    mapStoredListing(record, { itemisedOwnershipCost: false }),
+  );
 
   return {
     listings,
@@ -556,7 +666,7 @@ export async function getListingById(
     select: storedListingSelect,
     take: 50,
   });
-  const comparables = comparableRecords.map(mapStoredListing);
+  const comparables = comparableRecords.map((record) => mapStoredListing(record));
   const benchmarkSource = comparables.some(
     (result) => result.listing.id === target.listing.id,
   )
@@ -583,7 +693,7 @@ export async function getListingsByIds(
     where: { id: { in: [...listingIds] }, status: "active" },
     select: storedListingSelect,
   });
-  const baseResults = records.map(mapStoredListing);
+  const baseResults = records.map((record) => mapStoredListing(record));
   const benchmarks = buildVehicleInsightBenchmarks(baseResults);
 
   // `id: { in: [...] }` doesn't preserve input order, but callers (compare

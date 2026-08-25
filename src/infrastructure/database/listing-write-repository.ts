@@ -301,6 +301,20 @@ async function writeListing(
     firstRegistration: vehicle.firstRegistration,
   };
 
+  // Kept beside the fields it is derived from, so a change to the vehicle's
+  // identity or the seller's name updates it in the same statement. Lowercased
+  // at write time so the query can use LIKE against the trigram index without
+  // ILIKE's case folding.
+  const searchText = [
+    vehicle.make,
+    vehicle.model,
+    vehicle.variant,
+    listing.sellerName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
   // A P2002 collision here (VIN or registration number already held by a
   // different vehicle row) is handled by the caller: Postgres aborts the
   // whole transaction the instant one statement errors, so any retry has to
@@ -348,6 +362,7 @@ async function writeListing(
       rawPayload: normalized.rawPayload
         ? jsonValue(normalized.rawPayload)
         : undefined,
+      searchText,
       contentHash: hashes.contentHash,
       imageHash: hashes.imageHash,
       equipmentHash: hashes.equipmentHash,
@@ -379,6 +394,7 @@ async function writeListing(
       rawPayload: normalized.rawPayload
         ? jsonValue(normalized.rawPayload)
         : undefined,
+      searchText,
       contentHash: hashes.contentHash,
       imageHash: hashes.imageHash,
       equipmentHash: hashes.equipmentHash,
