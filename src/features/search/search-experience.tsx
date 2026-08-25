@@ -458,7 +458,11 @@ export function SearchExperience({
         <div className="mx-auto max-w-[1800px]">
           <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="sr-only">{copy.results.title}</h2>
+              {/* The results page had no h1 at all — its outline began at h2, so a
+                  screen reader navigating by heading landed mid-page with no
+                  statement of what the page is. It stays visually hidden; the
+                  search field above it is the visible statement of purpose. */}
+              <h1 className="sr-only">{copy.results.title}</h1>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <p aria-live="polite" className="text-sm font-medium text-ink-muted">
                   {copy.results.rangeCount(
@@ -580,12 +584,16 @@ export function SearchExperience({
             <div className="min-w-0">
               {results.length > 0 ? (
                 <>
+                  {/* Column count follows the space rather than a breakpoint
+                      ladder. The ladder gave one card per row everywhere below
+                      1280px — a single 825px-wide card at 1200 — and then
+                      halved the card from 515px to 273px across the 96px
+                      between 1440 and 1536, because there was no three-column
+                      step. `auto-fill` with a floor keeps every card inside one
+                      sane band at every width, and needs no separate rule for
+                      the narrower grid that the compare tray leaves behind. */}
                   <div
-                    className={
-                      compared.length > 0
-                        ? "grid min-w-0 gap-5 xl:grid-cols-2 2xl:grid-cols-3"
-                        : "grid min-w-0 gap-5 xl:grid-cols-2 2xl:grid-cols-4"
-                    }
+                    className="grid min-w-0 gap-5 [grid-template-columns:repeat(auto-fill,minmax(min(19rem,100%),1fr))]"
                   >
                     <AnimatePresence initial={false}>
                       {results.map((result, index) => (

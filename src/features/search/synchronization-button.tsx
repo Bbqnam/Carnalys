@@ -147,11 +147,16 @@ export function SynchronizationButton({
           type="submit"
         >
           <RefreshIcon className={`size-4 ${pending || isBusy ? "animate-spin" : ""}`} />
-          <span className="hidden xl:inline">{label}</span>
-          <span className="xl:hidden" aria-hidden="true">
+          {/* The label used to disappear below xl, leaving a bare circle in a row
+              where the sort and page-size controls beside it stay labelled — the
+              one control whose purpose could not be guessed from its shape. It
+              keeps its words down to sm and only drops them where the row is
+              genuinely out of room. */}
+          <span className="hidden sm:inline">{label}</span>
+          <span className="sm:hidden" aria-hidden="true">
             {pending ? "…" : ""}
           </span>
-          <span className="sr-only xl:hidden">{label}</span>
+          <span className="sr-only sm:hidden">{label}</span>
         </button>
       </form>
       {actionMessage && !pending ? (

@@ -70,7 +70,7 @@ function BudgetInput({
   return (
     <input
       aria-label={ariaLabel}
-      className="w-full min-w-0 bg-transparent outline-none"
+      className="h-full w-full min-w-0 bg-transparent outline-none"
       inputMode="numeric"
       onBlur={(event) => {
         focused.current = false;
@@ -403,7 +403,7 @@ export function FilterPanel({
               />
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold tabular-nums text-ink-muted focus-within:border-accent/50">
+              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold tabular-nums text-ink-muted focus-within:border-accent focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
                 <BudgetInput
                   ariaLabel={copy.minimumBudget}
                   onCommit={(digits) => {
@@ -415,8 +415,8 @@ export function FilterPanel({
                 />
                 <span className="shrink-0 text-ink-subtle">SEK</span>
               </label>
-              <span className="shrink-0 text-border-strong">–</span>
-              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold tabular-nums text-ink-muted focus-within:border-accent/50">
+              <span className="shrink-0 text-ink-subtle">–</span>
+              <label className="flex h-9 flex-1 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold tabular-nums text-ink-muted focus-within:border-accent focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
                 <BudgetInput
                   ariaLabel={copy.maximumBudget}
                   onCommit={(digits) => {

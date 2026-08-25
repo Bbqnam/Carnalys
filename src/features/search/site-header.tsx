@@ -66,7 +66,11 @@ export function SiteHeader({
               caption. Colour is doing one job only: a count above zero is
               live state, so it gets the accent; a count of zero stays quiet.
               An empty Compare or Saved is not news. */}
-          <nav className="hidden items-center gap-2 text-sm md:flex">
+          {/* The labelled nav used to switch on at md, where it does not fit:
+              logo plus cluster came to ~790px inside a 704px content box, which
+              is the 3px of sideways scroll the page had at 768. It waits for lg
+              now, and the compact icon buttons cover the range below. */}
+          <nav className="hidden items-center gap-2 text-sm lg:flex">
             {onRequestLocation ? (
               <button
                 aria-live="polite"
@@ -154,7 +158,7 @@ export function SiteHeader({
           {onRequestLocation ? (
             <button
               aria-label={locationLabel}
-              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition md:hidden ${
+              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition lg:hidden ${
                 locationStatus === "ready"
                   ? "border-accent/40 bg-accent-soft text-accent-strong"
                   : "border-border-strong bg-surface text-ink hover:border-ink"
@@ -170,7 +174,7 @@ export function SiteHeader({
           <Link
             aria-label={copy.nav.analysis}
             aria-current={activePage === "analysis" ? "page" : undefined}
-            className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition md:hidden ${
+            className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition lg:hidden ${
               activePage === "analysis"
                 ? "border-ink bg-ink text-surface"
                 : "border-border-strong bg-surface text-ink hover:border-ink"
@@ -183,7 +187,7 @@ export function SiteHeader({
           <Link
             aria-label={copy.nav.compareCars(compareCount)}
             aria-current={activePage === "compare" ? "page" : undefined}
-            className={`relative grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition md:hidden ${
+            className={`relative grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition lg:hidden ${
               activePage === "compare"
                 ? "border-ink bg-ink text-surface"
                 : "border-border-strong bg-surface text-ink hover:border-ink"
@@ -204,7 +208,7 @@ export function SiteHeader({
           <Link
             aria-label={copy.nav.savedCars(savedCount)}
             aria-current={activePage === "saved" ? "page" : undefined}
-            className={`relative grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition md:hidden ${
+            className={`relative grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition lg:hidden ${
               activePage === "saved"
                 ? "border-ink bg-ink text-surface"
                 : "border-border-strong bg-surface text-ink hover:border-ink"

@@ -55,7 +55,11 @@ export function SearchHero({
             onSearch();
           }}
         >
-          <label className="flex min-h-12 flex-1 items-center gap-3 px-3 sm:px-4">
+          {/* The field suppressed its own outline and nothing replaced it, so the
+              first control a keyboard user reaches after the header gave no sign
+              of holding focus. The ring goes on the wrapper because the input
+              itself is transparent and full-bleed. */}
+          <label className="flex min-h-12 flex-1 items-center gap-3 rounded-full px-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent sm:px-4">
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
               <SearchIcon className="size-4" />
             </span>

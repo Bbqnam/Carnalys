@@ -16,7 +16,7 @@
      below actually take effect at runtime. */
   --ink: #17211b;
   --ink-muted: #56635b;
-  --ink-subtle: #8a918c;
+  --ink-subtle: #667069;
   --border: #e4e5df;
   --border-strong: #c5c8c4;
   --surface: #ffffff;
@@ -29,6 +29,8 @@
   --negative: #81463e;
   --negative-soft: #fff3f1;
   --gold: #b3924a;
+  /* Readable weight of --gold, for text on a gold chip. */
+  --gold-strong: #6b5320;
   --shimmer-from: #e8e8e3;
   --shimmer-to: #f4f4ef;
   --selection: #cbdacf;
@@ -90,8 +92,8 @@
     --background: #10140f;
     --foreground: #eef1ec;
     --ink: #eef1ec;
-    --ink-muted: #a3ac9e;
-    --ink-subtle: #7c857e;
+    --ink-muted: #b3bcae;
+    --ink-subtle: #98a29a;
     --border: #263028;
     --border-strong: #3b463e;
     --surface: #182018;
@@ -104,6 +106,7 @@
     --negative: #e2897b;
     --negative-soft: #3a2320;
     --gold: #cfae6e;
+    --gold-strong: #e3c88f;
     --shimmer-from: #1c231d;
     --shimmer-to: #242e26;
     --selection: #2c4636;
@@ -138,8 +141,8 @@
   --background: #10140f;
   --foreground: #eef1ec;
   --ink: #eef1ec;
-  --ink-muted: #a3ac9e;
-  --ink-subtle: #7c857e;
+  --ink-muted: #b3bcae;
+  --ink-subtle: #98a29a;
   --border: #263028;
   --border-strong: #3b463e;
   --surface: #182018;
@@ -152,6 +155,7 @@
   --negative: #e2897b;
   --negative-soft: #3a2320;
   --gold: #cfae6e;
+  --gold-strong: #e3c88f;
   --shimmer-from: #1c231d;
   --shimmer-to: #242e26;
   --selection: #2c4636;
@@ -199,6 +203,7 @@
   --color-negative: var(--negative);
   --color-negative-soft: var(--negative-soft);
   --color-gold: var(--gold);
+  --color-gold-strong: var(--gold-strong);
   --color-brand-chip: var(--brand-chip);
 
   --color-viz-buy-great: var(--viz-buy-great);
@@ -265,7 +270,7 @@ select:focus-visible {
 
 .budget-range {
   position: relative;
-  height: 1.5rem;
+  height: 1.75rem;
 }
 
 .budget-range-track {
@@ -290,7 +295,7 @@ select:focus-visible {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 1.5rem;
+  height: 1.75rem;
   margin: 0;
   appearance: none;
   background: transparent;
@@ -301,16 +306,28 @@ select:focus-visible {
   background: transparent;
 }
 
+/* The handle is the only part of these sliders that takes a pointer — the
+   input itself is `pointer-events: none` so the two stacked ranges can share a
+   track — which made the real target 15px on WebKit and 11px on Gecko, under
+   the 24px WCAG 2.2 floor. The element is now 1.75rem square and the dot is
+   painted inside it with a gradient, so the grab area grew while the handle
+   looks the same size it always did. */
 .budget-range input[type="range"]::-webkit-slider-thumb {
   pointer-events: auto;
-  width: 1.1rem;
-  height: 1.1rem;
-  margin-top: -0.4rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-top: -0.725rem;
   appearance: none;
-  border: 3px solid var(--surface);
+  border: 0;
   border-radius: 999px;
-  background: var(--accent-strong);
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.25);
+  background:
+    radial-gradient(
+      circle at center,
+      var(--accent-strong) 0 38%,
+      var(--surface) 40% 62%,
+      transparent 63%
+    );
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.25));
 }
 
 .budget-range input[type="range"]::-moz-range-track {
@@ -320,12 +337,18 @@ select:focus-visible {
 
 .budget-range input[type="range"]::-moz-range-thumb {
   pointer-events: auto;
-  width: 0.8rem;
-  height: 0.8rem;
-  border: 3px solid var(--surface);
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
   border-radius: 999px;
-  background: var(--accent-strong);
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.25);
+  background:
+    radial-gradient(
+      circle at center,
+      var(--accent-strong) 0 38%,
+      var(--surface) 40% 62%,
+      transparent 63%
+    );
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.25));
 }
 
 .budget-range input[type="range"]:focus-visible::-webkit-slider-thumb {
@@ -411,6 +434,35 @@ select:focus-visible {
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Every focusable thing gets a ring, not just the ones that were remembered.
+   Buttons and links carried `focus-visible:ring-*` utilities individually;
+   inputs were missed, so the main search field and all four budget controls —
+   five of the first twenty-two tab stops — gave a keyboard user no indication
+   of where they were. A base rule is the right place for this: a control that
+   forgets to opt in still gets it. Components may override with their own
+   ring; `:focus-visible` keeps it off pointer clicks. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Range thumbs draw their own focus, and an outline on the track reads as a
+   box around the whole slider rather than around the handle. */
+input[type="range"]:focus-visible {
+  outline: none;
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type="range"]:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 ::selection {

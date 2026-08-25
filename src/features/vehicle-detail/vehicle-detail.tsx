@@ -349,6 +349,11 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             <div className="scrollbar-none mt-2.5 flex gap-2 overflow-x-auto pb-1 sm:absolute sm:inset-y-0 sm:right-0 sm:mt-0 sm:w-[5.5rem] sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:pb-0">
               {images.map((image, index) => (
                 <button
+                  // The button's only child is a decorative image, so without
+                  // this it reached the accessibility tree unnamed — a row of
+                  // anonymous buttons. `aria-current` marks which one is showing.
+                  aria-current={index === activeImage ? "true" : undefined}
+                  aria-label={copy.detail.photoPosition(index + 1, imageCount)}
                   className={`relative aspect-[4/3] w-16 shrink-0 overflow-hidden rounded-lg bg-surface-muted ring-2 transition sm:w-[5.5rem] ${
                     index === activeImage ? "ring-accent" : "ring-transparent hover:ring-border-strong"
                   }`}
@@ -368,11 +373,11 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               <BrandLogo className="size-5.5" make={identity.make} />
             </span>
             <span>{identity.modelYear}</span>
-            <span className="text-border-strong">•</span>
+            <span className="text-ink-subtle">•</span>
             <span>{numberFormatter.format(listing.mileageKm / 10)} {copy.card.mileageUnit}</span>
-            <span className="text-border-strong">•</span>
+            <span className="text-ink-subtle">•</span>
             <span>{copy.filters.fuels[specification.powertrain.fuelType]}</span>
-            <span className="text-border-strong">•</span>
+            <span className="text-ink-subtle">•</span>
             <span>{copy.filters.transmissions[specification.powertrain.transmission]}</span>
             <span
               className={`ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
@@ -401,7 +406,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                   · {copy.card.distanceAway(distanceKm)}
                 </span>
               ) : null}
-              <span className="text-border-strong">·</span>
+              <span className="text-ink-subtle">·</span>
               <span>
                 {listingDateLabel}{" "}
                 <time dateTime={listingDateValue} suppressHydrationWarning title={formatExactListingDate(listingDateValue, locale)}>

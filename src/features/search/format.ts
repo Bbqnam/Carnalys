@@ -112,7 +112,7 @@ export function factorBarTone(impact: "positive" | "neutral" | "negative") {
 export function sellerTypeTone(type: "dealer" | "private") {
   return type === "dealer"
     ? "border-accent/40 bg-accent-soft text-accent-strong"
-    : "border-gold/40 bg-gold/12 text-gold";
+    : "border-gold/40 bg-gold/12 text-gold-strong";
 }
 
 /**

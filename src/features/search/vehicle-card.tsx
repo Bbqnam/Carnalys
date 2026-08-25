@@ -107,8 +107,8 @@ export function VehicleCard({
        hover state and never moves, so the state cannot flicker; the 4px the
        inner card vacates is still inside it. */
     <article className="group h-full">
-      <div className="flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-surface shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out group-hover:-translate-y-1 group-hover:border-border-strong group-hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] group-focus-within:border-accent/40 group-focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
-      <div className="relative aspect-[2/1] overflow-hidden bg-surface-muted">
+      <div className="relative flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-surface shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out group-hover:-translate-y-1 group-hover:border-border-strong group-hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] group-focus-within:border-accent/40 group-focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
+      <div className="relative aspect-[4/3] overflow-hidden bg-surface-muted">
         {image && !imageFailed ? (
           <Image
             alt={imageAlt}
@@ -118,7 +118,7 @@ export function VehicleCard({
             onError={() => setImageFailed(true)}
             placeholder="blur"
             preload={priority}
-            sizes="(max-width: 1279px) 100vw, (max-width: 1535px) 50vw, (max-width: 1759px) 33vw, 25vw"
+            sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 25vw"
             src={image.url}
           />
         ) : (
@@ -126,16 +126,16 @@ export function VehicleCard({
             alt={copy.card.missingImage}
             className="object-cover"
             fill
-            sizes="(max-width: 1279px) 100vw, (max-width: 1535px) 50vw, (max-width: 1759px) 33vw, 25vw"
+            sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 25vw"
             src="/images/vehicle-fallback.svg"
           />
         )}
-        <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3.5">
+        <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3.5">
           <span
             aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
             className={`flex items-center gap-1.5 rounded-full border-2 bg-surface/90 px-3 py-1 text-sm font-bold tabular-nums shadow-sm backdrop-blur-md ${dealScoreTone}`}
           >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] opacity-75">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em]">
               {copy.card.dealBadge}
             </span>
             {analysis.dealScore.value}
@@ -181,11 +181,11 @@ export function VehicleCard({
       <div className="flex flex-1 flex-col p-3.5 sm:p-4">
         <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm text-ink-muted">
           <span className="shrink-0">{identity.modelYear}</span>
-          <span className="shrink-0 text-border-strong">•</span>
+          <span className="shrink-0 text-ink-subtle">•</span>
           <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
-          <span className="shrink-0 text-border-strong">•</span>
+          <span className="shrink-0 text-ink-subtle">•</span>
           <span className="truncate">{copy.filters.fuels[specification.powertrain.fuelType]}</span>
-          <span className="shrink-0 text-border-strong 2xl:hidden">•</span>
+          <span className="shrink-0 text-ink-subtle 2xl:hidden">•</span>
           <span className="truncate 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           <span
             className={`ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
@@ -196,8 +196,14 @@ export function VehicleCard({
           </span>
         </p>
 
+        {/* The photo, the price and the whitespace were all dead: only this
+            text linked anywhere, while the largest and most obviously tappable
+            thing on the card did nothing. The anchor keeps the href and the
+            accessible name — one link in the tree, not a card full of them —
+            and `before:` stretches its hit area over the whole card. Anything
+            that must stay separately clickable is raised above it. */}
         <Link
-          className="mt-3 flex min-w-0 items-start gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+          className="mt-3 flex min-w-0 items-start gap-2 rounded-sm before:absolute before:inset-0 before:z-0 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
           href={`/vehicle/${listing.id}`}
         >
           <BrandLogo className="size-11 shrink-0" make={identity.make} />
@@ -309,8 +315,13 @@ export function VehicleCard({
           ) : null}
         </div>
 
+        {/* Two links of near-identical size used to sit on every card, and the
+            one styled as the button was the one that left for the marketplace.
+            The card is now the primary action and leads to our own analysis;
+            this stays available as a plain secondary link, raised above the
+            card-wide hit area so it still takes its own clicks. */}
         <a
-          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-subtle text-sm font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.99]"
+          className="relative z-10 mt-3.5 inline-flex w-fit items-center gap-1.5 self-start rounded-md py-1 text-sm font-medium text-ink-muted underline-offset-4 transition hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
           href={listing.source.url}
           rel="noopener noreferrer"
           target="_blank"

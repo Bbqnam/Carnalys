@@ -62,10 +62,15 @@ export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
           : `${value("age")} år gammal (årsmodell ${value("modelYear")}).`;
       break;
     case "mileage":
-      explanation =
+      // Mil everywhere a reader compares numbers. This factor used to state km
+      // while the summary line two blocks above it stated mil, so the same car
+      // carried two odometer readings an order of magnitude apart on one page.
+      explanation = ((mil) =>
         locale === "en"
-          ? `${value("mileageKm").toLocaleString(numberLocale)} km on the odometer.`
-          : `${value("mileageKm").toLocaleString(numberLocale)} km i mätarställningen.`;
+          ? `${mil} mil on the odometer.`
+          : `${mil} mil i mätarställningen.`)(
+        Math.round(value("mileageKm") / 10).toLocaleString(numberLocale),
+      );
       break;
     case "affordability":
       explanation =
