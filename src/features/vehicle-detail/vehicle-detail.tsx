@@ -206,8 +206,13 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               surface rather than losing its roof and wheels. The old
               `aspect-[16/10] max-h-[380px]` pairing also let the box quietly
               grow wider than its own ratio once the column passed 608px, which
-              turned `object-cover` into a increasingly severe centre crop. */}
-          <div className="relative aspect-[4/3] max-h-[440px] overflow-hidden rounded-2xl bg-surface-muted">
+              turned `object-cover` into an increasingly severe centre crop.
+
+              No max-height here on purpose: with a fixed ratio a height cap
+              caps the width too, which left the frame standing short of the
+              column with dead space beside it. The column decides the width
+              and the ratio decides the height. */}
+          <div className="relative w-full aspect-[4/3] overflow-hidden rounded-2xl bg-surface-muted">
             {currentImage ? (
               <Image
                 alt={currentImage.alt ?? listing.title}
