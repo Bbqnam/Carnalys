@@ -300,15 +300,6 @@ export function SearchExperience({
   );
 
   useEffect(() => {
-    const intervalMinutes = 5;
-    const interval = setInterval(
-      () => router.refresh(),
-      intervalMinutes * 60 * 1_000,
-    );
-    return () => clearInterval(interval);
-  }, [router]);
-
-  useEffect(() => {
     const currentUrl = `${window.location.pathname}${window.location.search}#cars`;
 
     if (window.location.search) {
