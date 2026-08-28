@@ -166,6 +166,7 @@ export function SearchExperience({
   const activeFilterCount =
     filters.brands.length +
     filters.models.length +
+    filters.sources.length +
     [
       filters.minPrice,
       filters.maxPrice,
@@ -217,6 +218,14 @@ export function SearchExperience({
     );
     filters.models.forEach((model) =>
       labels.push({ id: `model-${model}`, key: "models", label: model, value: model }),
+    );
+    filters.sources.forEach((source) =>
+      labels.push({
+        id: `source-${source}`,
+        key: "sources",
+        label: source === "blocket_unofficial" ? "Blocket" : source === "wayke" ? "Wayke" : source,
+        value: source,
+      }),
     );
     if (filters.fuelType) {
       labels.push({
@@ -409,6 +418,13 @@ export function SearchExperience({
     if (key === "models" && typeof value === "string") {
       changeFilters(
         { ...filters, models: filters.models.filter((model) => model !== value) },
+        0,
+      );
+      return;
+    }
+    if (key === "sources" && typeof value === "string") {
+      changeFilters(
+        { ...filters, sources: filters.sources.filter((source) => source !== value) },
         0,
       );
       return;

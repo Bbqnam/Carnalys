@@ -12,6 +12,7 @@ import { initializeDatabase, prisma } from "./prisma";
 
 interface AnalysisTarget {
   id: string;
+  vehicleId: string;
   priceAmount: number;
   mileageKm: number;
   ownerCount: number | null;
@@ -28,6 +29,7 @@ interface AnalysisTarget {
 
 interface MarketComparableRow {
   id: string;
+  vehicleId: string;
   make: string;
   model: string;
   fuelType: string;
@@ -39,12 +41,13 @@ interface MarketComparableRow {
 
 interface SegmentComparableRow {
   id: string;
+  vehicleId: string;
   make: string;
   modelYear: number;
   priceAmount: number;
 }
 
-const methodologyVersion = "value-quality-composite-8.1";
+const methodologyVersion = "value-quality-composite-9.0";
 
 /**
  * The least a listing can ask, as a share of its own comparable market value,
@@ -186,6 +189,7 @@ async function loadTargets(
     },
     select: {
       id: true,
+      vehicleId: true,
       priceAmount: true,
       mileageKm: true,
       ownerCount: true,
@@ -231,8 +235,9 @@ export async function refreshStoredListingAnalyses(
         ),
       )}
     )
-    SELECT
+    SELECT DISTINCT ON (listing."vehicleId")
       listing."id" AS "id",
+      listing."vehicleId" AS "vehicleId",
       vehicle."make" AS "make",
       vehicle."model" AS "model",
       vehicle."fuelType" AS "fuelType",
@@ -254,6 +259,10 @@ export async function refreshStoredListingAnalyses(
         analysisYear,
       ),
     )}
+    -- One representative ad per exact physical-vehicle identity. This is the
+    -- SQL equivalent of selectRepresentativeListings: newest synchronized ad,
+    -- deterministic id tie-break. Source listings remain stored separately.
+    ORDER BY listing."vehicleId", listing."synchronizedAt" DESC, listing."id" ASC
   `);
   const comparablesByModel = new Map<string, MarketComparableRow[]>();
   for (const comparable of comparables) {
@@ -268,6 +277,7 @@ export async function refreshStoredListingAnalyses(
       .filter(
         (comparable) =>
           comparable.id !== target.id &&
+          comparable.vehicleId !== target.vehicleId &&
           comparable.fuelType === target.vehicle.fuelType &&
           comparable.transmission === target.vehicle.transmission &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 3 &&
@@ -299,6 +309,7 @@ export async function refreshStoredListingAnalyses(
       .filter(
         (comparable) =>
           comparable.id !== target.id &&
+          comparable.vehicleId !== target.vehicleId &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 8,
       )
       .toSorted(
@@ -320,8 +331,9 @@ export async function refreshStoredListingAnalyses(
   ];
   const segmentComparables = segmentMakes.length
     ? await prisma.$queryRaw<SegmentComparableRow[]>(Prisma.sql`
-        SELECT
+        SELECT DISTINCT ON (listing."vehicleId")
           listing."id" AS "id",
+          listing."vehicleId" AS "vehicleId",
           vehicle."make" AS "make",
           vehicle."modelYear" AS "modelYear",
           listing."priceAmount" AS "priceAmount"
@@ -337,6 +349,7 @@ export async function refreshStoredListingAnalyses(
               analysisYear,
             ),
           )}
+        ORDER BY listing."vehicleId", listing."synchronizedAt" DESC, listing."id" ASC
       `)
     : [];
   const comparablesBySegment = new Map<string, SegmentComparableRow[]>();
@@ -354,6 +367,7 @@ export async function refreshStoredListingAnalyses(
       .filter(
         (comparable) =>
           comparable.id !== target.id &&
+          comparable.vehicleId !== target.vehicleId &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 5 &&
           comparable.priceAmount >= minimumPrice &&
           comparable.priceAmount <= maximumPrice,

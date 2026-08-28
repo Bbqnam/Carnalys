@@ -11,4 +11,5 @@ export interface SourceMetadata {
   url: string;
   firstSeenAt: ISODateTime;
   lastSeenAt: ISODateTime;
+  synchronizedAt: ISODateTime;
 }

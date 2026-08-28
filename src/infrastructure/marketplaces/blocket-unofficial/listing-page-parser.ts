@@ -7,6 +7,8 @@
 const specificationsSectionPattern =
   /<h2[^>]*>\s*Specifikationer\s*<\/h2>\s*<dl[^>]*>([\s\S]*?)<\/dl>/;
 const entryPattern = /<dt[^>]*>([\s\S]*?)<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/g;
+const blocketImageUrlPattern =
+  /https:\/\/images\.blocketcdn\.se\/dynamic\/[^\s"'<>\\]+/g;
 
 const namedEntities: Record<string, string> = {
   amp: "&",
@@ -41,4 +43,38 @@ export function parseListingPageSpecifications(html: string): Record<string, str
     if (label && value) specifications[label] = value;
   }
   return specifications;
+}
+
+/**
+ * Extracts the listing's own gallery from Blocket's server-rendered page.
+ *
+ * The search feed occasionally exposes a newly-published ad before its
+ * `image_urls` field has caught up, while the public page already contains
+ * the complete gallery. Restricting matches to this listing's item path
+ * avoids accidentally importing recommendation-card photos from the same
+ * HTML document. Query parameters are dropped so the normal image loader can
+ * request its own responsive width without producing two sizing queries.
+ */
+export function parseListingPageImageUrls(html: string, externalId: string): readonly string[] {
+  const expectedPath = `/item/${encodeURIComponent(externalId)}/`;
+  const imageUrls = new Set<string>();
+
+  blocketImageUrlPattern.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = blocketImageUrlPattern.exec(html)) !== null) {
+    try {
+      const url = new URL(decodeHtmlEntities(match[0]));
+      if (
+        url.hostname !== "images.blocketcdn.se" ||
+        !url.pathname.includes(expectedPath)
+      ) {
+        continue;
+      }
+      imageUrls.add(`${url.origin}${url.pathname}`);
+    } catch {
+      // Ignore malformed source URLs and keep scanning the rest of the page.
+    }
+  }
+
+  return [...imageUrls];
 }

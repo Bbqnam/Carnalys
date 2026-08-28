@@ -12,6 +12,12 @@ export interface VehicleSearchResult {
   vehicle: Vehicle;
   listing: VehicleListing;
   analysis: VehicleAnalysis;
+  relatedSourceListings?: readonly {
+    id: string;
+    provider: string;
+    url: string;
+    title?: string;
+  }[];
 }
 
 export interface SearchFilters {
@@ -20,6 +26,7 @@ export interface SearchFilters {
   maxPrice: number | null;
   brands: readonly string[];
   models: readonly string[];
+  sources: readonly string[];
   fuelType: FuelType | "";
   transmission: TransmissionType | "";
   minYear: number | null;

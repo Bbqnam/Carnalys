@@ -1,12 +1,13 @@
 "use client";
 
 const blocketImageHost = "https://images.blocketcdn.se/";
+const waykeImageHost = "https://cdn.wayke.se/";
 
 /**
  * Custom `next/image` loader (wired up via `images.loaderFile`).
  *
- * Every listing photo in the catalog is served from Blocket's own CDN, which
- * already resizes on demand via a `?width=` query parameter. Routing those
+ * Marketplace photos are served from Blocket/Wayke CDNs, which already resize
+ * on demand via query parameters. Routing those
  * through Vercel's Image Optimization instead burns one billed transformation
  * per unique (image, width) pair — and with ~450k listing images that churn
  * daily as listings come and go, that cost is unbounded and will exhaust any
@@ -27,6 +28,11 @@ export default function blocketImageLoader({
 }) {
   if (src.startsWith(blocketImageHost)) {
     return `${src}?width=${width}`;
+  }
+  if (src.startsWith(waykeImageHost)) {
+    const url = new URL(src);
+    url.searchParams.set("w", String(width));
+    return url.toString();
   }
   return src;
 }

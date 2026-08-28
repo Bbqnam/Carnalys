@@ -33,14 +33,32 @@ model VehicleRecord {
   @@index([modelYear])
 }
 
+/// Extensible listing-source registry. `key` is deliberately a String rather
+/// than an enum so adding a marketplace or dealer does not require changing
+/// every consumer or rebuilding historical listing rows.
+model ListingProvider {
+  key          String          @id
+  displayName  String
+  sourceType   String          @default("marketplace")
+  logoKey      String?
+  enabled      Boolean         @default(true)
+  capabilities Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  listings     ListingRecord[]
+}
+
 model ListingRecord {
   id                         String                   @id
   provider                   String
   sourceScope                String                   @default("default")
   externalId                 String
   vehicleId                  String
+  title                      String?
   listingUrl                 String
   sellerName                 String?
+  sellerOrganizationNumber  String?
+  dealerStockNumber          String?
   sellerType                 String
   priceAmount                Int
   previousPriceAmount        Int?
@@ -73,6 +91,9 @@ model ListingRecord {
   imageHash                  String?
   equipmentHash              String?
   missingReconciliationCount Int                      @default(0)
+  vehicleMatchMethod         String?
+  vehicleMatchConfidence     Float?
+  sourceProvider             ListingProvider          @relation(fields: [provider], references: [key], onDelete: Restrict, onUpdate: Cascade)
   vehicle                    VehicleRecord            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   images                     ListingImageRecord[]
   equipment                  ListingEquipmentRecord[]

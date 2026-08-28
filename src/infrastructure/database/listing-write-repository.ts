@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import type { NormalizedVehicleListing } from "@/application/ingestion/types";
+import { exactVehicleMatchEvidence } from "@/application/ingestion/vehicle-match-policy";
 import { Prisma } from "@/generated/prisma/client";
+import { listingImageWritePolicy } from "./listing-image-write-policy";
 import { initializeDatabase, prisma } from "./prisma";
 
 function stableId(prefix: string, value: string) {
@@ -15,14 +17,39 @@ function jsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function retainedRawPayload(value: unknown) {
+  const mode = process.env.RAW_LISTING_PAYLOAD_RETENTION?.trim().toLowerCase() ?? "full";
+  if (mode === "none") return undefined;
+  if (mode === "metadata") {
+    const importedAt =
+      value && typeof value === "object" && "importedAt" in value
+        ? (value as { importedAt?: unknown }).importedAt
+        : undefined;
+    return jsonValue({ importedAt });
+  }
+  return value === undefined ? undefined : jsonValue(value);
+}
+
 function listingHashes(normalized: NormalizedVehicleListing) {
   const equipment = [...new Set(normalized.listing.equipment)].toSorted();
   return {
     contentHash: digest({
-      source: normalized.source,
+      // observedAt describes this fetch, not source content. Hashing it would
+      // turn every otherwise unchanged synchronization into a full rewrite.
+      source: {
+        provider: normalized.source.provider,
+        scope: normalized.source.scope,
+        externalId: normalized.source.externalId,
+        listingUrl: normalized.source.listingUrl,
+        publishedAt: normalized.source.publishedAt,
+        updatedAt: normalized.source.updatedAt,
+      },
       vehicle: normalized.vehicle,
       listing: {
+        title: normalized.listing.title,
         sellerName: normalized.listing.sellerName,
+        sellerOrganizationNumber: normalized.listing.sellerOrganizationNumber,
+        dealerStockNumber: normalized.listing.dealerStockNumber,
         sellerType: normalized.listing.sellerType,
         priceAmount: normalized.listing.priceAmount,
         previousPriceAmount: normalized.listing.previousPriceAmount,
@@ -217,6 +244,7 @@ interface ExistingListingState {
   mileageKm: number;
   contentHash: string | null;
   imageHash: string | null;
+  imageCount: number;
   equipmentHash: string | null;
 }
 
@@ -254,6 +282,12 @@ async function writeListing(
   vehicleId: string,
 ) {
   const hashes = listingHashes(normalized);
+  const imagePolicy = listingImageWritePolicy({
+    existingImageCount: existing?.imageCount,
+    existingImageHash: existing?.imageHash,
+    incomingImageCount: normalized.listing.images.length,
+    incomingImageHash: hashes.imageHash,
+  });
   const listingId =
     existing?.id ??
     stableId(
@@ -263,7 +297,7 @@ async function writeListing(
   const unchanged =
     existing?.status === "active" &&
     existing.contentHash === hashes.contentHash &&
-    existing.imageHash === hashes.imageHash &&
+    existing.imageHash === imagePolicy.imageHash &&
     existing.equipmentHash === hashes.equipmentHash;
 
   if (unchanged) {
@@ -281,6 +315,7 @@ async function writeListing(
 
   const vehicle = normalized.vehicle;
   const listing = normalized.listing;
+  const match = exactVehicleMatchEvidence(vehicle);
 
   const vehicleFields = {
     vin: vehicle.vin,
@@ -310,6 +345,7 @@ async function writeListing(
     vehicle.model,
     vehicle.variant,
     listing.sellerName,
+    listing.title,
   ]
     .filter(Boolean)
     .join(" ")
@@ -339,8 +375,11 @@ async function writeListing(
       sourceScope: normalized.source.scope,
       externalId: normalized.source.externalId,
       vehicleId,
+      title: listing.title,
       listingUrl: normalized.source.listingUrl,
       sellerName: listing.sellerName,
+      sellerOrganizationNumber: listing.sellerOrganizationNumber,
+      dealerStockNumber: listing.dealerStockNumber,
       sellerType: listing.sellerType,
       priceAmount: listing.priceAmount,
       previousPriceAmount: listing.previousPriceAmount,
@@ -359,19 +398,22 @@ async function writeListing(
       firstSeenAt: synchronizedAt,
       lastSeenAt: synchronizedAt,
       synchronizedAt,
-      rawPayload: normalized.rawPayload
-        ? jsonValue(normalized.rawPayload)
-        : undefined,
+      rawPayload: retainedRawPayload(normalized.rawPayload),
+      vehicleMatchMethod: match.method,
+      vehicleMatchConfidence: match.confidence,
       searchText,
       contentHash: hashes.contentHash,
-      imageHash: hashes.imageHash,
+      imageHash: imagePolicy.imageHash,
       equipmentHash: hashes.equipmentHash,
     },
     update: {
       sourceScope: normalized.source.scope,
       vehicleId,
+      title: listing.title,
       listingUrl: normalized.source.listingUrl,
       sellerName: listing.sellerName,
+      sellerOrganizationNumber: listing.sellerOrganizationNumber,
+      dealerStockNumber: listing.dealerStockNumber,
       sellerType: listing.sellerType,
       priceAmount: listing.priceAmount,
       previousPriceAmount: listing.previousPriceAmount,
@@ -391,17 +433,17 @@ async function writeListing(
       synchronizedAt,
       removedAt: null,
       missingReconciliationCount: 0,
-      rawPayload: normalized.rawPayload
-        ? jsonValue(normalized.rawPayload)
-        : undefined,
+      rawPayload: retainedRawPayload(normalized.rawPayload),
+      vehicleMatchMethod: match.method,
+      vehicleMatchConfidence: match.confidence,
       searchText,
       contentHash: hashes.contentHash,
-      imageHash: hashes.imageHash,
+      imageHash: imagePolicy.imageHash,
       equipmentHash: hashes.equipmentHash,
     },
   });
 
-  if (!existing || existing.imageHash !== hashes.imageHash) {
+  if (imagePolicy.shouldReplaceImages) {
     await transaction.listingImageRecord.deleteMany({ where: { listingId } });
     if (listing.images.length > 0) {
       await transaction.listingImageRecord.createMany({
@@ -525,10 +567,14 @@ export async function upsertNormalizedListings(
       contentHash: true,
       imageHash: true,
       equipmentHash: true,
+      _count: { select: { images: true } },
     },
   });
   const existingBySource = new Map(
-    existingRows.map((row) => [`${row.provider}:${row.externalId}`, row]),
+    existingRows.map((row) => [
+      `${row.provider}:${row.externalId}`,
+      { ...row, imageCount: row._count.images },
+    ]),
   );
   const { vehicleIdByListing, mergedVehicleIds } = await resolveVehicleIds(listings);
 
@@ -644,6 +690,45 @@ export async function existingListingDetailPayloads(
     if (rawPayload?.detail) detailByExternalId.set(row.externalId, rawPayload.detail);
   }
   return detailByExternalId;
+}
+
+/** Compact per-listing ingestion cache used by adapters to decide whether a
+ * fresh detail request is warranted. It never selects images/equipment or
+ * history tables. */
+export async function existingListingPayloads(
+  provider: string,
+  externalIds: readonly string[],
+) {
+  if (externalIds.length === 0) return new Map<string, unknown>();
+  const rows = await prisma.listingRecord.findMany({
+    where: { provider, externalId: { in: [...externalIds] } },
+    select: {
+      externalId: true,
+      rawPayload: true,
+      images: {
+        select: { url: true },
+        orderBy: { position: "asc" },
+        take: 8,
+      },
+      equipment: { select: { label: true } },
+    },
+  });
+  return new Map(
+    rows.map((row) => {
+      const raw =
+        row.rawPayload && typeof row.rawPayload === "object" && !Array.isArray(row.rawPayload)
+          ? row.rawPayload
+          : {};
+      return [
+        row.externalId,
+        {
+          ...raw,
+          cachedImages: row.images.map(({ url }) => url),
+          cachedEquipment: row.equipment.map(({ label }) => label),
+        },
+      ];
+    }),
+  );
 }
 
 export async function markMissingListingsRemovedSafely(

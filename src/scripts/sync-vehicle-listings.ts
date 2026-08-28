@@ -7,8 +7,12 @@ import {
   NoResumableSynchronizationError,
   SynchronizationAlreadyRunningError,
 } from "@/infrastructure/database/synchronization-state-repository";
-import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
+import {
+  existingListingDetailPayloads,
+  existingListingPayloads,
+} from "@/infrastructure/database/listing-write-repository";
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
+import { WaykeImporter } from "@/infrastructure/marketplaces/wayke/importer";
 
 function environmentInteger(name: string, fallback: number) {
   const parsed = Number.parseInt(process.env[name] ?? "", 10);
@@ -16,7 +20,15 @@ function environmentInteger(name: string, fallback: number) {
 }
 
 const command = process.argv[2] ?? "incremental";
+const sourceArgument = process.argv.find((argument) => argument.startsWith("--source="));
+const source = sourceArgument?.split("=", 2)[1] ?? "blocket";
+if (source !== "blocket" && source !== "wayke") {
+  throw new Error(`Okänd källa: ${source}. Välj blocket eller wayke.`);
+}
 const watch = command === "watch" || process.argv.includes("--watch");
+if (watch && source !== "blocket") {
+  throw new Error("Wayke har avsiktligt inget watcher-läge. Kör en avgränsad synkronisering.");
+}
 const mode: SynchronizationMode =
   command === "full" || command === "resume" ? "reconciliation" : "incremental";
 const resumeOnly = command === "resume";
@@ -39,7 +51,9 @@ async function runOnce() {
       : "Hämtar de senaste fordonsannonserna…",
   );
   const result = await synchronizeMarketplace(
-    new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
+    source === "wayke"
+      ? new WaykeImporter(undefined, existingListingPayloads)
+      : new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
     {
       mode,
       resumeOnly,
@@ -47,12 +61,14 @@ async function runOnce() {
         "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
         72,
       ),
-      incrementalMaximumPages: environmentInteger(
-        "BLOCKET_INCREMENTAL_MAX_PAGES",
-        40,
-      ),
+      incrementalMaximumPages: process.argv.includes("--sample")
+        ? 1
+        : environmentInteger(
+            source === "wayke" ? "WAYKE_INCREMENTAL_MAX_PAGES" : "BLOCKET_INCREMENTAL_MAX_PAGES",
+            source === "wayke" ? 20 : 40,
+          ),
       incrementalKnownPageThreshold: environmentInteger(
-        "BLOCKET_INCREMENTAL_KNOWN_PAGES",
+        source === "wayke" ? "WAYKE_INCREMENTAL_KNOWN_PAGES" : "BLOCKET_INCREMENTAL_KNOWN_PAGES",
         2,
       ),
       analysisRefreshLimit: environmentInteger("SYNC_ANALYSIS_REFRESH_LIMIT", 250),

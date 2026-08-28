@@ -1,6 +1,6 @@
 # Vehicle data ingestion
 
-## Source and isolation
+## Sources and isolation
 
 The development adapter uses `blocket-api.se`, an unofficial third-party API
 that exposes current Blocket vehicle-search records without credentials. The
@@ -12,6 +12,20 @@ Before commercial production, replace this adapter with a licensed marketplace,
 aggregator, dealer, or DMS feed. The source boundary is expressed through the
 `MarketplaceImporter` interface so synchronization and storage do not depend
 on Blocket response shapes.
+
+`ListingProvider` stores extensible source keys, display names, logo keys,
+types, and capabilities. A source is a retrieval origin, not a seller. Every
+ad remains unique on `(provider, externalId)` and retains its original URL.
+`VehicleRecord` is the physical-identity layer: only exact registration or VIN
+evidence merges cross-source listings, with method/confidence stored on the
+listing. Similar-looking cars are never silently merged.
+
+Wayke is the second real adapter. It reads the public server-rendered React
+Query search payload, then Schema.org Car data or the newer Next
+server-component vehicle payload on detail pages. Detail is fetched only for a
+new or apparently changed summary; unchanged ads reuse structured cached data.
+No HTML or image bytes are stored. Wayke is opt-in only and is not invoked by
+Vercel cron, the Blocket watcher, or request-serving code.
 
 ## Why the previous pipeline became slow and stale
 
@@ -97,6 +111,11 @@ and listing values are upserted only when content changed; images and equipment
 are rebuilt only when their own hashes changed. Raw source JSON is not rewritten
 for unchanged records.
 
+`RAW_LISTING_PAYLOAD_RETENTION` can be `full` (default, enables detail-cache
+reuse), `metadata`, or `none`. The latter modes reduce storage at the cost of
+future re-fetches. Galleries are capped at eight normalized remote references;
+a temporarily empty source response cannot erase a known-good gallery.
+
 The application connects to PostgreSQL through `@prisma/adapter-pg`, using the
 pooled `DATABASE_URL` at runtime and the direct `DIRECT_URL` for migrations and
 admin tooling. PostgreSQL's MVCC lets readers and the ingestion writer proceed
@@ -110,6 +129,11 @@ small database tables after synchronization. Market value, Deal Score, Buy
 Confidence, and ownership cost are stored in `ListingAnalysisRecord` instead
 of rebuilding comparable cohorts for each page request.
 
+Analysis counts one representative active ad per exact `vehicleId`: the most
+recently synchronized listing, then the smallest listing id as a deterministic
+tie-break. All source ads remain visible, but duplicate marketplace exposure
+cannot inflate medians, counts, distributions, or comparable selection.
+
 Changed ads receive a safe neutral stored value transactionally. A bounded
 number are recomputed after each sync. Run `npm run data:analyze` to process
 the remaining background backlog in batches.
@@ -121,6 +145,10 @@ npm run data:sync:incremental
 npm run data:sync:full
 npm run data:sync:resume
 npm run data:sync:watch
+npm run data:sync:wayke:sample
+npm run data:sync:wayke:incremental
+npm run data:sync:wayke:full
+npm run data:sync:wayke:resume
 npm run data:analyze
 ```
 

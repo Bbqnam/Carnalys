@@ -22,6 +22,7 @@ export interface NormalizedVehicleListing {
     scope: string;
     externalId: string;
     listingUrl: string;
+    observedAt: Date;
     publishedAt?: Date;
     updatedAt?: Date;
   };
@@ -44,7 +45,10 @@ export interface NormalizedVehicleListing {
     fuelConsumption?: string;
   };
   listing: {
+    title: string;
     sellerName?: string;
+    sellerOrganizationNumber?: string;
+    dealerStockNumber?: string;
     sellerType: "dealer" | "private";
     priceAmount: number;
     previousPriceAmount?: number;
@@ -105,6 +109,7 @@ export interface MarketplaceRequestFailure {
 }
 
 export interface MarketplaceImporter {
+  readonly source: MarketplaceSourceDefinition;
   readonly provider: string;
   readonly scope: string;
   readonly maximumResultsPerPartition: number;
@@ -119,4 +124,24 @@ export interface MarketplaceImporter {
     request: MarketplacePageRequest,
     onFailure: (failure: MarketplaceRequestFailure) => Promise<void>,
   ): Promise<MarketplaceImportPage>;
+}
+
+export interface MarketplaceSourceCapabilities {
+  discovery: "page" | "offset" | "cursor";
+  details: boolean;
+  equipment: boolean;
+  images: boolean;
+  removalDetection: boolean;
+}
+
+export interface MarketplaceSourceDefinition {
+  key: string;
+  displayName: string;
+  type: "marketplace" | "dealer" | "feed" | "api";
+  logoKey?: string;
+  capabilities: MarketplaceSourceCapabilities;
+  requestPolicy: {
+    minimumIntervalMs: number;
+    maximumAttempts: number;
+  };
 }

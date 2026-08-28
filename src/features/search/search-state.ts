@@ -54,6 +54,7 @@ export const defaultSearchFilters: SearchFilters = {
   maxPrice: null,
   brands: [],
   models: [],
+  sources: [],
   fuelType: "",
   transmission: "",
   minYear: null,
@@ -136,6 +137,7 @@ export function parseVehicleSearchOptions(
       maxPrice: maximumPrice,
       brands: stringValues(parameters.make),
       models: stringValues(parameters.model),
+      sources: stringValues(parameters.source, 50),
       fuelType: enumValue(parameters.fuel, fuelTypes),
       transmission: enumValue(parameters.transmission, transmissions),
       minYear:
@@ -166,6 +168,7 @@ export function vehicleSearchUrl({ filters, sort, page }: VehicleSearchOptions) 
   if (filters.maxPrice !== null) parameters.set("maxPrice", filters.maxPrice.toString());
   filters.brands.forEach((brand) => parameters.append("make", brand));
   filters.models.forEach((model) => parameters.append("model", model));
+  filters.sources.forEach((source) => parameters.append("source", source));
   if (filters.fuelType) parameters.set("fuel", filters.fuelType);
   if (filters.transmission) parameters.set("transmission", filters.transmission);
   if (filters.minYear !== null) parameters.set("minYear", filters.minYear.toString());

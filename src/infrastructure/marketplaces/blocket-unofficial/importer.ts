@@ -8,10 +8,14 @@ import {
   BlocketRequestError,
   BlocketUnofficialClient,
 } from "./client";
-import { parseListingPageSpecifications } from "./listing-page-parser";
+import {
+  parseListingPageImageUrls,
+  parseListingPageSpecifications,
+} from "./listing-page-parser";
 import { isMissingCriticalSpecifications, normalizeBlocketListing } from "./normalizer";
 import { parseBlocketDetail, parseBlocketSearchResponse } from "./parser";
-import type { BlocketListingDetail } from "./types";
+import type { BlocketListingDetail, BlocketSearchDocument } from "./types";
+import { listingSources } from "../source-registry";
 
 // Probed directly against the live API (16 concurrent requests, all 200 OK,
 // sub-second): it comfortably absorbs far more than the previous 4 lanes /
@@ -59,6 +63,7 @@ export type KnownListingDetailLookup = (
 ) => Promise<ReadonlyMap<string, unknown>>;
 
 export class BlocketUnofficialImporter implements MarketplaceImporter {
+  readonly source = listingSources.blocket_unofficial;
   readonly provider = "blocket_unofficial";
   readonly scope: string;
   readonly maximumResultsPerPartition = 2_450;
@@ -110,7 +115,28 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
    * Runs on an independent lane (its own pacing clock) so a pool of these
    * can run concurrently — see `fetchDetailsConcurrently`.
    */
-  private async fetchDetail(document: { id: string; canonicalUrl: string }, laneIndex: number) {
+  private async fetchListingPage(
+    document: Pick<BlocketSearchDocument, "id" | "canonicalUrl">,
+    laneIndex: number,
+  ) {
+    await this.paceLane(laneIndex);
+    try {
+      const html = await this.client.getListingPageHtml(document.canonicalUrl);
+      this.detailLaneLastRequestAt[laneIndex] = Date.now();
+      return {
+        specifications: parseListingPageSpecifications(html),
+        imageUrls: parseListingPageImageUrls(html, document.id),
+      };
+    } catch {
+      this.detailLaneLastRequestAt[laneIndex] = Date.now();
+      return undefined;
+    }
+  }
+
+  private async fetchDetail(
+    document: Pick<BlocketSearchDocument, "id" | "canonicalUrl" | "imageUrls">,
+    laneIndex: number,
+  ) {
     for (let attempt = 1; attempt <= maximumDetailAttempts; attempt += 1) {
       await this.paceLane(laneIndex);
       try {
@@ -118,20 +144,22 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         this.detailLaneLastRequestAt[laneIndex] = Date.now();
         const detail = parseBlocketDetail(payload);
 
-        if (
+        const needsSpecificationFallback =
           Object.keys(detail.specifications).length === 0 ||
-          isMissingCriticalSpecifications(detail.specifications)
-        ) {
-          await this.paceLane(laneIndex);
-          try {
-            const html = await this.client.getListingPageHtml(document.canonicalUrl);
-            this.detailLaneLastRequestAt[laneIndex] = Date.now();
-            const scraped = parseListingPageSpecifications(html);
-            if (Object.keys(scraped).length > 0) {
-              return { ...detail, specifications: { ...detail.specifications, ...scraped } };
-            }
-          } catch {
-            this.detailLaneLastRequestAt[laneIndex] = Date.now();
+          isMissingCriticalSpecifications(detail.specifications);
+        const needsImageFallback = document.imageUrls.length === 0;
+
+        if (needsSpecificationFallback || needsImageFallback) {
+          const page = await this.fetchListingPage(document, laneIndex);
+          if (page) {
+            return {
+              ...detail,
+              specifications: {
+                ...detail.specifications,
+                ...page.specifications,
+              },
+              imageUrls: page.imageUrls,
+            };
           }
         }
 
@@ -143,6 +171,20 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         }
       }
     }
+
+    // The detail API failing should not prevent recovery of a gallery that
+    // is already present on Blocket's public page.
+    if (document.imageUrls.length === 0) {
+      const page = await this.fetchListingPage(document, laneIndex);
+      if (page && (page.imageUrls.length > 0 || Object.keys(page.specifications).length > 0)) {
+        return {
+          equipment: [],
+          specifications: page.specifications,
+          imageUrls: page.imageUrls,
+          raw: {},
+        };
+      }
+    }
     return undefined;
   }
 
@@ -151,7 +193,10 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
    * running in parallel, preserving input order in the result.
    */
   private async fetchDetailsConcurrently(
-    documents: readonly { id: string; canonicalUrl: string }[],
+    documents: readonly Pick<
+      BlocketSearchDocument,
+      "id" | "canonicalUrl" | "imageUrls"
+    >[],
   ): Promise<(Awaited<ReturnType<BlocketUnofficialImporter["fetchDetail"]>>)[]> {
     const details = new Array<Awaited<ReturnType<BlocketUnofficialImporter["fetchDetail"]>>>(
       documents.length,
@@ -212,10 +257,18 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         // and dropping incomplete entries lets already-cached listings
         // self-heal through the normal sync sweep instead of staying broken
         // forever just because *a* detail payload was once cached for them.
+        const documentByExternalId = new Map(
+          parsed.documents.map((document) => [document.id, document]),
+        );
         const parsedCachedByExternalId = new Map<string, BlocketListingDetail>();
         for (const [externalId, rawDetail] of cachedDetailByExternalId) {
           const parsedDetail = parseBlocketDetail(rawDetail);
-          if (!isMissingCriticalSpecifications(parsedDetail.specifications)) {
+          const document = documentByExternalId.get(externalId);
+          const needsImageFallback = document?.imageUrls.length === 0;
+          if (
+            !isMissingCriticalSpecifications(parsedDetail.specifications) &&
+            !needsImageFallback
+          ) {
             parsedCachedByExternalId.set(externalId, parsedDetail);
           }
         }

@@ -113,6 +113,8 @@ export function normalizeBlocketListing(
   const horsepower = parseFirstNumber(specifications.Effekt);
   const ownerCount = parseFirstNumber(specifications["Antal ägare"]);
   const seenAt = new Date();
+  const imageUrls =
+    document.imageUrls.length > 0 ? document.imageUrls : (detail?.imageUrls ?? []);
 
   return {
     source: {
@@ -120,6 +122,7 @@ export function normalizeBlocketListing(
       scope,
       externalId: document.id,
       listingUrl: document.canonicalUrl,
+      observedAt: seenAt,
       publishedAt: document.timestamp,
     },
     vehicle: {
@@ -144,6 +147,7 @@ export function normalizeBlocketListing(
       fuelConsumption: findConsumptionValue(specifications)?.trim() || undefined,
     },
     listing: {
+      title: document.heading,
       sellerName: document.organisationName,
       sellerType:
         document.dealerSegment?.toLocaleLowerCase("sv-SE") === "företag"
@@ -164,7 +168,7 @@ export function normalizeBlocketListing(
       // complete gallery. De-duplicated before the slice so a source that
       // repeats a URL spends the budget on eight distinct photos rather than
       // storing the same one twice.
-      images: [...new Set(document.imageUrls)].slice(0, 8).map((url, position) => ({
+      images: [...new Set(imageUrls)].slice(0, 8).map((url, position) => ({
         url,
         thumbnailUrl: position === 0 ? document.thumbnail?.url : undefined,
         alt: `${document.make} ${document.model} ${document.variant ?? ""}`.trim(),

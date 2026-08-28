@@ -33,6 +33,7 @@ const storedListingSelect = {
   vehicleId: true,
   provider: true,
   externalId: true,
+  title: true,
   listingUrl: true,
   firstSeenAt: true,
   lastSeenAt: true,
@@ -70,6 +71,16 @@ const storedListingSelect = {
       registrationNumber: true,
       vin: true,
       firstRegistration: true,
+      listings: {
+        where: { status: "active" },
+        select: {
+          id: true,
+          provider: true,
+          listingUrl: true,
+          title: true,
+        },
+        orderBy: [{ synchronizedAt: "desc" as const }, { id: "asc" as const }],
+      },
     },
   },
   images: {
@@ -116,6 +127,7 @@ const cardListingSelect = {
   vehicleId: true,
   provider: true,
   externalId: true,
+  title: true,
   listingUrl: true,
   firstSeenAt: true,
   lastSeenAt: true,
@@ -398,6 +410,7 @@ function mapStoredListing(
         url: record.listingUrl,
         firstSeenAt: record.firstSeenAt.toISOString(),
         lastSeenAt: record.lastSeenAt.toISOString(),
+        synchronizedAt: record.synchronizedAt.toISOString(),
       },
       seller: {
         type: record.sellerType === "private" ? "private" : "dealer",
@@ -419,7 +432,7 @@ function mapStoredListing(
         longitude: record.longitude ?? undefined,
       },
       status: enumValue(record.status, listingStatuses, "active"),
-      title: `${record.vehicle.make} ${record.vehicle.model} ${record.vehicle.variant ?? ""}`.trim(),
+      title: detail.title ?? `${record.vehicle.make} ${record.vehicle.model} ${record.vehicle.variant ?? ""}`.trim(),
       description: detail.description ?? undefined,
       mileageKm: record.mileageKm,
       serviceHistory: enumValue(
@@ -438,6 +451,18 @@ function mapStoredListing(
       observedAt: record.synchronizedAt.toISOString(),
     },
     analysis: createStoredAnalysis(record, specification, itemisedOwnershipCost),
+    relatedSourceListings: detailVehicle.listings
+      ?.filter(
+        (listing) =>
+          listing.id !== record.id &&
+          listing.provider !== record.provider,
+      )
+      .map((listing) => ({
+        id: listing.id,
+        provider: listing.provider,
+        url: listing.listingUrl,
+        title: listing.title ?? undefined,
+      })),
   };
 }
 
@@ -514,6 +539,7 @@ function buildListingWhere(
 
   return {
     status: "active",
+    ...(filters.sources.length > 0 ? { provider: { in: [...filters.sources] } } : {}),
     ...(filters.sellerType ? { sellerType: filters.sellerType } : {}),
     ...(Object.keys(priceFilter).length > 0
       ? { priceAmount: priceFilter }

@@ -36,6 +36,10 @@ npm run data:sync:incremental  # newest listings first; never removes listings
 npm run data:sync:full         # start or automatically resume reconciliation
 npm run data:sync:resume       # resume only; error if no interrupted run exists
 npm run data:sync:watch        # optional non-overlapping local refresh loop
+npm run data:sync:wayke:sample # explicit one-page Wayke validation import
+npm run data:sync:wayke:incremental # bounded newest-first Wayke refresh
+npm run data:sync:wayke:full   # explicit complete Wayke reconciliation
+npm run data:sync:wayke:resume # resume an interrupted Wayke reconciliation
 npm run data:analyze           # finish stored market-analysis backlog
 npm run db:studio              # inspect normalized records and run progress
 ```
@@ -65,6 +69,12 @@ development. It is deliberately isolated and must be replaced with a licensed
 marketplace, aggregator, or dealer feed before commercial production use. Do
 not increase synchronization frequency without reviewing the provider's limits
 and the underlying marketplace terms.
+
+The `wayke` adapter reads Wayke's publicly server-rendered search/detail data
+over ordinary HTTP. It is deliberately not wired to production cron or the
+watch command. Run the one-page sample first and inspect its `ImportRun`, new
+listings, source logos, images, equipment, identity matches, and observations
+before choosing a larger synchronization.
 
 ## Validation
 

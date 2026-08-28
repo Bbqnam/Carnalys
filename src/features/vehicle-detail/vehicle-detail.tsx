@@ -45,6 +45,7 @@ import { useCurrentLocation } from "@/features/search/use-current-location";
 import { useFavorites } from "@/features/search/use-favorites";
 import type { VehicleSearchResult } from "@/features/search/types";
 import { estimateFuelConsumptionL100km, type ScoreFactor } from "@/domain/vehicle";
+import { SourceLogo } from "@/features/source/source-logo";
 
 interface VehicleDetailProps {
   result: VehicleSearchResult;
@@ -564,9 +565,30 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             rel="noopener noreferrer"
             target="_blank"
           >
+            <SourceLogo interactive={false} locale={locale} provider={listing.source.provider} />
             {copy.card.viewListing}
             <ExternalLinkIcon className="size-3.5" />
           </a>
+          <p className="mt-2 text-center text-[11px] text-ink-subtle">
+            {locale === "en" ? "First observed" : "Först observerad"}: {formatExactListingDate(listing.source.firstSeenAt, locale)}
+            {" · "}
+            {locale === "en" ? "Last synchronized" : "Senast synkroniserad"}: {formatExactListingDate(listing.source.synchronizedAt, locale)}
+          </p>
+          {result.relatedSourceListings?.length ? (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2" aria-label={locale === "en" ? "Other exact source listings" : "Andra exakt matchade annonser"}>
+              {result.relatedSourceListings.map((related) => (
+                <a
+                  className="relative z-10 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  href={related.url}
+                  key={related.id}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  <SourceLogo interactive={false} locale={locale} provider={related.provider} />
+                </a>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="max-w-[480px] space-y-3">

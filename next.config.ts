@@ -18,7 +18,7 @@ function localNetworkOrigins() {
 const nextConfig: NextConfig = {
   allowedDevOrigins: localNetworkOrigins(),
   images: {
-    // Listing photos are resized by Blocket's own CDN rather than Vercel's
+    // Listing photos are resized by their source CDN rather than Vercel's
     // Image Optimization — see the loader for why. `remotePatterns` is kept
     // so the URLs stay allow-listed if the loader is ever removed.
     loader: "custom",
@@ -33,6 +33,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "vl.imgix.net",
         pathname: "/img/**",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.wayke.se",
+        pathname: "/cfit/**",
       },
       {
         protocol: "https",

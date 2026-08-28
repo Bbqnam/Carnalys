@@ -33,5 +33,6 @@ export interface BlocketListingDetail {
   description?: string;
   equipment: readonly string[];
   specifications: Readonly<Record<string, string>>;
+  imageUrls?: readonly string[];
   raw: Record<string, unknown>;
 }

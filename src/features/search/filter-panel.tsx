@@ -120,6 +120,10 @@ const fuels = [
 
 const transmissions = ["automatic", "manual"] as const satisfies readonly TransmissionType[];
 const sellerTypeOptions = ["dealer", "private"] as const satisfies readonly SellerType[];
+const sourceOptions = [
+  { value: "blocket_unofficial", label: "Blocket" },
+  { value: "wayke", label: "Wayke" },
+] as const;
 const bodyStyles = ["estate", "suv", "sedan", "hatchback"] as const satisfies readonly BodyStyle[];
 const budgetSliderMaximum = 1_000;
 const maximumBudget = 500_000;
@@ -496,6 +500,21 @@ export function FilterPanel({
             ))}
           </div>
         </FilterGroup>
+
+        <div className="order-1">
+          <MultiChoiceDropdown
+            clearLabel={copy.clearSelection}
+            doneLabel={copy.done}
+            label={locale === "en" ? "Source" : "Källa"}
+            menuHeight={220}
+            noResultsLabel={copy.noMatches}
+            onChange={(sources) => onChange({ ...filters, sources })}
+            options={sourceOptions}
+            placeholder={locale === "en" ? "All sources" : "Alla källor"}
+            selectedCountLabel={copy.selected}
+            values={filters.sources}
+          />
+        </div>
 
         <button
           aria-expanded={showMoreFilters}
