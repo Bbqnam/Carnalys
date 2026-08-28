@@ -177,11 +177,9 @@ export function VehicleCard({
             </button>
           </div>
         </div>
-        <SourceLogo
-          className="absolute bottom-3.5 left-3.5 z-10"
-          locale={locale}
-          provider={listing.source.provider}
-        />
+        <div className="absolute bottom-3.5 left-3.5 z-10">
+          <SourceLogo locale={locale} provider={listing.source.provider} />
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-3.5 sm:p-4">
