@@ -109,3 +109,34 @@ test("parses the newer public Next server-component vehicle payload", () => {
   assert.equal(detail.sellerName, "Porsche Center Malmö");
   assert.deepEqual(detail.equipment, ["Adaptiv farthållare"]);
 });
+
+test("recovers the Next gallery when Schema.org omits images", () => {
+  const schemaVehicle = {
+    "@type": "Car",
+    name: searchDocument.title,
+    vehicleIdentificationNumber: "WP0ZZZ995TS242293",
+    identifier: { propertyID: "registrationNumber", value: "WDC52Z" },
+    offers: { price: 2363000 },
+  };
+  const nextVehicle = {
+    _id: searchDocument._id,
+    title: searchDocument.title,
+    manufacturer: "Porsche",
+    media: [
+      { files: [{ url: "https://cdn.wayke.se/cfit/v3/gallery/first" }] },
+      { files: [{ url: "https://cdn.wayke.se/cfit/v3/gallery/second" }] },
+    ],
+  };
+  const flight = `6:["$","component",null,{"vehicle":${JSON.stringify(nextVehicle)}}]`;
+  const html = [
+    `<script type="application/ld+json">${JSON.stringify(schemaVehicle)}</script>`,
+    `<script>self.__next_f.push([1,${JSON.stringify(flight)}])</script>`,
+  ].join("");
+
+  const detail = parseWaykeDetailPage(html);
+  assert.equal(detail.vin, "WP0ZZZ995TS242293");
+  assert.deepEqual(detail.images, [
+    "https://cdn.wayke.se/cfit/v3/gallery/first",
+    "https://cdn.wayke.se/cfit/v3/gallery/second",
+  ]);
+});

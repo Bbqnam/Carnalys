@@ -249,6 +249,41 @@ function extractJsonObject(value: string, start: number) {
   return undefined;
 }
 
+function parseWaykeNextVehicle(html: string) {
+  const flight = [
+    ...html.matchAll(
+      /self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)<\/script>/g,
+    ),
+  ]
+    .map((match) => {
+      try {
+        return JSON.parse(match[1]) as string;
+      } catch {
+        return "";
+      }
+    })
+    .join("");
+  for (const match of flight.matchAll(/"vehicle":\{/g)) {
+    const start = match.index + '"vehicle":'.length;
+    const candidate = extractJsonObject(flight, start);
+    if (!candidate) continue;
+    try {
+      const parsed = object(JSON.parse(candidate));
+      if (
+        parsed &&
+        text(parsed._id ?? parsed.id) &&
+        text(parsed.manufacturer) &&
+        text(parsed.title)
+      ) {
+        return parsed;
+      }
+    } catch {
+      // Continue to the next server-component vehicle prop.
+    }
+  }
+  return undefined;
+}
+
 /** Parse only structured Schema.org data and the rendered equipment list. */
 export function parseWaykeDetailPage(html: string): WaykeListingDetail {
   const scripts = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)];
@@ -265,47 +300,25 @@ export function parseWaykeDetailPage(html: string): WaykeListingDetail {
       // is validated below.
     }
   }
+  const nextVehicle = parseWaykeNextVehicle(html);
   if (!raw) {
-    const flight = [
-      ...html.matchAll(
-        /self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)<\/script>/g,
-      ),
-    ]
-      .map((match) => {
-        try {
-          return JSON.parse(match[1]) as string;
-        } catch {
-          return "";
-        }
-      })
-      .join("");
-    for (const match of flight.matchAll(/"vehicle":\{/g)) {
-      const start = match.index + '"vehicle":'.length;
-      const candidate = extractJsonObject(flight, start);
-      if (!candidate) continue;
-      try {
-        const parsed = object(JSON.parse(candidate));
-        if (
-          parsed &&
-          text(parsed._id ?? parsed.id) &&
-          text(parsed.manufacturer) &&
-          text(parsed.title)
-        ) {
-          raw = parsed;
-          break;
-        }
-      } catch {
-        // Continue to the next server-component vehicle prop.
-      }
-    }
+    raw = nextVehicle;
   }
   if (!raw) throw new Error("Wayke-annonsens strukturerade fordonsdata saknas.");
   const equipment = [...html.matchAll(/data-testid="equipment-list-item-[^"]*"[^>]*>([\s\S]*?)<\/li>/g)]
     .map((match) => decodeHtml(match[1]))
     .filter(Boolean);
   const parsed = parseWaykeDetailData(raw);
+  // Some Wayke pages publish a valid Schema.org Car block without its image
+  // field while including the full gallery in the server-component vehicle
+  // prop. Prefer Schema.org for the core fields, but recover that gallery so a
+  // newly imported listing does not incorrectly appear image-less.
+  const nextImages = nextVehicle
+    ? parseWaykeDetailData(nextVehicle).images
+    : [];
   return {
     ...parsed,
+    images: parsed.images.length > 0 ? parsed.images : nextImages,
     equipment: equipment.length > 0 ? [...new Set(equipment)] : parsed.equipment,
   };
 }
