@@ -10,7 +10,6 @@ import {
   formatExactListingDate,
   formatRelativeListingDate,
   scoreTone,
-  sellerTypeTone,
 } from "./format";
 import {
   CalendarFilterIcon,
@@ -150,7 +149,16 @@ export function VehicleCard({
             <span className="hidden shrink-0 text-ink-subtle sm:inline 2xl:hidden">•</span>
             <span className="hidden truncate sm:inline 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           </p>
-          <span className="flex shrink-0 items-center gap-1.5">
+          <span className="flex shrink-0 items-center gap-2">
+            {/* Seller type was a coloured uppercase pill competing with the
+                deal score; it carries far less weight than that, so it's a
+                quiet word now — one glance tells dealer from private without
+                spending a row or an accent colour on it. */}
+            <span className="whitespace-nowrap text-xs text-ink-subtle">
+              {listing.seller.type === "dealer"
+                ? copy.card.dealerBadge
+                : copy.card.privateSellerBadge}
+            </span>
             <span
               aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
               className={`group/score relative grid h-6 min-w-6 place-items-center rounded-full border bg-surface-muted px-1 text-[10px] font-bold tabular-nums ${dealScoreTone}`}
@@ -163,13 +171,6 @@ export function VehicleCard({
               >
                 {copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
               </span>
-            </span>
-            <span
-              className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
-            >
-              {listing.seller.type === "dealer"
-                ? copy.card.dealerBadge
-                : copy.card.privateSellerBadge}
             </span>
           </span>
         </div>
