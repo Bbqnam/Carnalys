@@ -253,7 +253,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         compareCount={compared.length}
       />
 
-      <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <button
           className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:text-ink"
           onClick={() => router.back()}
@@ -465,12 +465,12 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           ) : null}
 
           {listing.description ? (
-            <p className="mt-6 whitespace-pre-line text-sm leading-relaxed text-ink-muted">
+            <p className="mt-5 whitespace-pre-line text-sm leading-relaxed text-ink-muted sm:mt-6">
               {listing.description}
             </p>
           ) : null}
 
-          <div className="mt-6 rounded-2xl border border-border bg-surface-subtle p-4 sm:p-5">
+          <div className="mt-5 rounded-2xl border border-border bg-surface-subtle p-4 sm:mt-6 sm:p-5">
             <h2 className="text-sm font-semibold text-ink">{copy.detail.specificationsTitle}</h2>
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm sm:grid-cols-3">
               <div>
@@ -580,7 +580,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           </div>
 
           {equipmentItems.length > 0 ? (
-            <div className="mt-6">
+            <div className="mt-5 sm:mt-6">
               <h2 className="text-sm font-semibold text-ink">
                 {copy.detail.equipmentTitle}
               </h2>
@@ -607,7 +607,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           ) : null}
 
           <a
-            className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-subtle text-sm font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.99]"
+            className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-subtle sm:mt-6 text-sm font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.99]"
             href={listing.source.url}
             rel="noopener noreferrer"
             target="_blank"
@@ -638,7 +638,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           ) : null}
         </div>
 
-        <div className="max-w-[480px] space-y-3">
+        <div className="max-w-[480px] space-y-2.5 sm:space-y-3">
           <ScoreCard
             factors={analysis.dealScore.factors}
             locale={locale}
