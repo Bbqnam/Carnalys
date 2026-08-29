@@ -766,13 +766,13 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         <div
           aria-label={currentImage.alt ?? listing.title}
           aria-modal="true"
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/95 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-surface/50 backdrop-blur-md"
           onClick={closeFullscreen}
           role="dialog"
         >
           <button
             aria-label={copy.detail.closeFullscreen}
-            className="absolute right-4 top-4 z-10 grid size-11 place-items-center rounded-full border border-surface/25 bg-surface/10 text-surface transition hover:bg-surface/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface active:scale-95"
+            className="absolute right-4 top-4 z-10 grid size-11 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95"
             onClick={closeFullscreen}
             ref={fullscreenCloseButton}
             type="button"
@@ -801,7 +801,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ] as const).map(([delta, label, side, spin]) => (
                 <button
                   aria-label={label}
-                  className={`absolute top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-surface/25 bg-surface/10 text-surface transition hover:bg-surface/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface active:scale-95 ${side}`}
+                  className={`absolute top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95 ${side}`}
                   key={delta}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -814,7 +814,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ))}
               <p
                 aria-live="polite"
-                className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-surface/25 bg-surface/10 px-3 py-1 text-xs font-medium tabular-nums text-surface"
+                className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-surface/60 bg-surface/85 px-3 py-1 text-xs font-medium tabular-nums text-ink-muted shadow-sm backdrop-blur-md"
               >
                 {copy.detail.photoPosition(activeImage + 1, imageCount)}
               </p>
