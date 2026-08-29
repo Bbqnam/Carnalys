@@ -138,8 +138,6 @@ export function VehicleCard({
             <span className="shrink-0">{identity.modelYear}</span>
             <span className="shrink-0 text-ink-subtle">•</span>
             <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
-            <span className="shrink-0 text-ink-subtle">•</span>
-            <span className="truncate">{copy.filters.fuels[specification.powertrain.fuelType]}</span>
             {specification.powertrain.powerHp ? (
               <>
                 <span className="shrink-0 text-ink-subtle">•</span>
