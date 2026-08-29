@@ -154,21 +154,21 @@ export function VehicleCard({
             <span className="hidden shrink-0 text-ink-subtle sm:inline">•</span>
             <span className="hidden truncate sm:inline">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           </p>
-          <span className="flex shrink-0 items-center gap-2">
+          <span className="flex shrink-0 items-center gap-1.5">
             {/* Seller type was a coloured uppercase pill, then a spelled-out
-                word, both louder than it warrants beside the deal score. It's
-                a single quiet glyph now — storefront for a dealer, person for
-                a private seller — named for assistive tech and on hover. */}
+                word — both louder than it warrants. It's a single glyph now,
+                storefront for a dealer and person for a private seller, in a
+                neutral chip that matches the deal-score badge beside it. */}
             <span
               aria-label={sellerTypeLabel}
-              className="flex text-ink-subtle"
+              className="grid size-6 shrink-0 place-items-center rounded-full border border-border bg-surface-muted text-ink-subtle"
               role="img"
               title={sellerTypeLabel}
             >
               {listing.seller.type === "dealer" ? (
-                <StorefrontIcon className="size-4" />
+                <StorefrontIcon className="size-3.5" />
               ) : (
-                <PersonIcon className="size-4" />
+                <PersonIcon className="size-3.5" />
               )}
             </span>
             <span
