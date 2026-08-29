@@ -202,12 +202,29 @@ export function parseBytbilDetailPage(html: string): BytbilListingDetail {
 
   const title =
     decodeHtml(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? "") || text(product?.name);
+
+  // The viewed car's price sits in `.vehicle-detail-price`. `car-price-main`
+  // is now reused by the "other listings from this dealer" widget far lower
+  // on the page (~19k chars away), so scraping it across the whole document
+  // returned a different car's price and its "Tidigare pris" tooltip as a
+  // fake reduction. dataLayer's product price is a single id-matched value
+  // for this car — trust it first; otherwise read a short fixed window right
+  // after the `.vehicle-detail-price` anchor and nothing beyond it.
+  const anchor = html.indexOf("vehicle-detail-price");
+  const priceBlock = anchor >= 0 ? html.slice(anchor, anchor + 320) : undefined;
   const priceAmount =
-    integer(html.match(/car-price-main[^>]*>([\s\S]*?)kr/)?.[1]) ??
-    integer(text(product?.price));
-  const previousPriceAmount = integer(
-    html.match(/Tidigare pris:\s*([\s\S]*?)kr/)?.[1],
+    integer(text(product?.price)) ??
+    integer(priceBlock?.match(/car-price-details[^>]*>([\s\S]*?)kr/)?.[1]) ??
+    integer(priceBlock?.match(/>\s*([^<]*?)kr/)?.[1]);
+  const previousParsed = integer(
+    priceBlock?.match(/[Tt]idigare pris:\s*([\s\S]*?)kr/)?.[1],
   );
+  const previousPriceAmount =
+    previousParsed !== undefined &&
+    priceAmount !== undefined &&
+    previousParsed > priceAmount
+      ? previousParsed
+      : undefined;
 
   const mileageMil = specs.get("miltal");
   const mileageKm = mileageMil ? (integer(mileageMil) ?? 0) * 10 : undefined;

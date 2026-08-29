@@ -38,8 +38,16 @@ function searchHtml() {
 
 function detailHtml() {
   return `<h1 class="vehicle-title">Volkswagen Tiguan 2.0TDI 4M Aut R-line Black D-v&#xE4;rm 190hk</h1>
-<span class="car-price-main">254&#xA0;900 kr</span>
-<i data-uk-tooltip title="Priss&#xE4;nkt! Tidigare pris: 255&#xA0;000 kr"></i>
+<div class="vehicle-detail-price">
+  <span class="car-price-details"><span class="car-price-main">254&#xA0;900 kr
+    <i class="fa fa-arrow-right price-icon" data-uk-tooltip title="Priss&#xE4;nkt! Tidigare pris: 255&#xA0;000 kr"></i>
+  </span></span>
+</div>
+<div class="related-listings">
+  <span class="price-container"><span class="car-price-details"><span class="car-price-main">199&#xA0;000 kr
+    <i data-uk-tooltip title="Priss&#xE4;nkt! Tidigare pris: 219&#xA0;000 kr"></i>
+  </span></span></span>
+</div>
 <dl class="vehicle-detail-specification">
   <dt>M&#xE4;rke</dt><dd>Volkswagen</dd>
   <dt>Modell</dt><dd>Tiguan</dd>
@@ -54,7 +62,7 @@ function detailHtml() {
   <dt>F&#xE4;rg</dt><dd>Vit</dd>
 </dl>
 <script>
-  dataLayer.push({ 'event' : 'detailView', 'ecommerce': {'detail': { 'products': [{"id":"19360631","name":"Volkswagen Tiguan 2.0TDI 4M Aut R-line Black D-värm 190hk","category":"Bil","brand":"Volkswagen","variant":"SUV","price":"249500","dimension2":"10561","dimension7":"Bilbutiken Dalarna"}] } } });
+  dataLayer.push({ 'event' : 'detailView', 'ecommerce': {'detail': { 'products': [{"id":"19360631","name":"Volkswagen Tiguan 2.0TDI 4M Aut R-line Black D-värm 190hk","category":"Bil","brand":"Volkswagen","variant":"SUV","price":"254900","dimension2":"10561","dimension7":"Bilbutiken Dalarna"}] } } });
 </script>
 <ul class="uk-list-space equipment-list"><li>ACC</li><li>4Motion</li><li>Bluetooth</li><li>ACC</li></ul>
 <img data-src="https://pro.bbcdn.io/10/10340b40-bf47-57a0-0818-0000ed9b316d?rule=legacy-largest">
@@ -86,6 +94,8 @@ test("parses Bytbil detail specs, price cut, deduplicated gallery and equipment"
   assert.equal(detail.modelYear, 2020);
   assert.equal(detail.mileageKm, 112090);
   assert.equal(detail.horsepower, 190);
+  // Price and "Tidigare pris" come from this car's own price block, never
+  // from the related-listings widget lower down (199 000 / 219 000 kr).
   assert.equal(detail.priceAmount, 254900);
   assert.equal(detail.previousPriceAmount, 255000);
   assert.equal(detail.sellerName, "Bilbutiken Dalarna");
