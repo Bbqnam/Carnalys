@@ -135,8 +135,8 @@ export function VehicleCard({
         </div>
 
       <div className="flex flex-1 flex-col p-3.5 sm:p-4">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap pt-0.5 text-sm text-ink-muted">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm text-ink-muted">
             <span className="shrink-0">{identity.modelYear}</span>
             <span className="shrink-0 text-ink-subtle">•</span>
             <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
@@ -145,28 +145,13 @@ export function VehicleCard({
             <span className="shrink-0 text-ink-subtle 2xl:hidden">•</span>
             <span className="truncate 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           </p>
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <span
-              className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
-            >
-              {listing.seller.type === "dealer"
-                ? copy.card.dealerBadge
-                : copy.card.privateSellerBadge}
-            </span>
-            <span
-              aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
-              className={`group/score relative grid h-6 min-w-6 place-items-center rounded-full border bg-surface-muted px-1 text-[10px] font-bold tabular-nums ${dealScoreTone}`}
-              tabIndex={0}
-            >
-              {analysis.dealScore.value}
-              <span
-                className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-30 w-max translate-y-[-0.2rem] rounded-md bg-ink px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-md transition group-hover/score:translate-y-0 group-hover/score:opacity-100 group-focus-visible/score:translate-y-0 group-focus-visible/score:opacity-100"
-                role="tooltip"
-              >
-                {copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
-              </span>
-            </span>
-          </div>
+          <span
+            className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
+          >
+            {listing.seller.type === "dealer"
+              ? copy.card.dealerBadge
+              : copy.card.privateSellerBadge}
+          </span>
         </div>
 
         {/* The photo, the price and the whitespace were all dead: only this
@@ -180,10 +165,25 @@ export function VehicleCard({
           href={`/vehicle/${listing.id}`}
         >
           <BrandLogo className="size-11 shrink-0" make={identity.make} />
-          <span className="min-w-0">
-            <h2 className="line-clamp-1 text-xl font-semibold leading-[1.2] tracking-[-0.035em] text-ink hover:underline">
-              {identity.make} {identity.model}
-            </h2>
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-2">
+              <h2 className="min-w-0 flex-1 truncate text-xl font-semibold leading-[1.2] tracking-[-0.035em] text-ink hover:underline">
+                {identity.make} {identity.model}
+              </h2>
+              <span
+                aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
+                className={`group/score relative grid h-6 min-w-6 shrink-0 place-items-center rounded-full border bg-surface-muted px-1 text-[10px] font-bold tabular-nums ${dealScoreTone}`}
+                tabIndex={0}
+              >
+                {analysis.dealScore.value}
+                <span
+                  className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-30 w-max translate-y-[-0.2rem] rounded-md bg-ink px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-md transition group-hover/score:translate-y-0 group-hover/score:opacity-100 group-focus-visible/score:translate-y-0 group-focus-visible/score:opacity-100"
+                  role="tooltip"
+                >
+                  {copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
+                </span>
+              </span>
+            </span>
             {identity.variant ? (
               <p className="mt-0.5 line-clamp-1 text-sm text-ink-muted">{identity.variant}</p>
             ) : null}
@@ -315,7 +315,7 @@ export function VehicleCard({
           </button>
           <a
             aria-label={`${copy.card.viewListing}: ${source.displayName}`}
-            className="inline-flex min-h-9 w-fit items-center justify-self-center rounded-lg px-1 transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.98]"
+            className="inline-flex min-h-9 min-w-24 items-center justify-center justify-self-center rounded-full border border-border-strong bg-surface px-3 shadow-sm transition hover:border-accent/50 hover:bg-accent-soft hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.98]"
             href={listing.source.url}
             rel="noopener noreferrer"
             target="_blank"
