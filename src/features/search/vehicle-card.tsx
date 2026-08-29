@@ -15,12 +15,12 @@ import {
 import {
   CalendarFilterIcon,
   CompareIcon,
-  ExternalLinkIcon,
   HeartIcon,
   MapPinIcon,
 } from "./icons";
 import type { VehicleSearchResult } from "./types";
 import { SourceLogo } from "@/features/source/source-logo";
+import { listingSource } from "@/infrastructure/marketplaces/source-registry";
 
 interface VehicleCardProps {
   result: VehicleSearchResult;
@@ -61,6 +61,7 @@ export function VehicleCard({
   const financingOffer =
     listing.seller.type === "dealer" ? listing.price.monthlyCost : undefined;
   const image = listing.images[0];
+  const source = listingSource(listing.source.provider);
   const previousPrice = listing.price.previousAskingPrice?.amount;
   const priceReduction = previousPrice ? previousPrice - askingPrice : 0;
   const copy = uiCopy[locale];
@@ -176,9 +177,6 @@ export function VehicleCard({
               <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
             </button>
           </div>
-        </div>
-        <div className="absolute bottom-0 left-0 z-10">
-          <SourceLogo edgeAnchored locale={locale} provider={listing.source.provider} />
         </div>
       </div>
 
@@ -319,19 +317,18 @@ export function VehicleCard({
           ) : null}
         </div>
 
-        {/* Two links of near-identical size used to sit on every card, and the
-            one styled as the button was the one that left for the marketplace.
-            The card is now the primary action and leads to our own analysis;
-            this stays available as a plain secondary link, raised above the
-            card-wide hit area so it still takes its own clicks. */}
+        {/* The source mark is also the outbound action. This keeps provenance
+            in the familiar footer action area without adding source text or a
+            floating badge over the vehicle photo. The link retains a generous
+            hit target and an explicit accessible action label. */}
         <a
-          className="relative z-10 mt-3.5 inline-flex w-fit items-center gap-1.5 self-start rounded-md py-1 text-sm font-medium text-ink-muted underline-offset-4 transition hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          aria-label={`${copy.card.viewListing}: ${source.displayName}`}
+          className="relative z-10 mt-2.5 inline-flex min-h-9 w-fit items-center self-start rounded-lg px-1 transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.98]"
           href={listing.source.url}
           rel="noopener noreferrer"
           target="_blank"
         >
-          {copy.card.viewListing}
-          <ExternalLinkIcon className="size-3.5" />
+          <SourceLogo interactive={false} locale={locale} provider={listing.source.provider} />
         </a>
         </div>
       </div>

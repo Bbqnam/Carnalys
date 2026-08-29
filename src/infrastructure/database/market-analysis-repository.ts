@@ -151,7 +151,6 @@ function vehicleConditions(filters: MarketAnalysisFilters): Prisma.Sql[] {
  */
 function activeListingSource(filters: MarketAnalysisFilters) {
   const conditions = [
-    Prisma.sql`listing."status" = 'active'`,
     Prisma.sql`listing."priceAmount" <= ${maximumPrice}`,
     plausiblePriceCondition(new Date().getFullYear()),
     Prisma.sql`listing."mileageKm" BETWEEN 0 AND ${maximumMileageKm}`,
@@ -159,7 +158,16 @@ function activeListingSource(filters: MarketAnalysisFilters) {
   ];
 
   return Prisma.sql`
-    FROM "ListingRecord" AS listing
+    FROM (
+      SELECT DISTINCT ON (candidate."vehicleId") candidate."id"
+      FROM "ListingRecord" AS candidate
+      WHERE candidate."status" = 'active'
+      ORDER BY
+        candidate."vehicleId",
+        candidate."synchronizedAt" DESC,
+        candidate."id" ASC
+    ) AS representative
+    INNER JOIN "ListingRecord" AS listing ON listing."id" = representative."id"
     INNER JOIN "VehicleRecord" AS vehicle ON vehicle."id" = listing."vehicleId"
     WHERE ${Prisma.join(conditions, " AND ")}
   `;
@@ -1003,6 +1011,7 @@ async function readSeasonality(filters: MarketAnalysisFilters) {
   const cohort = Prisma.sql`
     SELECT
       listing."id" AS "id",
+      listing."vehicleId" AS "vehicleId",
       COALESCE(listing."publishedAt", listing."firstSeenAt") AS "advertisedAt",
       vehicle."make" AS "make",
       vehicle."model" AS "model",
@@ -1019,6 +1028,7 @@ async function readSeasonality(filters: MarketAnalysisFilters) {
       intervals AS (
         SELECT
           observation."listingId" AS "listingId",
+          cohort."vehicleId" AS "vehicleId",
           observation."observedAt" AS "validFrom",
           COALESCE(
             LEAD(observation."observedAt") OVER (
@@ -1045,6 +1055,7 @@ async function readSeasonality(filters: MarketAnalysisFilters) {
         SELECT
           month."monthStart" AS "monthStart",
           intervals."listingId" AS "listingId",
+          intervals."vehicleId" AS "vehicleId",
           intervals."priceAmount" AS "priceAmount",
           intervals."mileageKm" AS "mileageKm",
           intervals."sellerType" AS "sellerType",
@@ -1062,15 +1073,30 @@ async function readSeasonality(filters: MarketAnalysisFilters) {
       ),
       -- A listing can change price twice inside one month; its state for that
       -- month is the last one observed.
-      live AS (
+      live_per_listing AS (
         SELECT DISTINCT ON ("monthStart", "listingId")
+          "monthStart",
+          "listingId",
+          "vehicleId",
+          "priceAmount",
+          "mileageKm",
+          "sellerType",
+          "validFrom"
+        FROM spread
+        ORDER BY "monthStart", "listingId", "validFrom" DESC
+      ),
+      -- A physical car can be advertised on several sources at once. Preserve
+      -- those source ads in the catalogue, but let only the newest observed
+      -- one represent the vehicle in each historical month.
+      live AS (
+        SELECT DISTINCT ON ("monthStart", "vehicleId")
           "monthStart",
           "listingId",
           "priceAmount",
           "mileageKm",
           "sellerType"
-        FROM spread
-        ORDER BY "monthStart", "listingId", "validFrom" DESC
+        FROM live_per_listing
+        ORDER BY "monthStart", "vehicleId", "validFrom" DESC, "listingId" ASC
       ),
       keyed AS (
         SELECT
@@ -1138,7 +1164,7 @@ async function readSeasonality(filters: MarketAnalysisFilters) {
       reductions AS (
         SELECT
           EXTRACT(MONTH FROM intervals."validFrom")::int AS "month",
-          COUNT(DISTINCT intervals."listingId")::int AS "priceReductionCount"
+          COUNT(DISTINCT intervals."vehicleId")::int AS "priceReductionCount"
         FROM intervals
         WHERE intervals."kind" = 'price_change'
           AND intervals."previousPriceAmount" IS NOT NULL
@@ -1217,7 +1243,9 @@ export const marketAnalysisCacheTag = "market-analysis";
  */
 export const getCachedMarketAnalysis = unstable_cache(
   (filters: MarketAnalysisFilters) => getMarketAnalysis(filters),
-  ["market-analysis"],
+  // Versioned so deployments do not reuse aggregates produced before active
+  // source ads were collapsed to one representative per physical vehicle.
+  ["market-analysis-v2-physical-vehicles"],
   // A day, not an hour. The window is not what keeps the page correct — the
   // tag is, and every writer invalidates it — so a shorter window buys nothing
   // and costs a full rebuild. That rebuild is the most expensive thing the
