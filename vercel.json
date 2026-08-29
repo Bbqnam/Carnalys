@@ -6,6 +6,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/sync-secondary",
+      "schedule": "15 3 * * *"
+    },
+    {
       "path": "/api/sync-full",
       "schedule": "30 3 * * *"
     }
