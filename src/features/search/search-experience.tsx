@@ -27,9 +27,22 @@ import { VehicleCard } from "./vehicle-card";
 
 const savedSearchKey = "carnalys:search-state:v1";
 
+/** The saved search is a set of filters and a sort order, never a scroll
+ *  position — dropping `page` keeps a returning visitor from landing deep in
+ *  pagination (e.g. page 20) on a bare visit to "/". */
+function withoutPageParam(url: string) {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.delete("page");
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url;
+  }
+}
+
 function saveSearchState(url: string) {
   try {
-    window.localStorage.setItem(savedSearchKey, url);
+    window.localStorage.setItem(savedSearchKey, withoutPageParam(url));
   } catch {
     // Search still works when storage is unavailable or disabled.
   }
@@ -318,8 +331,11 @@ export function SearchExperience({
 
     try {
       const savedUrl = window.localStorage.getItem(savedSearchKey);
-      if (savedUrl && savedUrl !== "/#cars") {
-        router.replace(savedUrl, { scroll: false });
+      // Sanitize on read too: values persisted before `page` was stripped can
+      // still carry `?page=20`.
+      const restoreUrl = savedUrl ? withoutPageParam(savedUrl) : null;
+      if (restoreUrl && restoreUrl !== "/#cars" && restoreUrl !== "/") {
+        router.replace(restoreUrl, { scroll: false });
       }
     } catch {
       // Keep the server-provided defaults if storage cannot be read.

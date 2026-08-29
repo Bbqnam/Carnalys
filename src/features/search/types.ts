@@ -59,9 +59,8 @@ export type SearchSort =
   | "price_desc"
   | "newest";
 
-/** One fixed page size: the results grid is sized for it, and a reader
- *  choosing a different one only ever traded scroll length for round trips. */
-export type VehiclePageSize = 35;
+/** Forty fills ten complete rows in the four-column desktop catalogue. */
+export type VehiclePageSize = 40;
 
 export interface VehicleSearchOptions {
   filters: SearchFilters;

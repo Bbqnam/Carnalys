@@ -13,6 +13,11 @@ interface HomeProps {
   searchParams: Promise<SearchParameters>;
 }
 
+// The "Update listings" server action lives on this route and walks every
+// registered source incrementally; give it the same headroom as the cron
+// routes (platforms that cap lower still cut it off at their own limit).
+export const maxDuration = 300;
+
 export default async function Home({ searchParams }: HomeProps) {
   await connection();
   const search = parseVehicleSearchOptions(await searchParams);

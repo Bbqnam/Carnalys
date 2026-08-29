@@ -29,13 +29,33 @@ export async function generateMetadata({
   const name = `${make} ${model}`;
   const numbers = createNumberFormatter(defaultLocale);
 
+  const title = variant ? `${name} · ${variant}` : name;
+  const description =
+    `${modelYear} ${name}${variant ? ` ${variant}` : ""}, ` +
+    `${numbers.format(Math.round(mileageKm / 10))} mil, ` +
+    `${numbers.format(priceAmount)} kr in ${summary.municipality}. ` +
+    "See its Deal Score, estimated market value and ownership cost on Carnalys.";
+
+  // Link unfurls (Messenger, iMessage, Slack, WhatsApp…) read Open Graph /
+  // Twitter-card tags. Lead with the car's first photo so a shared listing
+  // shows the vehicle, not a generic site card.
+  const images = summary.imageUrl ? [{ url: summary.imageUrl, alt: title }] : undefined;
+
   return {
-    title: variant ? `${name} · ${variant}` : name,
-    description:
-      `${modelYear} ${name}${variant ? ` ${variant}` : ""}, ` +
-      `${numbers.format(Math.round(mileageKm / 10))} mil, ` +
-      `${numbers.format(priceAmount)} kr in ${summary.municipality}. ` +
-      "See its Deal Score, estimated market value and ownership cost on Carnalys.",
+    title,
+    description,
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      ...(images ? { images } : {}),
+    },
+    twitter: {
+      card: images ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(images ? { images: [summary.imageUrl!] } : {}),
+    },
   };
 }
 

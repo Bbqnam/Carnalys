@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { NormalizedVehicleListing } from "@/application/ingestion/types";
+import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application/ingestion/types";
 import { exactVehicleMatchEvidence } from "@/application/ingestion/vehicle-match-policy";
 import { Prisma } from "@/generated/prisma/client";
 import { listingImageWritePolicy } from "./listing-image-write-policy";
@@ -394,6 +394,9 @@ async function writeListing(
       ownerCount: listing.ownerCount,
       status: "active",
       publishedAt: normalized.source.publishedAt,
+      // Recency anchor for `newest` / `posted within`. On insert firstSeenAt
+      // is this run, so the fallback is `synchronizedAt`.
+      listedAt: normalized.source.publishedAt ?? synchronizedAt,
       sourceUpdatedAt: normalized.source.updatedAt,
       firstSeenAt: synchronizedAt,
       lastSeenAt: synchronizedAt,
@@ -428,6 +431,11 @@ async function writeListing(
       ownerCount: listing.ownerCount,
       status: "active",
       publishedAt: normalized.source.publishedAt,
+      // Only a real source publish date moves the recency anchor; a listing
+      // without one keeps the first-seen instant it was created with.
+      ...(normalized.source.publishedAt
+        ? { listedAt: normalized.source.publishedAt }
+        : {}),
       sourceUpdatedAt: normalized.source.updatedAt,
       lastSeenAt: synchronizedAt,
       synchronizedAt,
@@ -585,6 +593,11 @@ export async function upsertNormalizedListings(
     });
   }
 
+  const touchedVehicleIds = new Set<string>([
+    ...vehicleIdByListing.values(),
+    ...mergedVehicleIds.values(),
+  ]);
+
   const results: { state: "created" | "updated" | "unchanged"; listingId: string }[] =
     new Array(listings.length);
   let nextIndex = 0;
@@ -642,6 +655,12 @@ export async function upsertNormalizedListings(
     Array.from({ length: Math.min(writeConcurrency, listings.length) }, () => runLane()),
   );
 
+  // One representative listing per physical vehicle for the results grid.
+  // Runs after the page's listings have all committed so it sees every new
+  // sibling; a listing whose vehicle gained or lost a newer-synced sibling
+  // this run has its flag corrected here.
+  await refreshVehicleRepresentatives([...touchedVehicleIds]);
+
   let createdCount = 0;
   let updatedCount = 0;
   let unchangedCount = 0;
@@ -654,6 +673,60 @@ export async function upsertNormalizedListings(
   }
 
   return { createdCount, updatedCount, unchangedCount, changedListingIds };
+}
+
+/**
+ * Recomputes `isVehicleRepresentative` for the given vehicles in one statement:
+ * the most recently synchronized active listing wins (id as tie-breaker, the
+ * same rule as `selectRepresentativeListings`), every other listing for that
+ * vehicle is cleared. Rows already carrying the correct value are skipped so a
+ * steady-state sync writes nothing here. If a vehicle has no active listing
+ * left the flags are untouched — search filters those rows out by status, and
+ * a relist re-runs this.
+ */
+export async function refreshVehicleRepresentatives(
+  vehicleIds: readonly string[],
+  client: Pick<typeof prisma, "$executeRaw"> = prisma,
+) {
+  if (vehicleIds.length === 0) return;
+  await client.$executeRaw`
+    UPDATE "ListingRecord" AS l
+    SET "isVehicleRepresentative" = (l."id" = w."id")
+    FROM (
+      SELECT DISTINCT ON (r."vehicleId") r."vehicleId", r."id"
+      FROM "ListingRecord" AS r
+      WHERE r."vehicleId" IN (${Prisma.join([...vehicleIds])})
+        AND r."status" = 'active'
+      ORDER BY r."vehicleId", r."synchronizedAt" DESC, r."id" ASC
+    ) AS w
+    WHERE l."vehicleId" = w."vehicleId"
+      AND l."isVehicleRepresentative" <> (l."id" = w."id")
+  `;
+}
+
+/**
+ * Whole-catalogue version of {@link refreshVehicleRepresentatives}. Cheap
+ * because the guard means only rows whose flag is actually wrong are written.
+ * Run at the end of every sync so a source that only updates *its own*
+ * listings (e.g. the Blocket cron) still can't leave a shared vehicle with two
+ * representatives after another source touched it.
+ */
+export async function refreshAllVehicleRepresentatives(
+  client: Pick<typeof prisma, "$executeRaw"> = prisma,
+) {
+  await client.$executeRaw`
+    UPDATE "ListingRecord" AS l
+    SET "isVehicleRepresentative" = (l."id" = w."id")
+    FROM (
+      SELECT DISTINCT ON (r."vehicleId") r."vehicleId", r."id"
+      FROM "ListingRecord" AS r
+      WHERE r."status" = 'active'
+      ORDER BY r."vehicleId", r."synchronizedAt" DESC, r."id" ASC
+    ) AS w
+    WHERE l."vehicleId" = w."vehicleId"
+      AND l."status" = 'active'
+      AND l."isVehicleRepresentative" <> (l."id" = w."id")
+  `;
 }
 
 export async function existingListingExternalIds(
@@ -708,7 +781,7 @@ export async function existingListingPayloads(
       images: {
         select: { url: true },
         orderBy: { position: "asc" },
-        take: 8,
+        take: MAX_LISTING_IMAGES,
       },
       equipment: { select: { label: true } },
     },
@@ -767,6 +840,7 @@ export async function markMissingListingsRemovedSafely(
       },
       select: {
         id: true,
+        vehicleId: true,
         priceAmount: true,
         previousPriceAmount: true,
         mileageKm: true,
@@ -803,6 +877,13 @@ export async function markMissingListingsRemovedSafely(
         skipDuplicates: true,
       });
     }
+    // A removed listing may have been its vehicle's representative — hand the
+    // badge to a surviving active sibling (from another source, or none).
+    await refreshVehicleRepresentatives(
+      [...new Set(disappearing.map((listing) => listing.vehicleId))],
+      transaction,
+    );
+
     await transaction.importRun.update({
       where: { id: runId },
       data: {

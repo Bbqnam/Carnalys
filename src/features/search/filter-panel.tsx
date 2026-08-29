@@ -1,4 +1,5 @@
 import type { BodyStyle, FuelType, SellerType, TransmissionType } from "@/domain/vehicle";
+import { listingSources } from "@/infrastructure/marketplaces/source-registry";
 import { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "./brand-logo";
 import { uiCopy, type Locale } from "./copy";
@@ -20,6 +21,7 @@ import {
   ChevronDownIcon,
 } from "./icons";
 import { MultiChoiceDropdown } from "./multi-choice-dropdown";
+import { SourceMark } from "@/features/source/source-logo";
 import type { SearchFilters, VehicleFilterOption } from "./types";
 
 /**
@@ -120,10 +122,12 @@ const fuels = [
 
 const transmissions = ["automatic", "manual"] as const satisfies readonly TransmissionType[];
 const sellerTypeOptions = ["dealer", "private"] as const satisfies readonly SellerType[];
-const sourceOptions = [
-  { value: "blocket_unofficial", label: "Blocket" },
-  { value: "wayke", label: "Wayke" },
-] as const;
+// Derived from the source registry so a new importer appears in the filter the
+// moment it is registered — no second list to keep in sync.
+const sourceOptions = Object.values(listingSources).map((source) => ({
+  value: source.key,
+  label: source.displayName,
+}));
 const bodyStyles = ["estate", "suv", "sedan", "hatchback"] as const satisfies readonly BodyStyle[];
 const budgetSliderMaximum = 1_000;
 const maximumBudget = 500_000;
@@ -162,7 +166,7 @@ function FilterGroup({
 }) {
   return (
     <fieldset className={className}>
-      <legend className="mb-2 text-[11px] font-bold uppercase tracking-[0.09em] text-ink-subtle">
+      <legend className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.09em] text-ink-subtle">
         {label}
       </legend>
       {children}
@@ -344,7 +348,7 @@ export function FilterPanel({
 
   return (
     <div>
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold tracking-[-0.02em] text-ink">
             {copy.title}
@@ -363,9 +367,9 @@ export function FilterPanel({
         </button>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <FilterGroup className="order-2" label={copy.budget}>
-          <div className="rounded-2xl border border-border bg-surface-muted px-3.5 py-2.5">
+          <div className="rounded-xl border border-border bg-surface-muted px-3 py-2">
             <div
               className="budget-range"
               style={{
@@ -431,7 +435,7 @@ export function FilterPanel({
                       maxPrice: amount >= maxBudget ? null : amount,
                     });
                   }}
-                  placeholder={copy.noMaximum}
+                  placeholder={`${maximumBudget.toLocaleString(formatLocale)}+`}
                   value={filters.maxPrice}
                 />
                 <span className="shrink-0 text-ink-subtle">SEK</span>
@@ -440,12 +444,12 @@ export function FilterPanel({
           </div>
         </FilterGroup>
 
-        <div className="order-1 space-y-3">
+        <div className="order-1 space-y-2">
           <MultiChoiceDropdown
             clearLabel={copy.clearSelection}
             doneLabel={copy.done}
             label={copy.make}
-            menuHeight={520}
+            menuHeight={430}
             noResultsLabel={copy.noMatches}
             onChange={(brands) => onChange({ ...filters, brands, models: [] })}
             options={brandOptions}
@@ -506,11 +510,16 @@ export function FilterPanel({
             clearLabel={copy.clearSelection}
             doneLabel={copy.done}
             label={locale === "en" ? "Source" : "Källa"}
-            menuHeight={220}
+            menuHeight={240}
             noResultsLabel={copy.noMatches}
             onChange={(sources) => onChange({ ...filters, sources })}
             options={sourceOptions}
             placeholder={locale === "en" ? "All sources" : "Alla källor"}
+            iconWide
+            hideLabels
+            renderIcon={(source) =>
+              source ? <SourceMark provider={source} /> : null
+            }
             selectedCountLabel={copy.selected}
             values={filters.sources}
           />
@@ -518,7 +527,7 @@ export function FilterPanel({
 
         <button
           aria-expanded={showMoreFilters}
-          className="sticky bottom-0 z-20 order-5 flex h-10 w-full items-center justify-between rounded-xl border border-border bg-surface-subtle/95 px-3 text-xs font-semibold text-ink shadow-[0_4px_14px_rgba(26,35,29,0.08)] backdrop-blur-sm transition hover:border-border-strong hover:bg-surface-muted"
+          className="order-5 -mb-0.5 flex h-9 w-full items-center justify-between rounded-xl border border-border bg-surface-subtle px-3 text-xs font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted"
           onClick={() => setShowMoreFilters((current) => !current)}
           type="button"
         >
@@ -573,7 +582,7 @@ export function FilterPanel({
         </FilterGroup>
 
         <FilterGroup className="order-3" label={copy.year}>
-          <div className="rounded-2xl border border-border bg-surface-muted px-3.5 py-2.5">
+          <div className="rounded-xl border border-border bg-surface-muted px-3 py-2">
             <div className="budget-range" style={{ "--budget-start": `${((selectedMinimumYear - earliestYear) / Math.max(1, latestYear - earliestYear)) * 100}%`, "--budget-end": `${((selectedMaximumYear - earliestYear) / Math.max(1, latestYear - earliestYear)) * 100}%` } as React.CSSProperties}>
               <span aria-hidden="true" className="budget-range-track" />
               <input aria-label={`${copy.minimum} ${copy.year}`} max={latestYear} min={earliestYear} onChange={(event) => { const value = Math.min(Number(event.target.value), selectedMaximumYear); onChange({ ...filters, minYear: value === earliestYear ? null : value }); }} step={1} type="range" value={selectedMinimumYear} />
@@ -584,7 +593,7 @@ export function FilterPanel({
         </FilterGroup>
 
         <FilterGroup className="order-4" label={copy.mileage}>
-          <div className="rounded-2xl border border-border bg-surface-muted px-3.5 py-2.5">
+          <div className="rounded-xl border border-border bg-surface-muted px-3 py-2">
             <div
               className="budget-range"
               style={{

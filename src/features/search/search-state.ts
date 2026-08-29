@@ -67,7 +67,7 @@ export const defaultSearchFilters: SearchFilters = {
 };
 
 export const defaultSearchSort: SearchSort = "newest";
-export const defaultVehiclePageSize: VehiclePageSize = 35;
+export const defaultVehiclePageSize: VehiclePageSize = 40;
 
 function first(value: SearchParameterValue) {
   return Array.isArray(value) ? value[0] : value;

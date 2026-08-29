@@ -15,6 +15,15 @@ export interface NormalizedListingImage {
   height?: number;
 }
 
+/**
+ * Upper bound on stored gallery size per listing. Images are URL references,
+ * not files, so the whole gallery is kept (a listing card still renders only
+ * the first — see `cardListingSelect`). The cap only guards against a parser
+ * regression that starts matching unrelated `<img>` tags; real dealer
+ * galleries top out well below it.
+ */
+export const MAX_LISTING_IMAGES = 40;
+
 /** Source-independent write model produced by every marketplace normalizer. */
 export interface NormalizedVehicleListing {
   source: {

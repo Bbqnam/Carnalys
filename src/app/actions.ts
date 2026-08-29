@@ -1,19 +1,13 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { synchronizeMarketplace } from "@/application/ingestion/synchronize-marketplace";
-import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
-import {
-  assertManualSynchronizationNotThrottled,
-  getActiveSynchronization,
-  SynchronizationAlreadyRunningError,
-} from "@/infrastructure/database/synchronization-state-repository";
+import { synchronizeAllSourcesIncrementally } from "@/application/ingestion/incremental-all-sources";
+import { getActiveSynchronization } from "@/infrastructure/database/synchronization-state-repository";
 import { marketAnalysisCacheTag } from "@/infrastructure/database/market-analysis-repository";
 import {
   getActiveListingCount,
   getListingsByIds,
 } from "@/infrastructure/database/vehicle-listing-repository";
-import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
 
 export interface ManualSynchronizationState {
   outcome: "idle" | "completed" | "warning" | "busy" | "failed";
@@ -30,46 +24,44 @@ export async function synchronizeLatestListings(
 ): Promise<ManualSynchronizationState> {
   void _previousState;
 
-  try {
-    await assertManualSynchronizationNotThrottled("blocket_unofficial");
-    const result = await synchronizeMarketplace(
-      new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
-      {
-        mode: "incremental",
-        // Interactive button click: stop as soon as a page is both fully
-        // known and older than the (short) lookback window, instead of the
-        // cron's 72h window — otherwise every click walks the full page cap
-        // even when nothing new was posted, since "oldest listing on this
-        // page is over 72h old" almost never becomes true within a handful
-        // of pages on an active marketplace. Detail fetches are skipped
-        // entirely for already-known, already-enriched listings (reused
-        // from cached data), so this only pays the network cost for
-        // genuinely new listings.
-        incrementalLookbackHours: 2,
-        incrementalKnownPageThreshold: 1,
-        incrementalMaximumPages: 4,
-      },
-    );
-    revalidatePath("/");
-    // The Analysis page's aggregates are cached for a window that outlives a
-    // manual sync, so they have to be dropped explicitly or a freshly synced
-    // catalog would show stale market figures.
-    revalidateTag(marketAnalysisCacheTag, "max");
-    return {
-      outcome: result.failedCount > 0 ? "warning" : "completed",
-      createdCount: result.createdCount,
-      updatedCount: result.updatedCount,
-      unchangedCount: result.unchangedCount,
-      failedCount: result.failedCount,
-      completedAt: result.completedAt?.toISOString(),
-    };
-  } catch (error) {
-    if (error instanceof SynchronizationAlreadyRunningError) {
-      return { outcome: "busy", activeMode: error.mode };
-    }
-    console.error("Manuell inkrementell synkronisering misslyckades.", error);
-    return { outcome: "failed" };
+  // One click refreshes the newest ads from *every* registered source, not
+  // just Blocket — otherwise the other sources only ever moved on the local
+  // CLI and their listings looked frozen in the results. Each source is
+  // incremental and stops as soon as it reaches a page that is both fully
+  // known and older than the short lookback window, so a quiet source costs
+  // roughly one page; detail fetches are skipped for already-enriched ads.
+  const result = await synchronizeAllSourcesIncrementally({
+    maximumPagesPerSource: 4,
+    lookbackHours: 3,
+    knownPageThreshold: 1,
+    throttle: true,
+  });
+
+  revalidatePath("/");
+  // The Analysis page's aggregates are cached for a window that outlives a
+  // manual sync, so they have to be dropped explicitly or a freshly synced
+  // catalog would show stale market figures.
+  revalidateTag(marketAnalysisCacheTag, "max");
+
+  const ranSomewhere = result.perSource.some(
+    (source) => source.outcome === "completed" || source.outcome === "warning",
+  );
+  if (!ranSomewhere) {
+    const allBusy = result.perSource.every((source) => source.outcome === "busy");
+    return allBusy ? { outcome: "busy" } : { outcome: "failed" };
   }
+
+  const anyFailure = result.perSource.some(
+    (source) => source.outcome === "warning" || source.outcome === "failed",
+  );
+  return {
+    outcome: anyFailure ? "warning" : "completed",
+    createdCount: result.createdCount,
+    updatedCount: result.updatedCount,
+    unchangedCount: result.unchangedCount,
+    failedCount: result.failedCount,
+    completedAt: result.completedAt?.toISOString(),
+  };
 }
 
 export async function getSavedListings(listingIds: readonly string[]) {

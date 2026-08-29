@@ -529,17 +529,20 @@ function buildListingWhere(
 
   if (filters.postedWithin) {
     const cutoff = postedWithinCutoff(filters.postedWithin);
-    andConditions.push({
-      OR: [
-        { publishedAt: { gte: cutoff } },
-        { publishedAt: null, firstSeenAt: { gte: cutoff } },
-      ],
-    });
+    // `listedAt` already resolves publish-date-less ads to their first-seen
+    // instant, so this is a single comparison instead of an OR.
+    andConditions.push({ listedAt: { gte: cutoff } });
   }
 
   return {
     status: "active",
-    ...(filters.sources.length > 0 ? { provider: { in: [...filters.sources] } } : {}),
+    // One card per physical vehicle. Skipped when the user has narrowed to
+    // specific sources — then they want every listing from those sources, and
+    // the representative (which may belong to a source they filtered out)
+    // would hide real matches.
+    ...(filters.sources.length > 0
+      ? { provider: { in: [...filters.sources] } }
+      : { isVehicleRepresentative: true }),
     ...(filters.sellerType ? { sellerType: filters.sellerType } : {}),
     ...(Object.keys(priceFilter).length > 0
       ? { priceAmount: priceFilter }
@@ -572,11 +575,10 @@ function listingOrder(
     case "price_desc":
       return [{ priceAmount: "desc" }, { id: "asc" }];
     case "newest":
-      return [
-        { publishedAt: "desc" },
-        { synchronizedAt: "desc" },
-        { id: "asc" },
-      ];
+      // `listedAt` = source publish time, or first-seen when the source gives
+      // none. Ordering on `publishedAt` alone sent every publish-date-less ad
+      // (Hedin, older Bytbil) to the top on a DESC sort's NULLs-first rule.
+      return [{ listedAt: "desc" }, { id: "asc" }];
     case "buy_confidence":
       return [{ analysis: { buyConfidenceScore: "desc" } }, { id: "asc" }];
     case "deal_score":
@@ -640,6 +642,8 @@ export interface ListingSummary {
   mileageKm: number;
   priceAmount: number;
   municipality: string;
+  /** First gallery image — the social/link-preview thumbnail. */
+  imageUrl?: string;
 }
 
 export async function getListingSummaryById(
@@ -653,6 +657,11 @@ export async function getListingSummaryById(
       mileageKm: true,
       priceAmount: true,
       municipality: true,
+      images: {
+        select: { url: true },
+        orderBy: { position: "asc" },
+        take: 1,
+      },
       vehicle: {
         select: { make: true, model: true, variant: true, modelYear: true },
       },
@@ -668,6 +677,7 @@ export async function getListingSummaryById(
     mileageKm: record.mileageKm,
     priceAmount: record.priceAmount,
     municipality: record.municipality,
+    imageUrl: record.images[0]?.url,
   };
 }
 

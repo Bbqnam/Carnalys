@@ -81,6 +81,8 @@ spawn(
   [
     "next",
     "dev",
+    // Turbopack has no native bindings on darwin/arm64 here; force the webpack dev server.
+    "--webpack",
     "-H",
     "0.0.0.0",
     "-p",

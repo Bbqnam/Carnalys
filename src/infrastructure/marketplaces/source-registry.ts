@@ -29,6 +29,34 @@ export const listingSources = {
     },
     requestPolicy: { minimumIntervalMs: 500, maximumAttempts: 5 },
   },
+  bytbil: {
+    key: "bytbil",
+    displayName: "Bytbil",
+    type: "marketplace",
+    logoKey: "bytbil",
+    capabilities: {
+      discovery: "page",
+      details: true,
+      equipment: true,
+      images: true,
+      removalDetection: true,
+    },
+    requestPolicy: { minimumIntervalMs: 700, maximumAttempts: 5 },
+  },
+  hedin: {
+    key: "hedin",
+    displayName: "Hedin",
+    type: "dealer",
+    logoKey: "hedin",
+    capabilities: {
+      discovery: "page",
+      details: true,
+      equipment: true,
+      images: true,
+      removalDetection: true,
+    },
+    requestPolicy: { minimumIntervalMs: 800, maximumAttempts: 5 },
+  },
 } as const satisfies Record<string, MarketplaceSourceDefinition>;
 
 export type ListingSourceKey = keyof typeof listingSources;

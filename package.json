@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "postinstall": "prisma generate",
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "dev:lan": "node scripts/dev-lan.mjs",
     "build": "prisma migrate deploy && next build",
     "start": "next start",
@@ -24,6 +24,14 @@
     "data:sync:wayke:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=wayke",
     "data:sync:wayke:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=wayke",
     "data:sync:wayke:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=wayke",
+    "data:sync:bytbil:sample": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil --sample",
+    "data:sync:bytbil:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil",
+    "data:sync:bytbil:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=bytbil",
+    "data:sync:bytbil:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=bytbil",
+    "data:sync:hedin:sample": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin --sample",
+    "data:sync:hedin:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin",
+    "data:sync:hedin:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=hedin",
+    "data:sync:hedin:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=hedin",
     "data:analyze": "tsx src/scripts/analyze-vehicle-listings.ts"
   },
   "dependencies": {

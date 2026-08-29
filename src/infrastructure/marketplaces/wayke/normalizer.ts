@@ -1,4 +1,4 @@
-import type { NormalizedVehicleListing } from "@/application/ingestion/types";
+import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application/ingestion/types";
 import type { BodyStyle, Drivetrain, FuelType, TransmissionType } from "@/domain/vehicle";
 import type { WaykeListingDetail, WaykeSearchDocument } from "./types";
 
@@ -94,7 +94,7 @@ export function normalizeWaykeListing(
       description: detail?.description,
       serviceHistory: "unknown",
       equipment: detail?.equipment ?? [],
-      images: [...new Set(imageUrls)].slice(0, 8).map((url, position) => ({
+      images: [...new Set(imageUrls)].slice(0, MAX_LISTING_IMAGES).map((url, position) => ({
         url,
         thumbnailUrl: position === 0 ? document.featuredImageUrl : undefined,
         alt: title,

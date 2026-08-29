@@ -4,7 +4,7 @@ import type {
   FuelType,
   TransmissionType,
 } from "@/domain/vehicle";
-import type { NormalizedVehicleListing } from "@/application/ingestion/types";
+import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application/ingestion/types";
 import type { BlocketListingDetail, BlocketSearchDocument } from "./types";
 
 const provider = "blocket_unofficial";
@@ -168,7 +168,7 @@ export function normalizeBlocketListing(
       // complete gallery. De-duplicated before the slice so a source that
       // repeats a URL spends the budget on eight distinct photos rather than
       // storing the same one twice.
-      images: [...new Set(imageUrls)].slice(0, 8).map((url, position) => ({
+      images: [...new Set(imageUrls)].slice(0, MAX_LISTING_IMAGES).map((url, position) => ({
         url,
         thumbnailUrl: position === 0 ? document.thumbnail?.url : undefined,
         alt: `${document.make} ${document.model} ${document.variant ?? ""}`.trim(),

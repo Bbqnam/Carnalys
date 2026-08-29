@@ -30,6 +30,12 @@ interface MultiChoiceDropdownProps {
   noResultsLabel: string;
   onChange: (values: readonly string[]) => void;
   renderIcon?: (value: string) => ReactNode;
+  /** Icon slot holds a wide wordmark (e.g. a source logo) rather than a
+   *  square mark — the container flexes to the artwork instead of cropping. */
+  iconWide?: boolean;
+  /** The wordmark carries the option's identity, so its text label is kept for
+   *  assistive tech only (the placeholder still shows when nothing is chosen). */
+  hideLabels?: boolean;
   disabled?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
@@ -54,6 +60,8 @@ export function MultiChoiceDropdown({
   noResultsLabel,
   onChange,
   renderIcon,
+  iconWide = false,
+  hideLabels = false,
   disabled = false,
   searchable = false,
   searchPlaceholder,
@@ -215,12 +223,27 @@ export function MultiChoiceDropdown({
         ref={triggerRef}
         type="button"
       >
-        {renderIcon ? (
-          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
-            {renderIcon(values[0] ?? "")}
-          </span>
-        ) : null}
-        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
+        {(() => {
+          const icon = renderIcon?.(values[0] ?? "");
+          return icon ? (
+            <span
+              className={
+                iconWide
+                  ? "flex h-7 shrink-0 items-center"
+                  : "grid size-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent"
+              }
+            >
+              {icon}
+            </span>
+          ) : null;
+        })()}
+        <span
+          className={
+            hideLabels && values.length > 0
+              ? "sr-only"
+              : "min-w-0 flex-1 truncate text-xs font-semibold text-ink"
+          }
+        >
           {selectedLabel}
         </span>
         {values.length > 1 ? (
@@ -301,12 +324,29 @@ export function MultiChoiceDropdown({
                           >
                             <CheckIcon className="size-3" />
                           </span>
-                          {renderIcon ? (
-                            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-surface text-accent ring-1 ring-border shadow-[0_1px_2px_rgba(23,33,27,0.03)]">
-                              {renderIcon(option.value)}
-                            </span>
-                          ) : null}
-                          <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                          {(() => {
+                            const icon = renderIcon?.(option.value);
+                            return icon ? (
+                              <span
+                                className={
+                                  iconWide
+                                    ? "flex h-8 shrink-0 items-center pl-0.5 pr-2"
+                                    : "grid size-9 shrink-0 place-items-center rounded-lg bg-surface text-accent ring-1 ring-border shadow-[0_1px_2px_rgba(23,33,27,0.03)]"
+                                }
+                              >
+                                {icon}
+                              </span>
+                            ) : null;
+                          })()}
+                          <span
+                            className={
+                              hideLabels && renderIcon?.(option.value)
+                                ? "sr-only"
+                                : "min-w-0 flex-1 truncate"
+                            }
+                          >
+                            {option.label}
+                          </span>
                           {option.count !== undefined ? (
                             <span className="shrink-0 tabular-nums text-[11px] font-normal text-ink-subtle">
                               {option.count.toLocaleString("sv-SE")}

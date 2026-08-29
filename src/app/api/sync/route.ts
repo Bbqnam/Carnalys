@@ -1,5 +1,6 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import { synchronizeAllSourcesIncrementally } from "@/application/ingestion/incremental-all-sources";
 import { synchronizeMarketplace } from "@/application/ingestion/synchronize-marketplace";
 import { marketAnalysisCacheTag } from "@/infrastructure/database/market-analysis-repository";
 import { initializeDatabase } from "@/infrastructure/database/prisma";
@@ -55,18 +56,35 @@ export async function GET(request: Request) {
       },
     );
 
+    // The other registered sources, after Blocket, so their catalogs don't
+    // freeze between manual "Update listings" clicks. Each is incremental and
+    // takes its own per-provider lock; one failing is recorded, not fatal.
+    // Blocket keeps its bespoke, env-tuned parameters above.
+    const others = await synchronizeAllSourcesIncrementally({
+      providers: ["wayke", "bytbil", "hedin"],
+      maximumPagesPerSource: environmentInteger("SECONDARY_INCREMENTAL_MAX_PAGES", 8),
+      lookbackHours: environmentInteger("SECONDARY_INCREMENTAL_LOOKBACK_HOURS", 72),
+      knownPageThreshold: environmentInteger("SECONDARY_INCREMENTAL_KNOWN_PAGES", 2),
+    });
+
     // Fresh listings mean the Analysis page's cached aggregates are stale.
     revalidateTag(marketAnalysisCacheTag, "max");
 
     return NextResponse.json({
       status: "completed",
       runId: result.id,
-      createdCount: result.createdCount,
-      updatedCount: result.updatedCount,
-      unchangedCount: result.unchangedCount,
-      failedCount: result.failedCount,
-      removedCount: result.removedCount,
+      createdCount: result.createdCount + others.createdCount,
+      updatedCount: result.updatedCount + others.updatedCount,
+      unchangedCount: result.unchangedCount + others.unchangedCount,
+      failedCount: result.failedCount + others.failedCount,
+      removedCount: result.removedCount + others.removedCount,
       stopReason: result.stopReason,
+      bySource: {
+        blocket_unofficial: "completed",
+        ...Object.fromEntries(
+          others.perSource.map((source) => [source.provider, source.outcome]),
+        ),
+      },
     });
   } catch (error) {
     if (error instanceof SynchronizationAlreadyRunningError) {

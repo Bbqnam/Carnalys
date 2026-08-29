@@ -13,6 +13,8 @@ import {
 } from "@/infrastructure/database/listing-write-repository";
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
 import { WaykeImporter } from "@/infrastructure/marketplaces/wayke/importer";
+import { BytbilImporter } from "@/infrastructure/marketplaces/bytbil/importer";
+import { HedinImporter } from "@/infrastructure/marketplaces/hedin/importer";
 
 function environmentInteger(name: string, fallback: number) {
   const parsed = Number.parseInt(process.env[name] ?? "", 10);
@@ -22,12 +24,14 @@ function environmentInteger(name: string, fallback: number) {
 const command = process.argv[2] ?? "incremental";
 const sourceArgument = process.argv.find((argument) => argument.startsWith("--source="));
 const source = sourceArgument?.split("=", 2)[1] ?? "blocket";
-if (source !== "blocket" && source !== "wayke") {
-  throw new Error(`Okänd källa: ${source}. Välj blocket eller wayke.`);
+if (source !== "blocket" && source !== "wayke" && source !== "bytbil" && source !== "hedin") {
+  throw new Error(`Okänd källa: ${source}. Välj blocket, wayke, bytbil eller hedin.`);
 }
 const watch = command === "watch" || process.argv.includes("--watch");
 if (watch && source !== "blocket") {
-  throw new Error("Wayke har avsiktligt inget watcher-läge. Kör en avgränsad synkronisering.");
+  throw new Error(
+    "Endast Blocket har watcher-läge. Kör en avgränsad synkronisering för övriga källor.",
+  );
 }
 const mode: SynchronizationMode =
   command === "full" || command === "resume" ? "reconciliation" : "incremental";
@@ -50,32 +54,39 @@ async function runOnce() {
         : "Startar eller återupptar full synkronisering…"
       : "Hämtar de senaste fordonsannonserna…",
   );
-  const result = await synchronizeMarketplace(
+  const importer =
     source === "wayke"
       ? new WaykeImporter(undefined, existingListingPayloads)
-      : new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
-    {
-      mode,
-      resumeOnly,
-      incrementalLookbackHours: environmentInteger(
-        "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
-        72,
-      ),
-      incrementalMaximumPages: process.argv.includes("--sample")
-        ? 1
-        : environmentInteger(
-            source === "wayke" ? "WAYKE_INCREMENTAL_MAX_PAGES" : "BLOCKET_INCREMENTAL_MAX_PAGES",
-            source === "wayke" ? 20 : 40,
-          ),
-      incrementalKnownPageThreshold: environmentInteger(
-        source === "wayke" ? "WAYKE_INCREMENTAL_KNOWN_PAGES" : "BLOCKET_INCREMENTAL_KNOWN_PAGES",
-        2,
-      ),
-      analysisRefreshLimit: environmentInteger("SYNC_ANALYSIS_REFRESH_LIMIT", 250),
-      onProgress: console.log,
-      shouldStop: () => stopping,
-    },
-  );
+      : source === "bytbil"
+        ? new BytbilImporter(undefined, existingListingPayloads)
+        : source === "hedin"
+          ? new HedinImporter(undefined, existingListingPayloads)
+          : new BlocketUnofficialImporter(undefined, existingListingDetailPayloads);
+  const envPrefix =
+    source === "wayke"
+      ? "WAYKE"
+      : source === "bytbil"
+        ? "BYTBIL"
+        : source === "hedin"
+          ? "HEDIN"
+          : "BLOCKET";
+  const maxPagesEnv = `${envPrefix}_INCREMENTAL_MAX_PAGES`;
+  const knownPagesEnv = `${envPrefix}_INCREMENTAL_KNOWN_PAGES`;
+  const result = await synchronizeMarketplace(importer, {
+    mode,
+    resumeOnly,
+    incrementalLookbackHours: environmentInteger(
+      "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
+      72,
+    ),
+    incrementalMaximumPages: process.argv.includes("--sample")
+      ? 1
+      : environmentInteger(maxPagesEnv, source === "blocket" ? 40 : 20),
+    incrementalKnownPageThreshold: environmentInteger(knownPagesEnv, 2),
+    analysisRefreshLimit: environmentInteger("SYNC_ANALYSIS_REFRESH_LIMIT", 250),
+    onProgress: console.log,
+    shouldStop: () => stopping,
+  });
 
   console.log(
     `Körning ${result.id} klar: ${result.createdCount} nya, ${result.updatedCount} ändrade, ${result.unchangedCount} oförändrade, ${result.failedCount} avvisade och ${result.removedCount} borttagna. Stopporsak: ${result.stopReason ?? "okänd"}.`,

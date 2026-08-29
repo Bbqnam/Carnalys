@@ -7,6 +7,7 @@ import { refreshStoredListingAnalyses } from "@/infrastructure/database/listing-
 import {
   existingListingExternalIds,
   markMissingListingsRemovedSafely,
+  refreshAllVehicleRepresentatives,
   upsertNormalizedListings,
 } from "@/infrastructure/database/listing-write-repository";
 import {
@@ -119,6 +120,13 @@ async function refreshDerivedData(
   } catch (error) {
     failed = true;
     await recordSynchronizationError(run, error, { phase: "facets" });
+  }
+
+  try {
+    await refreshAllVehicleRepresentatives();
+  } catch (error) {
+    failed = true;
+    await recordSynchronizationError(run, error, { phase: "representatives" });
   }
 
   return failed;

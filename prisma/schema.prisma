@@ -74,6 +74,11 @@ model ListingRecord {
   ownerCount                 Int?
   status                     String                   @default("active")
   publishedAt                DateTime?
+  /// Recency anchor for the `newest` sort and the `posted within` filter:
+  /// `publishedAt` when the source reports one, otherwise `firstSeenAt`.
+  /// Maintained on write (see `writeListing`) — never set from a Prisma
+  /// migration's schema default. Always populated for active rows.
+  listedAt                   DateTime?
   sourceUpdatedAt            DateTime?
   firstSeenAt                DateTime
   lastSeenAt                 DateTime
@@ -93,6 +98,12 @@ model ListingRecord {
   missingReconciliationCount Int                      @default(0)
   vehicleMatchMethod         String?
   vehicleMatchConfidence     Float?
+  /// True for the one active listing that represents its physical vehicle in
+  /// the results grid — the most recently synchronized active listing, id as
+  /// tie-breaker (same rule as `selectRepresentativeListings`). Maintained on
+  /// write. Every source ad stays stored and reachable; this only collapses
+  /// near-duplicate cards when the user has not narrowed to specific sources.
+  isVehicleRepresentative    Boolean                  @default(true)
   sourceProvider             ListingProvider          @relation(fields: [provider], references: [key], onDelete: Restrict, onUpdate: Cascade)
   vehicle                    VehicleRecord            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   images                     ListingImageRecord[]
@@ -104,7 +115,8 @@ model ListingRecord {
   @@index([vehicleId])
   @@index([vehicleId, status])
   @@index([status, priceAmount])
-  @@index([status, publishedAt, synchronizedAt, id])
+  @@index([isVehicleRepresentative, status, priceAmount])
+  @@index([status, listedAt, id])
   @@index([provider, sourceScope, status, lastSeenAt])
   @@index([mileageKm])
   @@index([lastSeenAt])

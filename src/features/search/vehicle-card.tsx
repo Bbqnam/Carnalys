@@ -55,7 +55,6 @@ export function VehicleCard({
   const marketValue = analysis.marketValue.value.amount;
   const hasMarketEstimate = analysis.marketValue.comparableListingCount >= 3;
   const priceDifference = marketValue - askingPrice;
-  const savings = Math.max(0, marketValue - askingPrice);
   const marketDifferencePercent =
     marketValue > 0 ? Math.round((Math.abs(priceDifference) / marketValue) * 100) : 0;
   const financingOffer =
@@ -93,7 +92,6 @@ export function VehicleCard({
   const listingDateValue = listing.publishedAt ?? listing.source.firstSeenAt;
   const listingDate = formatRelativeListingDate(listingDateValue, locale);
   const exactListingDate = formatExactListingDate(listingDateValue, locale);
-  const listingDateLabel = listing.publishedAt ? copy.card.posted : copy.card.firstSeen;
   const dealScoreTone = scoreTone(analysis.dealScore.value);
   const imageAlt =
     locale === "en"
@@ -145,12 +143,27 @@ export function VehicleCard({
             <span className="shrink-0 text-ink-subtle 2xl:hidden">•</span>
             <span className="truncate 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           </p>
-          <span
-            className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
-          >
-            {listing.seller.type === "dealer"
-              ? copy.card.dealerBadge
-              : copy.card.privateSellerBadge}
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span
+              aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
+              className={`group/score relative grid h-6 min-w-6 place-items-center rounded-full border bg-surface-muted px-1 text-[10px] font-bold tabular-nums ${dealScoreTone}`}
+              tabIndex={0}
+            >
+              {analysis.dealScore.value}
+              <span
+                className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-30 w-max translate-y-[-0.2rem] rounded-md bg-ink px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-md transition group-hover/score:translate-y-0 group-hover/score:opacity-100 group-focus-visible/score:translate-y-0 group-focus-visible/score:opacity-100"
+                role="tooltip"
+              >
+                {copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
+              </span>
+            </span>
+            <span
+              className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
+            >
+              {listing.seller.type === "dealer"
+                ? copy.card.dealerBadge
+                : copy.card.privateSellerBadge}
+            </span>
           </span>
         </div>
 
@@ -165,127 +178,89 @@ export function VehicleCard({
           href={`/vehicle/${listing.id}`}
         >
           <BrandLogo className="size-11 shrink-0" make={identity.make} />
-          <span className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-2">
-              <h2 className="min-w-0 flex-1 truncate text-xl font-semibold leading-[1.2] tracking-[-0.035em] text-ink hover:underline">
-                {identity.make} {identity.model}
-              </h2>
-              <span
-                aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
-                className={`group/score relative grid h-6 min-w-6 shrink-0 place-items-center rounded-full border bg-surface-muted px-1 text-[10px] font-bold tabular-nums ${dealScoreTone}`}
-                tabIndex={0}
-              >
-                {analysis.dealScore.value}
-                <span
-                  className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-30 w-max translate-y-[-0.2rem] rounded-md bg-ink px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-md transition group-hover/score:translate-y-0 group-hover/score:opacity-100 group-focus-visible/score:translate-y-0 group-focus-visible/score:opacity-100"
-                  role="tooltip"
-                >
-                  {copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
-                </span>
-              </span>
-            </span>
+          <span className="min-w-0">
+            <h2 className="line-clamp-1 text-xl font-semibold leading-[1.2] tracking-[-0.035em] text-ink hover:underline">
+              {identity.make} {identity.model}
+            </h2>
             {identity.variant ? (
               <p className="mt-0.5 line-clamp-1 text-sm text-ink-muted">{identity.variant}</p>
             ) : null}
           </span>
         </Link>
 
-        {/* One shape for every card, whatever the verdict says. `flex-wrap`
-            used to drop the market note onto its own row as soon as the pair
-            outgrew the card, so the same row was one line tall on some cards
-            and two on others and nothing below it lined up across the grid.
-            Now the price is the fixed part and the note is the part that
-            gives way, and the note reserves both its lines whether or not it
-            has a second one — so a verdict with a detail line and one without
-            occupy the same height. */}
-        <div className="mt-3 flex min-w-0 items-end justify-between gap-x-3">
-          <p className="shrink-0 whitespace-nowrap text-xl font-semibold leading-none tracking-[-0.04em] text-ink sm:text-2xl">
-            {moneyFormatter.format(askingPrice)}
-          </p>
-          <span
-            aria-label={
-              hasMarketEstimate
-                ? `${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`
-                : copy.card.marketEstimatePending
-            }
-            className="group/market relative flex min-h-[2.375rem] min-w-0 flex-col justify-end rounded-md text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 cursor-help"
-            tabIndex={0}
-          >
-            {!hasMarketEstimate ? (
-              <span className="block truncate text-sm font-medium text-ink-muted">
-                {copy.card.marketEstimatePending}
-              </span>
-            ) : savings > 0 ? (
-              <>
-                <strong className="block truncate text-sm font-semibold text-positive">
-                  {copy.card.save} {moneyFormatter.format(savings)}
-                </strong>
-                <span className="mt-0.5 block truncate text-xs text-ink-muted">
-                  {copy.card.belowMarket(marketDifferencePercent)}
-                </span>
-              </>
-            ) : priceDifference < 0 ? (
-              <span className="block truncate text-sm font-medium text-negative">
-                {copy.card.aboveMarket(marketDifferencePercent)}
-              </span>
-            ) : (
-              <span className="block truncate text-sm font-medium text-ink-muted">
-                {copy.card.atMarket}
-              </span>
-            )}
-            <span
-              className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] right-0 z-20 w-max max-w-56 translate-y-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-surface opacity-0 shadow-lg transition duration-150 group-hover/market:translate-y-0 group-hover/market:opacity-100 group-focus-visible/market:translate-y-0 group-focus-visible/market:opacity-100"
-              role="tooltip"
-            >
-              {hasMarketEstimate
-                ? `${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`
-                : copy.card.insufficientMarketData(
-                    analysis.marketValue.comparableListingCount,
-                  )}
-            </span>
-          </span>
-        </div>
-
-        <div className="mt-auto flex min-w-0 items-end justify-between gap-4 pt-5">
-          <div className="min-w-0 space-y-1.5 text-sm text-ink-muted">
-            {sellerLocation ? (
-              <p className="flex min-w-0 items-center gap-1.5">
-                <MapPinIcon className="size-4 shrink-0" />
-                <span className="truncate">{sellerLocation}</span>
-                {distanceKm !== undefined ? (
-                  <span className="shrink-0 font-medium text-accent">
-                    · {copy.card.distanceAway(distanceKm)}
-                  </span>
-                ) : null}
+        {/* Price is the fixed anchor; the monthly cost sits directly under it
+            as a quiet second line. The market read is a single signed figure —
+            green when the ask is below the estimate, red when above — with no
+            label; the detail lives in the hover tooltip. Nothing renders here
+            until the estimate has enough comparables, so an unpriced car shows
+            no placeholder text. */}
+        <div className="mt-3 flex min-w-0 items-start justify-between gap-x-3">
+          <div className="min-w-0">
+            <p className="whitespace-nowrap text-xl font-semibold leading-none tracking-[-0.04em] text-ink sm:text-2xl">
+              {moneyFormatter.format(askingPrice)}
+            </p>
+            {financingOffer ? (
+              <p className="mt-1 whitespace-nowrap text-xs text-ink-subtle">
+                {moneyFormatter.format(financingOffer.amount)}
+                {copy.card.perMonth}
               </p>
             ) : null}
-            <p className="flex items-center gap-1.5">
-              <CalendarFilterIcon className="size-4 shrink-0" />
-              <span>
-                {listingDateLabel}{" "}
-                <time
-                  dateTime={listingDateValue}
-                  suppressHydrationWarning
-                  title={exactListingDate}
-                >
-                  {listingDate}
-                </time>
-                {priceReduction > 0 ? (
-                  <> · {copy.card.reduced} {moneyFormatter.format(priceReduction)}</>
-                ) : null}
-              </span>
-            </p>
           </div>
-          {financingOffer ? (
-            <div className="shrink-0 text-right">
-              <p className="text-xs font-medium text-ink-subtle">
-                {copy.card.financingFrom}
-              </p>
-              <p className="mt-0.5 whitespace-nowrap text-base font-semibold text-ink">
-                {moneyFormatter.format(financingOffer.amount)}{copy.card.perMonth}
-              </p>
-            </div>
+          {hasMarketEstimate && marketDifferencePercent > 0 ? (
+            <span
+              aria-label={`${copy.card.marketValue}: ${moneyFormatter.format(marketValue)}`}
+              className="group/market relative shrink-0 cursor-help rounded-md text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2"
+              tabIndex={0}
+            >
+              <span
+                className={`block whitespace-nowrap text-sm font-semibold tabular-nums ${
+                  priceDifference > 0 ? "text-positive" : "text-negative"
+                }`}
+              >
+                {priceDifference > 0 ? "−" : "+"}
+                {marketDifferencePercent}%
+              </span>
+              <span
+                className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] right-0 z-20 w-max max-w-56 translate-y-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-surface opacity-0 shadow-lg transition duration-150 group-hover/market:translate-y-0 group-hover/market:opacity-100 group-focus-visible/market:translate-y-0 group-focus-visible/market:opacity-100"
+                role="tooltip"
+              >
+                {`${copy.card.marketValue}: ${moneyFormatter.format(marketValue)} · ${
+                  priceDifference > 0
+                    ? copy.card.belowMarket(marketDifferencePercent)
+                    : copy.card.aboveMarket(marketDifferencePercent)
+                }`}
+              </span>
+            </span>
           ) : null}
+        </div>
+
+        <div className="mt-auto min-w-0 space-y-1.5 pt-5 text-sm text-ink-muted">
+          {sellerLocation ? (
+            <p className="flex min-w-0 items-center gap-1.5">
+              <MapPinIcon className="size-4 shrink-0" />
+              <span className="truncate">{sellerLocation}</span>
+              {distanceKm !== undefined ? (
+                <span className="shrink-0 font-medium text-accent">
+                  · {copy.card.distanceAway(distanceKm)}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
+          <p className="flex items-center gap-1.5">
+            <CalendarFilterIcon className="size-4 shrink-0" />
+            <span>
+              <time
+                dateTime={listingDateValue}
+                suppressHydrationWarning
+                title={exactListingDate}
+              >
+                {listingDate}
+              </time>
+              {priceReduction > 0 ? (
+                <> · {copy.card.reduced} {moneyFormatter.format(priceReduction)}</>
+              ) : null}
+            </span>
+          </p>
         </div>
 
         {/* Keep the vehicle photo completely clean. The three secondary
@@ -315,7 +290,7 @@ export function VehicleCard({
           </button>
           <a
             aria-label={`${copy.card.viewListing}: ${source.displayName}`}
-            className="inline-flex min-h-9 min-w-24 items-center justify-center justify-self-center rounded-full border border-border-strong bg-surface px-3 shadow-sm transition hover:border-accent/50 hover:bg-accent-soft hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.98]"
+            className="inline-flex items-center justify-self-center px-1 py-2 opacity-90 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             href={listing.source.url}
             rel="noopener noreferrer"
             target="_blank"
