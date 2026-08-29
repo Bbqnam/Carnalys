@@ -264,7 +264,11 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         </button>
 
         <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:gap-8">
-        <div>
+        {/* min-w-0: on mobile this is a single implicit grid track, and without
+            it the track takes its width from the thumbnail rail's full content
+            width (a shrink-0 flex row) instead of the viewport, blowing the
+            whole column out to ~1900px and zooming the photo. */}
+        <div className="min-w-0">
           {/* 4/3 is what the source galleries mostly shoot, and `object-contain`
               keeps whatever they didn't whole: a buyer judging a car cannot be
               shown a cropped one, so an off-ratio photo gets bars on the muted
