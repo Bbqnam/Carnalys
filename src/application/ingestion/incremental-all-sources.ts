@@ -10,7 +10,10 @@ import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket
 import { BytbilImporter } from "@/infrastructure/marketplaces/bytbil/importer";
 import { HedinImporter } from "@/infrastructure/marketplaces/hedin/importer";
 import { WaykeImporter } from "@/infrastructure/marketplaces/wayke/importer";
-import { synchronizeMarketplace } from "./synchronize-marketplace";
+import {
+  refreshBatchDerivedData,
+  synchronizeMarketplace,
+} from "./synchronize-marketplace";
 import type { MarketplaceImporter } from "./types";
 
 export type SourceSyncOutcome = "completed" | "warning" | "busy" | "failed";
@@ -55,10 +58,19 @@ function buildImporters(providers?: readonly string[]): MarketplaceImporter[] {
 }
 
 /**
- * Runs an incremental sync for each registered source, one after another.
- * Each source takes its own per-provider lock, so the sequence never
- * self-collides; a single source failing or being throttled is recorded and
- * the rest still run. Never reconciles — new and changed ads only.
+ * Runs an incremental sync for each registered source, one after another,
+ * then refreshes analyses / facets / representatives once for the whole sweep.
+ *
+ * Sources run sequentially on purpose: they share one pooled Postgres
+ * connection, and Blocket alone does enough per-page DB work that running the
+ * four concurrently just makes every query queue — a measured sweep went from
+ * ~70s sequential to ~120s parallel. Each source takes its own per-provider
+ * lock; one failing or being throttled is recorded and the rest still run.
+ *
+ * The catalog-wide derived data used to be rebuilt inside every source (four
+ * full facet + representative rebuilds per click). It is deferred here and
+ * done once, and skipped entirely when nothing was created, updated or
+ * removed. Never reconciles — new and changed ads only.
  */
 export async function synchronizeAllSourcesIncrementally(
   options: AllSourcesIncrementalOptions = {},
@@ -81,6 +93,8 @@ export async function synchronizeAllSourcesIncrementally(
     perSource: [],
   };
 
+  const changedListingIds = new Set<string>();
+
   for (const importer of buildImporters(providers)) {
     try {
       if (throttle) {
@@ -91,6 +105,7 @@ export async function synchronizeAllSourcesIncrementally(
         incrementalLookbackHours: lookbackHours,
         incrementalKnownPageThreshold: knownPageThreshold,
         incrementalMaximumPages: maximumPagesPerSource,
+        deferDerivedData: true,
         onProgress,
       });
       result.createdCount += run.createdCount;
@@ -99,6 +114,7 @@ export async function synchronizeAllSourcesIncrementally(
       result.failedCount += run.failedCount;
       result.removedCount += run.removedCount ?? 0;
       if (run.completedAt) result.completedAt = run.completedAt;
+      for (const id of run.changedListingIds) changedListingIds.add(id);
       result.perSource.push({
         provider: importer.provider,
         outcome: run.failedCount > 0 ? "warning" : "completed",
@@ -113,6 +129,19 @@ export async function synchronizeAllSourcesIncrementally(
         `Inkrementell synkronisering misslyckades för ${importer.provider}.`,
         error,
       );
+    }
+  }
+
+  const catalogChanged =
+    result.createdCount + result.updatedCount + result.removedCount > 0;
+  if (catalogChanged) {
+    const derivedFailed = await refreshBatchDerivedData([...changedListingIds]);
+    if (derivedFailed) {
+      // The result has no dedicated slot for a post-sweep failure, so fold it
+      // into the per-source outcomes — the caller flags a warning off these.
+      for (const entry of result.perSource) {
+        if (entry.outcome === "completed") entry.outcome = "warning";
+      }
     }
   }
 

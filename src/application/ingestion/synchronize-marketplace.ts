@@ -40,6 +40,18 @@ export interface SynchronizationOptions {
   analysisRefreshLimit?: number;
   onProgress?: (message: string) => void;
   shouldStop?: () => boolean;
+  /**
+   * Skip the post-fetch analyses/facets/representatives refresh and instead
+   * return the changed listing ids so the caller can refresh once for a whole
+   * batch of sources. Used by the multi-source incremental sweep, where doing
+   * it per source rebuilt the catalog-wide facets and representatives four
+   * times over. Incremental mode only; reconciliation always refreshes inline.
+   */
+  deferDerivedData?: boolean;
+}
+
+export interface IncrementalRunResult {
+  changedListingIds: readonly string[];
 }
 
 class SynchronizationStopRequestedError extends Error {
@@ -127,6 +139,47 @@ async function refreshDerivedData(
   } catch (error) {
     failed = true;
     await recordSynchronizationError(run, error, { phase: "representatives" });
+  }
+
+  return failed;
+}
+
+/**
+ * The `deferDerivedData` counterpart of {@link refreshDerivedData}: one
+ * analyses/facets/representatives pass for a whole batch of sources, with no
+ * per-run bookkeeping (the runs it belongs to have already finished). Returns
+ * true if any step failed; errors are logged, not thrown, so a facet-refresh
+ * blip never masks a successful ingest.
+ */
+export async function refreshBatchDerivedData(
+  changedListingIds: readonly string[],
+): Promise<boolean> {
+  let failed = false;
+
+  if (changedListingIds.length > 0) {
+    try {
+      await refreshStoredListingAnalyses(
+        changedListingIds,
+        changedListingIds.length,
+      );
+    } catch (error) {
+      failed = true;
+      console.error("Batch-analys av ändrade annonser misslyckades.", error);
+    }
+  }
+
+  try {
+    await refreshCatalogFacets();
+  } catch (error) {
+    failed = true;
+    console.error("Uppdatering av katalogfacetter misslyckades.", error);
+  }
+
+  try {
+    await refreshAllVehicleRepresentatives();
+  } catch (error) {
+    failed = true;
+    console.error("Uppdatering av fordonsrepresentanter misslyckades.", error);
   }
 
   return failed;
@@ -225,7 +278,9 @@ async function runIncrementalSynchronization(
     }
   }
 
-  const derivedDataFailed = await refreshDerivedData(run, changedListingIds);
+  const derivedDataFailed = options.deferDerivedData
+    ? false
+    : await refreshDerivedData(run, changedListingIds);
   const beforeFinish = await synchronizationRunResult(run.id);
   await finishSynchronizationRun(run, {
     status:
@@ -234,6 +289,8 @@ async function runIncrementalSynchronization(
         : "completed",
     stopReason,
   });
+
+  return { changedListingIds } satisfies IncrementalRunResult;
 }
 
 async function runReconciliation(
@@ -394,12 +451,17 @@ export async function synchronizeMarketplace(
   });
 
   try {
+    let incrementalRun: IncrementalRunResult | undefined;
     if (mode === "reconciliation") {
       await runReconciliation(importer, run, options);
     } else {
-      await runIncrementalSynchronization(importer, run, options);
+      incrementalRun = await runIncrementalSynchronization(importer, run, options);
     }
-    return synchronizationRunResult(run.id);
+    const result = await synchronizationRunResult(run.id);
+    return {
+      ...result,
+      changedListingIds: incrementalRun?.changedListingIds ?? [],
+    };
   } catch (error) {
     if (error instanceof SynchronizationStopRequestedError) {
       await interruptSynchronizationRun(run, error.message);
