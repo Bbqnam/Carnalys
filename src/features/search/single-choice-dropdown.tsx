@@ -25,6 +25,7 @@ interface SingleChoiceDropdownProps<T extends string> {
   inlineLabel?: string;
   inlineLabelClassName?: string;
   disabled?: boolean;
+  className?: string;
 }
 
 interface MenuPosition {
@@ -44,6 +45,7 @@ export function SingleChoiceDropdown<T extends string>({
   inlineLabel,
   inlineLabelClassName = "hidden text-xs font-medium text-ink-subtle sm:inline",
   disabled = false,
+  className = "",
 }: SingleChoiceDropdownProps<T>) {
   const listboxId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -139,13 +141,13 @@ export function SingleChoiceDropdown<T extends string>({
   };
 
   return (
-    <div className="relative">
+    <div className={`relative ${className}`}>
       <button
         aria-controls={open ? listboxId : undefined}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className="relative flex h-11 items-center gap-2 rounded-xl border border-border bg-surface pl-3.5 pr-3 text-left shadow-sm transition hover:border-border-strong hover:shadow-md focus-within:border-accent/50 focus-within:ring-4 focus-within:ring-accent/10 disabled:cursor-not-allowed disabled:opacity-45"
+        className="relative flex h-11 w-full items-center gap-2 rounded-xl border border-border bg-surface pl-3.5 pr-3 text-left shadow-sm transition hover:border-border-strong hover:shadow-md focus-within:border-accent/50 focus-within:ring-4 focus-within:ring-accent/10 disabled:cursor-not-allowed disabled:opacity-45"
         disabled={disabled}
         onClick={() => (open ? closeMenu() : openMenu())}
         onKeyDown={(event) => {
@@ -161,8 +163,8 @@ export function SingleChoiceDropdown<T extends string>({
         ref={triggerRef}
         type="button"
       >
-        {inlineLabel ? <span className={inlineLabelClassName}>{inlineLabel}:</span> : null}
-        <span className="whitespace-nowrap text-sm font-semibold text-ink">
+        {inlineLabel ? <span className={`shrink-0 ${inlineLabelClassName}`}>{inlineLabel}:</span> : null}
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
           {selectedLabel}
         </span>
         <ChevronDownIcon

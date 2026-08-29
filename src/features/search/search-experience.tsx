@@ -190,6 +190,7 @@ export function SearchExperience({
       filters.minMileageMil,
       filters.maxMileageMil,
       filters.bodyStyle,
+      filters.postedWithin,
     ].filter((value) => value !== "" && value !== null).length;
   const firstListingNumber =
     pagination.totalListings === 0
@@ -496,15 +497,14 @@ export function SearchExperience({
               </div>
             </div>
 
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-              <SynchronizationButton
-                activeSynchronization={activeSynchronization}
-                locale={locale}
-              />
+            {/* On mobile the filter entry is the primary action and gets its
+                own full-width row; Update and Sort sit together below it. From
+                sm up they all share one right-aligned row. */}
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end sm:justify-end">
               <button
                 aria-controls="mobile-filters"
                 aria-expanded={showFilters}
-                className="flex h-11 items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-sm font-semibold text-ink shadow-sm transition hover:border-border-strong hover:shadow-md active:scale-[0.98] md:hidden"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-sm font-semibold text-ink shadow-sm transition hover:border-border-strong hover:shadow-md active:scale-[0.98] md:hidden"
                 onClick={() => setShowFilters(true)}
                 type="button"
               >
@@ -516,25 +516,23 @@ export function SearchExperience({
                   </span>
                 ) : null}
               </button>
-              <SingleChoiceDropdown
-                ariaLabel={copy.results.postedAria}
-                inlineLabel={copy.results.postedLabel}
-                onChange={(value) => changeFilters({ ...filters, postedWithin: value })}
-                options={(
-                  Object.keys(copy.results.postedOptions) as SearchFilters["postedWithin"][]
-                ).map((value) => ({ value, label: copy.results.postedOptions[value] }))}
-                value={filters.postedWithin}
-              />
-              <SingleChoiceDropdown
-                ariaLabel={copy.results.sortAria}
-                inlineLabel={copy.results.sortLabel}
-                onChange={changeSort}
-                options={(Object.keys(copy.results.sorts) as SearchSort[]).map((sortValue) => ({
-                  value: sortValue,
-                  label: copy.results.sorts[sortValue],
-                }))}
-                value={sort}
-              />
+              <div className="flex items-center gap-2 sm:contents">
+                <SynchronizationButton
+                  activeSynchronization={activeSynchronization}
+                  locale={locale}
+                />
+                <SingleChoiceDropdown
+                  ariaLabel={copy.results.sortAria}
+                  className="min-w-0 flex-1 sm:flex-none"
+                  inlineLabel={copy.results.sortLabel}
+                  onChange={changeSort}
+                  options={(Object.keys(copy.results.sorts) as SearchSort[]).map((sortValue) => ({
+                    value: sortValue,
+                    label: copy.results.sorts[sortValue],
+                  }))}
+                  value={sort}
+                />
+              </div>
             </div>
           </div>
 

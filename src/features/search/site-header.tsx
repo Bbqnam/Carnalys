@@ -1,10 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useId, useRef, useState } from "react";
 import { CarnalysMark } from "./carnalys-mark";
 import {
   CompareIcon,
   HeartIcon,
   MapPinIcon,
   MarketAnalysisIcon,
+  MenuIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { uiCopy, type Locale } from "./copy";
@@ -33,6 +37,10 @@ export function SiteHeader({
   onRequestLocation,
 }: SiteHeaderProps) {
   const copy = uiCopy[locale];
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuId = useId();
+
   const locationLabel =
     locationStatus === "locating"
       ? copy.results.locating
@@ -44,6 +52,37 @@ export function SiteHeader({
             ? copy.results.locationUnavailable
             : copy.results.useCurrentLocation;
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  const navItems = (
+    [
+      ["analysis", "/analysis", copy.nav.analysis, MarketAnalysisIcon, null],
+      ["compare", "/compare", copy.nav.compare, CompareIcon, compareCount],
+      ["saved", "/saved", copy.nav.saved, HeartIcon, savedCount],
+    ] as const
+  ).map(([page, href, label, Icon, count]) => ({
+    page,
+    href,
+    label,
+    Icon,
+    count,
+    isActive: activePage === page,
+  }));
+
   return (
     <header className="relative border-b border-border">
       <div className="mx-auto flex h-16 max-w-[1800px] items-center justify-between px-5 sm:h-[4.5rem] sm:px-8 lg:px-12">
@@ -53,23 +92,14 @@ export function SiteHeader({
           href={logoHref}
         >
           <CarnalysMark className="size-8 text-ink transition-transform duration-300 group-hover:scale-105" />
-          <span className="text-[15px] font-semibold uppercase tracking-[0.16em] text-ink max-[390px]:hidden">
+          <span className="text-[15px] font-semibold uppercase tracking-[0.16em] text-ink max-[360px]:hidden">
             Carnalys
           </span>
         </Link>
 
-        <div className="flex items-center gap-2 sm:gap-5">
-          {/* These read as controls now rather than as muted words in a row.
-              Each nav item carries its icon, sits on its own surface with a
-              border, and takes full-strength ink — the previous
-              `text-ink-muted` on bare text made the whole header look like a
-              caption. Colour is doing one job only: a count above zero is
-              live state, so it gets the accent; a count of zero stays quiet.
-              An empty Compare or Saved is not news. */}
-          {/* The labelled nav used to switch on at md, where it does not fit:
-              logo plus cluster came to ~790px inside a 704px content box, which
-              is the 3px of sideways scroll the page had at 768. It waits for lg
-              now, and the compact icon buttons cover the range below. */}
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Full labelled nav from lg up, where logo + cluster fits the
+              content box. Below that the same items live in the menu. */}
           <nav className="hidden items-center gap-2 text-sm lg:flex">
             {onRequestLocation ? (
               <button
@@ -87,74 +117,67 @@ export function SiteHeader({
                 {locationLabel}
               </button>
             ) : null}
-            {(
-              [
-                ["analysis", "/analysis", copy.nav.analysis, MarketAnalysisIcon, null],
-                ["compare", "/compare", copy.nav.compare, CompareIcon, compareCount],
-                ["saved", "/saved", copy.nav.saved, HeartIcon, savedCount],
-              ] as const
-            ).map(([page, href, label, Icon, count]) => {
-              const isActive = activePage === page;
-              return (
-                <Link
-                  aria-current={isActive ? "page" : undefined}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 font-semibold shadow-sm transition ${
-                    isActive
-                      ? "border-ink bg-ink text-surface"
-                      : "border-border bg-surface text-ink hover:border-border-strong hover:shadow-md"
-                  }`}
-                  href={href}
-                  key={page}
-                >
-                  <Icon className="size-4" />
-                  {label}
-                  {count !== null ? (
-                    <span
-                      className={`grid min-h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold tabular-nums ${
-                        count > 0
-                          ? "bg-accent text-surface"
-                          : isActive
-                            ? "text-surface/60"
-                            : "text-ink-subtle"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
+            {navItems.map(({ page, href, label, Icon, count, isActive }) => (
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 font-semibold shadow-sm transition ${
+                  isActive
+                    ? "border-ink bg-ink text-surface"
+                    : "border-border bg-surface text-ink hover:border-border-strong hover:shadow-md"
+                }`}
+                href={href}
+                key={page}
+              >
+                <Icon className="size-4" />
+                {label}
+                {count !== null ? (
+                  <span
+                    className={`grid min-h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold tabular-nums ${
+                      count > 0
+                        ? "bg-accent text-surface"
+                        : isActive
+                          ? "text-surface/60"
+                          : "text-ink-subtle"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                ) : null}
+              </Link>
+            ))}
           </nav>
 
-          <div
-            aria-label={copy.languageSwitchLabel}
-            className="flex rounded-full border border-border bg-surface/65 p-0.5 text-[11px] font-semibold shadow-sm backdrop-blur"
-            role="group"
-          >
-            {(["en", "sv"] as const).map((language) => (
-              <button
-                aria-pressed={locale === language}
-                className={`min-h-8 rounded-full px-2.5 transition ${
-                  locale === language
-                    ? "bg-ink text-surface shadow-sm"
-                    : "text-ink-subtle hover:text-ink"
-                }`}
-                key={language}
-                onClick={() => onLocaleChange(language)}
-                type="button"
-              >
-                {language.toUpperCase()}
-              </button>
-            ))}
+          <div className="hidden lg:flex lg:items-center lg:gap-4">
+            <div
+              aria-label={copy.languageSwitchLabel}
+              className="flex rounded-full border border-border bg-surface/65 p-0.5 text-[11px] font-semibold shadow-sm backdrop-blur"
+              role="group"
+            >
+              {(["en", "sv"] as const).map((language) => (
+                <button
+                  aria-pressed={locale === language}
+                  className={`min-h-8 rounded-full px-2.5 transition ${
+                    locale === language
+                      ? "bg-ink text-surface shadow-sm"
+                      : "text-ink-subtle hover:text-ink"
+                  }`}
+                  key={language}
+                  onClick={() => onLocaleChange(language)}
+                  type="button"
+                >
+                  {language.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <ThemeToggle
+              ariaLabel={copy.themeSwitchLabel}
+              darkLabel={copy.darkTheme}
+              lightLabel={copy.lightTheme}
+            />
           </div>
 
-          <ThemeToggle
-            ariaLabel={copy.themeSwitchLabel}
-            darkLabel={copy.darkTheme}
-            lightLabel={copy.lightTheme}
-            className="hidden sm:flex"
-          />
-
+          {/* Below lg: at most two controls — the contextual location action,
+              and one menu holding everything else. */}
           {onRequestLocation ? (
             <button
               aria-label={locationLabel}
@@ -171,60 +194,89 @@ export function SiteHeader({
             </button>
           ) : null}
 
-          <Link
-            aria-label={copy.nav.analysis}
-            aria-current={activePage === "analysis" ? "page" : undefined}
-            className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition lg:hidden ${
-              activePage === "analysis"
-                ? "border-ink bg-ink text-surface"
-                : "border-border-strong bg-surface text-ink hover:border-ink"
-            }`}
-            href="/analysis"
-          >
-            <MarketAnalysisIcon className="size-[18px]" strokeWidth={2.1} />
-          </Link>
+          <div className="relative lg:hidden" ref={menuRef}>
+            <button
+              aria-controls={menuId}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label={copy.nav.menu}
+              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition ${
+                menuOpen
+                  ? "border-ink bg-ink text-surface"
+                  : "border-border-strong bg-surface text-ink hover:border-ink"
+              }`}
+              onClick={() => setMenuOpen((open) => !open)}
+              type="button"
+            >
+              <MenuIcon className="size-[18px]" strokeWidth={2.1} />
+            </button>
 
-          <Link
-            aria-label={copy.nav.compareCars(compareCount)}
-            aria-current={activePage === "compare" ? "page" : undefined}
-            className={`relative grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition lg:hidden ${
-              activePage === "compare"
-                ? "border-ink bg-ink text-surface"
-                : "border-border-strong bg-surface text-ink hover:border-ink"
-            }`}
-            href="/compare"
-          >
-            <CompareIcon className="size-[18px]" strokeWidth={2.1} />
-            {compareCount > 0 ? (
-              <span
-                aria-hidden="true"
-                className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[9px] font-bold leading-none text-surface ring-2 ring-background"
+            {menuOpen ? (
+              <div
+                className="absolute right-0 top-[calc(100%+0.6rem)] z-50 w-60 overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_18px_48px_rgba(26,35,29,0.16)]"
+                id={menuId}
+                role="menu"
               >
-                {compareCount}
-              </span>
-            ) : null}
-          </Link>
+                <div className="p-1.5">
+                  {navItems.map(({ page, href, label, Icon, count, isActive }) => (
+                    <Link
+                      aria-current={isActive ? "page" : undefined}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                        isActive
+                          ? "bg-ink text-surface"
+                          : "text-ink hover:bg-surface-muted"
+                      }`}
+                      href={href}
+                      key={page}
+                      onClick={() => setMenuOpen(false)}
+                      role="menuitem"
+                    >
+                      <Icon className="size-[18px] shrink-0" />
+                      <span className="flex-1">{label}</span>
+                      {count !== null && count > 0 ? (
+                        <span
+                          className={`grid min-h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold tabular-nums ${
+                            isActive ? "bg-surface/20 text-surface" : "bg-accent text-surface"
+                          }`}
+                        >
+                          {count > 99 ? "99+" : count}
+                        </span>
+                      ) : null}
+                    </Link>
+                  ))}
+                </div>
 
-          <Link
-            aria-label={copy.nav.savedCars(savedCount)}
-            aria-current={activePage === "saved" ? "page" : undefined}
-            className={`relative grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition lg:hidden ${
-              activePage === "saved"
-                ? "border-ink bg-ink text-surface"
-                : "border-border-strong bg-surface text-ink hover:border-ink"
-            }`}
-            href="/saved"
-          >
-            <HeartIcon className="size-[18px]" strokeWidth={2.1} />
-            {savedCount > 0 ? (
-              <span
-                aria-hidden="true"
-                className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[9px] font-bold leading-none text-surface ring-2 ring-background"
-              >
-                {savedCount > 99 ? "99+" : savedCount}
-              </span>
+                <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-3">
+                  <div
+                    aria-label={copy.languageSwitchLabel}
+                    className="flex rounded-full border border-border bg-surface-subtle p-0.5 text-[11px] font-semibold"
+                    role="group"
+                  >
+                    {(["en", "sv"] as const).map((language) => (
+                      <button
+                        aria-pressed={locale === language}
+                        className={`min-h-7 rounded-full px-3 transition ${
+                          locale === language
+                            ? "bg-ink text-surface shadow-sm"
+                            : "text-ink-subtle hover:text-ink"
+                        }`}
+                        key={language}
+                        onClick={() => onLocaleChange(language)}
+                        type="button"
+                      >
+                        {language.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                  <ThemeToggle
+                    ariaLabel={copy.themeSwitchLabel}
+                    darkLabel={copy.darkTheme}
+                    lightLabel={copy.lightTheme}
+                  />
+                </div>
+              </div>
             ) : null}
-          </Link>
+          </div>
         </div>
       </div>
     </header>

@@ -171,6 +171,7 @@ export const uiCopy = {
       savedCars: (count: number) => `${count} saved cars`,
       compare: "Compare",
       compareCars: (count: number) => `${count} cars in comparison`,
+      menu: "Menu",
     },
     hero: {
       eyebrow: "Smarter car buying starts here",
@@ -438,6 +439,7 @@ export const uiCopy = {
       savedCars: (count: number) => `${count} sparade bilar`,
       compare: "Jämför",
       compareCars: (count: number) => `${count} bilar att jämföra`,
+      menu: "Meny",
     },
     hero: {
       eyebrow: "Smartare bilköp börjar här",

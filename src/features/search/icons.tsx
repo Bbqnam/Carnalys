@@ -193,6 +193,14 @@ export function CloseIcon(props: IconProps) {
   );
 }
 
+export function MenuIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
 export function ExpandIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>

@@ -140,8 +140,11 @@ export function VehicleCard({
             <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
             <span className="shrink-0 text-ink-subtle">•</span>
             <span className="truncate">{copy.filters.fuels[specification.powertrain.fuelType]}</span>
-            <span className="shrink-0 text-ink-subtle 2xl:hidden">•</span>
-            <span className="truncate 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
+            {/* Transmission is secondary — kept off the smallest screens where
+                the line already truncates, and off the widest where the deal
+                verdict competes for the row. */}
+            <span className="hidden shrink-0 text-ink-subtle sm:inline 2xl:hidden">•</span>
+            <span className="hidden truncate sm:inline 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           </p>
           <span className="flex shrink-0 items-center gap-1.5">
             <span

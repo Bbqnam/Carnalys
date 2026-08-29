@@ -263,7 +263,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           {copy.detail.back}
         </button>
 
-        <div className="mt-5 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
+        <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:gap-8">
         <div>
           {/* 4/3 is what the source galleries mostly shoot, and `object-contain`
               keeps whatever they didn't whole: a buyer judging a car cannot be
@@ -470,7 +470,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             </p>
           ) : null}
 
-          <div className="mt-6 rounded-2xl border border-border bg-surface-subtle p-5">
+          <div className="mt-6 rounded-2xl border border-border bg-surface-subtle p-4 sm:p-5">
             <h2 className="text-sm font-semibold text-ink">{copy.detail.specificationsTitle}</h2>
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm sm:grid-cols-3">
               <div>
