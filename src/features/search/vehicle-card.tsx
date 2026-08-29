@@ -110,93 +110,64 @@ export function VehicleCard({
        inner card vacates is still inside it. */
     <article className="group h-full">
       <div className="relative flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-surface shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out group-hover:-translate-y-1 group-hover:border-border-strong group-hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] group-focus-within:border-accent/40 group-focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
-      <div className="relative aspect-[4/3] overflow-hidden bg-surface-muted">
-        {image && !imageFailed ? (
-          <Image
-            alt={imageAlt}
-            blurDataURL={imagePlaceholder}
-            className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
-            fill
-            onError={() => setImageFailed(true)}
-            placeholder="blur"
-            preload={priority}
-            sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 25vw"
-            src={image.url}
-          />
-        ) : (
-          <Image
-            alt={copy.card.missingImage}
-            className="object-cover"
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 25vw"
-            src="/images/vehicle-fallback.svg"
-          />
-        )}
-        <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3.5">
-          <span
-            aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
-            className={`flex items-center gap-1.5 rounded-full border-2 bg-surface/90 px-3 py-1 text-sm font-bold tabular-nums shadow-sm backdrop-blur-md ${dealScoreTone}`}
-          >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em]">
-              {copy.card.dealBadge}
-            </span>
-            {analysis.dealScore.value}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              aria-label={
-                isCompared
-                  ? copy.card.removeFromCompare
-                  : compareDisabled
-                    ? copy.card.compareLimitReached
-                    : copy.card.addToCompare
-              }
-              aria-pressed={isCompared}
-              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${
-                isCompared
-                  ? "border-accent bg-accent-soft text-accent"
-                  : "border-surface/60 bg-surface/85 text-ink hover:bg-surface"
-              }`}
-              disabled={compareDisabled && !isCompared}
-              onClick={onToggleCompare}
-              type="button"
-            >
-              <CompareIcon className="size-[18px]" />
-            </button>
-            <button
-              aria-label={isFavorite ? copy.card.removeSaved : copy.card.saveCar}
-              aria-pressed={isFavorite}
-              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 active:scale-95 ${
-                isFavorite
-                  ? "border-negative bg-negative-soft text-negative"
-                  : "border-surface/60 bg-surface/85 text-ink hover:bg-surface"
-              }`}
-              onClick={onToggleFavorite}
-              type="button"
-            >
-              <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
-            </button>
-          </div>
+        <div className="relative aspect-[4/3] overflow-hidden bg-surface-muted">
+          {image && !imageFailed ? (
+            <Image
+              alt={imageAlt}
+              blurDataURL={imagePlaceholder}
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
+              fill
+              onError={() => setImageFailed(true)}
+              placeholder="blur"
+              preload={priority}
+              sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 25vw"
+              src={image.url}
+            />
+          ) : (
+            <Image
+              alt={copy.card.missingImage}
+              className="object-cover"
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 25vw"
+              src="/images/vehicle-fallback.svg"
+            />
+          )}
         </div>
-      </div>
 
       <div className="flex flex-1 flex-col p-3.5 sm:p-4">
-        <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm text-ink-muted">
-          <span className="shrink-0">{identity.modelYear}</span>
-          <span className="shrink-0 text-ink-subtle">•</span>
-          <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
-          <span className="shrink-0 text-ink-subtle">•</span>
-          <span className="truncate">{copy.filters.fuels[specification.powertrain.fuelType]}</span>
-          <span className="shrink-0 text-ink-subtle 2xl:hidden">•</span>
-          <span className="truncate 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
-          <span
-            className={`ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
-          >
-            {listing.seller.type === "dealer"
-              ? copy.card.dealerBadge
-              : copy.card.privateSellerBadge}
-          </span>
-        </p>
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap pt-0.5 text-sm text-ink-muted">
+            <span className="shrink-0">{identity.modelYear}</span>
+            <span className="shrink-0 text-ink-subtle">•</span>
+            <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
+            <span className="shrink-0 text-ink-subtle">•</span>
+            <span className="truncate">{copy.filters.fuels[specification.powertrain.fuelType]}</span>
+            <span className="shrink-0 text-ink-subtle 2xl:hidden">•</span>
+            <span className="truncate 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
+          </p>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <span
+              className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] ${sellerTypeTone(listing.seller.type)}`}
+            >
+              {listing.seller.type === "dealer"
+                ? copy.card.dealerBadge
+                : copy.card.privateSellerBadge}
+            </span>
+            <span
+              aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
+              className={`group/score relative grid h-6 min-w-6 place-items-center rounded-full border bg-surface-muted px-1 text-[10px] font-bold tabular-nums ${dealScoreTone}`}
+              tabIndex={0}
+            >
+              {analysis.dealScore.value}
+              <span
+                className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-30 w-max translate-y-[-0.2rem] rounded-md bg-ink px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-md transition group-hover/score:translate-y-0 group-hover/score:opacity-100 group-focus-visible/score:translate-y-0 group-focus-visible/score:opacity-100"
+                role="tooltip"
+              >
+                {copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
+              </span>
+            </span>
+          </div>
+        </div>
 
         {/* The photo, the price and the whitespace were all dead: only this
             text linked anywhere, while the largest and most obviously tappable
@@ -317,20 +288,55 @@ export function VehicleCard({
           ) : null}
         </div>
 
-        {/* The source mark is also the outbound action. This keeps provenance
-            in the familiar footer action area without adding source text or a
-            floating badge over the vehicle photo. The link retains a generous
-            hit target and an explicit accessible action label. */}
-        <a
-          aria-label={`${copy.card.viewListing}: ${source.displayName}`}
-          className="relative z-10 mt-2.5 inline-flex min-h-9 w-fit items-center self-start rounded-lg px-1 transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.98]"
-          href={listing.source.url}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          <SourceLogo interactive={false} locale={locale} provider={listing.source.provider} />
-        </a>
+        {/* Keep the vehicle photo completely clean. The three secondary
+            actions share a balanced footer row: compare, the centered source
+            link, and save. The card-wide internal link remains the primary
+            action underneath them. */}
+        <div className="relative z-10 mt-2.5 grid min-h-10 grid-cols-3 items-center">
+          <button
+            aria-label={
+              isCompared
+                ? copy.card.removeFromCompare
+                : compareDisabled
+                  ? copy.card.compareLimitReached
+                  : copy.card.addToCompare
+            }
+            aria-pressed={isCompared}
+            className={`grid size-9 justify-self-start place-items-center rounded-full border transition duration-200 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${
+              isCompared
+                ? "border-accent bg-accent-soft text-accent"
+                : "border-border bg-surface-muted text-ink-muted hover:border-border-strong hover:text-ink"
+            }`}
+            disabled={compareDisabled && !isCompared}
+            onClick={onToggleCompare}
+            type="button"
+          >
+            <CompareIcon className="size-4" />
+          </button>
+          <a
+            aria-label={`${copy.card.viewListing}: ${source.displayName}`}
+            className="inline-flex min-h-9 w-fit items-center justify-self-center rounded-lg px-1 transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.98]"
+            href={listing.source.url}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <SourceLogo interactive={false} locale={locale} provider={listing.source.provider} />
+          </a>
+          <button
+            aria-label={isFavorite ? copy.card.removeSaved : copy.card.saveCar}
+            aria-pressed={isFavorite}
+            className={`grid size-9 justify-self-end place-items-center rounded-full border transition duration-200 hover:scale-105 active:scale-95 ${
+              isFavorite
+                ? "border-negative bg-negative-soft text-negative"
+                : "border-border bg-surface-muted text-ink-muted hover:border-border-strong hover:text-ink"
+            }`}
+            onClick={onToggleFavorite}
+            type="button"
+          >
+            <HeartIcon className="size-4" fill={isFavorite ? "currentColor" : "none"} />
+          </button>
         </div>
+      </div>
       </div>
     </article>
   );
