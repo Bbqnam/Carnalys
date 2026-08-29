@@ -371,6 +371,25 @@ export function ManualTransmissionIcon(props: IconProps) {
   );
 }
 
+export function StorefrontIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="M5 10.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8.5" />
+      <path d="M3.7 10.2 5.2 4.8A1 1 0 0 1 6.2 4h11.6a1 1 0 0 1 1 .8l1.5 5.4a2.6 2.6 0 0 1-5 1.2 2.6 2.6 0 0 1-5 0 2.6 2.6 0 0 1-5 0 2.6 2.6 0 0 1-2.6-1.2Z" />
+      <path d="M10 20v-4.5h4V20" />
+    </svg>
+  );
+}
+
+export function PersonIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+    </svg>
+  );
+}
+
 export function EstateBodyIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} viewBox="0 0 64 32" {...props}>

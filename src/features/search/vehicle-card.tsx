@@ -16,6 +16,8 @@ import {
   CompareIcon,
   HeartIcon,
   MapPinIcon,
+  PersonIcon,
+  StorefrontIcon,
 } from "./icons";
 import type { VehicleSearchResult } from "./types";
 import { SourceLogo } from "@/features/source/source-logo";
@@ -92,6 +94,10 @@ export function VehicleCard({
   const listingDate = formatRelativeListingDate(listingDateValue, locale);
   const exactListingDate = formatExactListingDate(listingDateValue, locale);
   const dealScoreTone = scoreTone(analysis.dealScore.value);
+  const sellerTypeLabel =
+    listing.seller.type === "dealer"
+      ? copy.card.dealerBadge
+      : copy.card.privateSellerBadge;
   const imageAlt =
     locale === "en"
       ? `${identity.make} ${identity.model} in a Nordic setting`
@@ -143,21 +149,27 @@ export function VehicleCard({
                 <span className="shrink-0">{specification.powertrain.powerHp} {copy.card.powerUnit}</span>
               </>
             ) : null}
-            {/* Transmission is secondary — kept off the smallest screens where
-                the line already truncates, and off the widest where the deal
-                verdict competes for the row. */}
-            <span className="hidden shrink-0 text-ink-subtle sm:inline 2xl:hidden">•</span>
-            <span className="hidden truncate sm:inline 2xl:hidden">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
+            {/* Transmission is secondary — dropped only on the smallest
+                screens, where the line is already at risk of truncating. */}
+            <span className="hidden shrink-0 text-ink-subtle sm:inline">•</span>
+            <span className="hidden truncate sm:inline">{copy.filters.transmissions[specification.powertrain.transmission]}</span>
           </p>
           <span className="flex shrink-0 items-center gap-2">
-            {/* Seller type was a coloured uppercase pill competing with the
-                deal score; it carries far less weight than that, so it's a
-                quiet word now — one glance tells dealer from private without
-                spending a row or an accent colour on it. */}
-            <span className="whitespace-nowrap text-xs text-ink-subtle">
-              {listing.seller.type === "dealer"
-                ? copy.card.dealerBadge
-                : copy.card.privateSellerBadge}
+            {/* Seller type was a coloured uppercase pill, then a spelled-out
+                word, both louder than it warrants beside the deal score. It's
+                a single quiet glyph now — storefront for a dealer, person for
+                a private seller — named for assistive tech and on hover. */}
+            <span
+              aria-label={sellerTypeLabel}
+              className="flex text-ink-subtle"
+              role="img"
+              title={sellerTypeLabel}
+            >
+              {listing.seller.type === "dealer" ? (
+                <StorefrontIcon className="size-4" />
+              ) : (
+                <PersonIcon className="size-4" />
+              )}
             </span>
             <span
               aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
