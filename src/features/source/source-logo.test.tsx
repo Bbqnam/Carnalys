@@ -14,3 +14,9 @@ test("renders Wayke provenance without seller text", () => {
   assert.match(html, />wayke</);
   assert.doesNotMatch(html, /Säljare|Seller/);
 });
+
+test("renders card provenance as a quiet image-edge mark", () => {
+  const html = renderToStaticMarkup(<SourceLogo edgeAnchored provider="wayke" />);
+  assert.match(html, /rounded-tr-md/);
+  assert.doesNotMatch(html, /shadow-\[0_1px_3px/);
+});

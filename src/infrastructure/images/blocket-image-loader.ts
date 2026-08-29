@@ -2,6 +2,14 @@
 
 const blocketImageHost = "https://images.blocketcdn.se/";
 const waykeImageHost = "https://cdn.wayke.se/";
+const waykeCfitWidths = [225, 380, 770, 800, 1170, 1920] as const;
+
+function supportedWaykeCfitWidth(requestedWidth: number) {
+  return (
+    waykeCfitWidths.find((candidate) => candidate >= requestedWidth) ??
+    waykeCfitWidths.at(-1)!
+  );
+}
 
 /**
  * Custom `next/image` loader (wired up via `images.loaderFile`).
@@ -31,7 +39,17 @@ export default function blocketImageLoader({
   }
   if (src.startsWith(waykeImageHost)) {
     const url = new URL(src);
-    url.searchParams.set("w", String(width));
+    // Wayke's newer cfit/v3 endpoint rejects arbitrary widths with HTTP 400.
+    // Next generates widths such as 256, 384, 640 and 828, while cfit/v3
+    // accepts the source's fixed variants. Snap upward to the nearest variant
+    // so the browser receives a real image instead of triggering the card's
+    // missing-image fallback.
+    if (url.pathname.startsWith("/cfit/v3/")) {
+      url.searchParams.set("format", "webp");
+      url.searchParams.set("w", String(supportedWaykeCfitWidth(width)));
+    } else {
+      url.searchParams.set("w", String(width));
+    }
     return url.toString();
   }
   return src;

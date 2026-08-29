@@ -41,6 +41,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "cdn.wayke.se",
+        pathname: "/media/**",
+      },
+      {
+        protocol: "https",
         hostname: "commons.wikimedia.org",
         pathname: "/wiki/Special:Redirect/file/**",
       },

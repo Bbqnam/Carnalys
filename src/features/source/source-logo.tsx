@@ -5,18 +5,28 @@ export interface SourceLogoProps {
   locale?: "sv" | "en";
   className?: string;
   interactive?: boolean;
+  edgeAnchored?: boolean;
 }
 
 /** Quiet provenance mark: one source wordmark, one accessible label, no
  * seller/dealer branding and no permanent explanatory text. */
-export function SourceLogo({ provider, locale = "sv", className = "", interactive = true }: SourceLogoProps) {
+export function SourceLogo({
+  provider,
+  locale = "sv",
+  className = "",
+  interactive = true,
+  edgeAnchored = false,
+}: SourceLogoProps) {
   const source = listingSource(provider);
   const label = locale === "en" ? `Listing from ${source.displayName}` : `Annons från ${source.displayName}`;
   const wordmark = source.logoKey === "blocket" ? "blocket" : source.logoKey === "wayke" ? "wayke" : source.displayName;
+  const placement = edgeAnchored
+    ? "rounded-tr-md bg-white/90 px-2.5"
+    : "rounded-md bg-surface-muted px-2";
   return (
     <span
       aria-label={label}
-      className={`group/source relative inline-flex h-6 max-w-24 items-center rounded-md bg-white/90 px-2 text-[11px] font-black leading-none tracking-[-0.025em] text-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.12)] backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${className}`}
+      className={`group/source relative inline-flex h-6 max-w-24 items-center text-[11px] font-black leading-none tracking-[-0.025em] text-slate-800 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${placement} ${className}`}
       tabIndex={interactive ? 0 : undefined}
     >
       <span aria-hidden="true" className={source.logoKey === "blocket" ? "text-[#e11d2e]" : "text-[#172554]"}>
