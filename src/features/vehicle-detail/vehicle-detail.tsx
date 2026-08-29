@@ -30,7 +30,9 @@ import {
 import {
   ArrowRightIcon,
   CheckIcon,
+  CloseIcon,
   CompareIcon,
+  ExpandIcon,
   ExternalLinkIcon,
   ChevronLeftIcon,
   HeartIcon,
@@ -117,7 +119,9 @@ function ScoreCard({
 export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const router = useRouter();
   const [activeImage, setActiveImage] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const activeThumbnail = useRef<HTMLButtonElement | null>(null);
+  const fullscreenCloseButton = useRef<HTMLButtonElement | null>(null);
   const [showAllEquipment, setShowAllEquipment] = useState(false);
   const { favorites, toggle } = useFavorites();
   const {
@@ -189,10 +193,20 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
     activeThumbnail.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeImage]);
 
+  const closeFullscreen = useCallback(() => setIsFullscreen(false), []);
+
   useEffect(() => {
-    if (imageCount < 2) return;
+    if (imageCount < 2 && !isFullscreen) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (event.key === "Escape" && isFullscreen) {
+        closeFullscreen();
+        return;
+      }
+      // Both axes step the gallery — vertical mirrors horizontal so either
+      // hand position works.
+      const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+      const backward = event.key === "ArrowLeft" || event.key === "ArrowUp";
+      if (!forward && !backward) return;
       // Leave the arrows to whatever the reader is actually operating — a
       // select, a range slider, a text field — and only claim them when the
       // page itself has focus.
@@ -200,12 +214,27 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
       if (target?.closest("input, textarea, select, [contenteditable='true']")) {
         return;
       }
+      if (imageCount < 2) return;
       event.preventDefault();
-      stepImage(event.key === "ArrowRight" ? 1 : -1);
+      stepImage(forward ? 1 : -1);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [imageCount, stepImage]);
+  }, [imageCount, stepImage, isFullscreen, closeFullscreen]);
+
+  // Lock the page behind the fullscreen viewer while it is open, and move
+  // focus into it so Escape and the close button are immediately reachable.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    fullscreenCloseButton.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [isFullscreen]);
 
   function changeLocale(nextLocale: Locale) {
     setLocaleCookie(nextLocale);
@@ -278,7 +307,15 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 src="/images/vehicle-fallback.svg"
               />
             )}
-            <div className="absolute right-3.5 top-3.5 flex items-center gap-2">
+            {currentImage ? (
+              <button
+                aria-label={copy.detail.openFullscreen}
+                className="absolute inset-0 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                onClick={() => setIsFullscreen(true)}
+                type="button"
+              />
+            ) : null}
+            <div className="absolute right-3.5 top-3.5 z-10 flex items-center gap-2">
               <button
                 aria-label={
                   isCompared
@@ -321,6 +358,16 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
               </button>
             </div>
+            {currentImage ? (
+              <button
+                aria-label={copy.detail.openFullscreen}
+                className="absolute bottom-3.5 right-3.5 z-10 grid size-10 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition duration-200 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95"
+                onClick={() => setIsFullscreen(true)}
+                type="button"
+              >
+                <ExpandIcon className="size-[18px]" />
+              </button>
+            ) : null}
             {imageCount > 1 ? (
               <>
                 {([
@@ -329,7 +376,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 ] as const).map(([delta, label, side, spin]) => (
                   <button
                     aria-label={label}
-                    className={`absolute top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition duration-200 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95 ${side}`}
+                    className={`absolute top-1/2 z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition duration-200 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95 ${side}`}
                     key={delta}
                     onClick={() => stepImage(delta)}
                     type="button"
@@ -339,7 +386,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 ))}
                 <p
                   aria-live="polite"
-                  className="absolute bottom-3.5 left-1/2 -translate-x-1/2 rounded-full border border-surface/60 bg-surface/85 px-2.5 py-1 text-[11px] font-medium tabular-nums text-ink-muted shadow-sm backdrop-blur-md"
+                  className="absolute bottom-3.5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-surface/60 bg-surface/85 px-2.5 py-1 text-[11px] font-medium tabular-nums text-ink-muted shadow-sm backdrop-blur-md"
                 >
                   {copy.detail.photoPosition(activeImage + 1, imageCount)}
                 </p>
@@ -714,6 +761,67 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         onClear={clearCompare}
         onRemove={removeCompare}
       />
+
+      {isFullscreen && currentImage ? (
+        <div
+          aria-label={currentImage.alt ?? listing.title}
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/95 backdrop-blur-sm"
+          onClick={closeFullscreen}
+          role="dialog"
+        >
+          <button
+            aria-label={copy.detail.closeFullscreen}
+            className="absolute right-4 top-4 z-10 grid size-11 place-items-center rounded-full border border-surface/25 bg-surface/10 text-surface transition hover:bg-surface/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface active:scale-95"
+            onClick={closeFullscreen}
+            ref={fullscreenCloseButton}
+            type="button"
+          >
+            <CloseIcon className="size-5" />
+          </button>
+
+          {/* A plain <img> so the element is exactly the photo's rendered
+              size: everything around it is bare backdrop, so a click anywhere
+              but the photo itself dismisses the viewer. next/image `fill`
+              can't size to content, which would leave the letterbox
+              un-clickable. The file is already fetched by the inline gallery. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt={currentImage.alt ?? listing.title}
+            className="max-h-[88vh] max-w-[94vw] select-none object-contain"
+            onClick={(event) => event.stopPropagation()}
+            src={currentImage.url}
+          />
+
+          {imageCount > 1 ? (
+            <>
+              {([
+                [-1, copy.detail.previousPhoto, "left-3 sm:left-5", ""],
+                [1, copy.detail.nextPhoto, "right-3 sm:right-5", "rotate-180"],
+              ] as const).map(([delta, label, side, spin]) => (
+                <button
+                  aria-label={label}
+                  className={`absolute top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-surface/25 bg-surface/10 text-surface transition hover:bg-surface/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface active:scale-95 ${side}`}
+                  key={delta}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    stepImage(delta);
+                  }}
+                  type="button"
+                >
+                  <ChevronLeftIcon className={`size-5 ${spin}`} />
+                </button>
+              ))}
+              <p
+                aria-live="polite"
+                className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-surface/25 bg-surface/10 px-3 py-1 text-xs font-medium tabular-nums text-surface"
+              >
+                {copy.detail.photoPosition(activeImage + 1, imageCount)}
+              </p>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
