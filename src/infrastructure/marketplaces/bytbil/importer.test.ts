@@ -83,6 +83,9 @@ test("an unchanged summary reuses the structured detail cache without a request"
             cachedImages: ["https://pro.bbcdn.io/10/10340b40-bf47-57a0-0818-0000ed9b316d?rule=legacy-largest"],
             cachedEquipment: ["ACC"],
             summaryFingerprint: bytbilSummaryFingerprint(parsedDocument),
+            // Confirmed against the detail page recently, so the staleness
+            // re-fetch does not trigger.
+            detailFetchedAt: new Date().toISOString(),
           },
         ],
       ]),
@@ -91,6 +94,35 @@ test("an unchanged summary reuses the structured detail cache without a request"
   assert.equal(detailRequests, 0);
   assert.equal(page.listings[0].vehicle.registrationNumber, "FHD47J");
   assert.equal(page.listings[0].listing.equipment.length, 1);
+});
+
+test("a detail not confirmed in days is re-fetched even when the summary is unchanged", async () => {
+  const parsedDocument = parseBytbilSearchPage(searchHtml()).documents[0];
+  let detailRequests = 0;
+  const importer = new BytbilImporter(
+    {
+      search: async () => searchHtml(),
+      detail: async () => {
+        detailRequests += 1;
+        return detailHtml();
+      },
+    },
+    async () =>
+      new Map([
+        [
+          parsedDocument.id,
+          {
+            detail: { __normalizedBytbilDetail: true, registrationNumber: "FHD47J", make: "Volkswagen", model: "Tiguan", fuelType: "Diesel", transmission: "Automatisk", mileageKm: 112090 },
+            cachedImages: [],
+            cachedEquipment: [],
+            summaryFingerprint: bytbilSummaryFingerprint(parsedDocument),
+            detailFetchedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+        ],
+      ]),
+  );
+  await importer.fetchPage({ page: 1, sortOrder: "PUBLISHED_DESC" }, async () => undefined);
+  assert.equal(detailRequests, 1);
 });
 
 test("a structural break is retried, reported, then surfaced without touching other sources", async () => {

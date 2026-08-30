@@ -2,6 +2,46 @@ import type { ScoreFactor } from "@/domain/vehicle";
 
 export type Locale = "en" | "sv";
 
+/**
+ * Why a Deal Score is not shown. Codes come from
+ * `price-plausibility.ts` (`reasonCode`), persisted in the price factor params.
+ * 0 / undefined = simply too few comparables.
+ */
+function priceNotRatedText(locale: Locale, reasonCode: number | undefined) {
+  const en = locale === "en";
+  switch (reasonCode) {
+    case 1:
+      return en
+        ? "The asking price is too low for this model year to be the car's price."
+        : "Begärt pris är för lågt för årsmodellen för att vara bilens pris.";
+    case 2:
+    case 5:
+      return en
+        ? "This looks like a monthly payment or deposit, not the car's price."
+        : "Detta ser ut som en månadskostnad eller handpenning, inte bilens pris.";
+    case 3:
+      return en
+        ? "The asking price is far below comparable cars, so it is not rated."
+        : "Begärt pris ligger långt under jämförbara bilar och bedöms inte.";
+    case 4:
+      return en
+        ? "The asking price is far outside the range of comparable cars."
+        : "Begärt pris ligger långt utanför spannet för jämförbara bilar.";
+    case 6:
+      return en
+        ? "The listing text points to leasing or financing rather than a sale price."
+        : "Annonstexten pekar på leasing eller finansiering snarare än ett köppris.";
+    case 7:
+      return en
+        ? "Too few comparable listings to safely rate an unusually low price."
+        : "För få jämförbara annonser för att säkert bedöma ett ovanligt lågt pris.";
+    default:
+      return en
+        ? "Too few comparable listings for a reliable price comparison."
+        : "För få jämförbara annonser för en säker prisjämförelse.";
+  }
+}
+
 export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
   const numberLocale = locale === "en" ? "en-SE" : "sv-SE";
   const legacyFactor = factor as ScoreFactor & {
@@ -40,9 +80,7 @@ export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
     case "price_vs_market":
       explanation =
         value("percent") === undefined
-          ? locale === "en"
-            ? "Too few comparable listings for a reliable price comparison."
-            : "För få jämförbara annonser för en säker prisjämförelse."
+          ? priceNotRatedText(locale, value("reasonCode"))
           : factor.impact === "positive"
             ? locale === "en"
               ? `Priced ${value("percent")}% below estimated market value.`
@@ -166,22 +204,32 @@ export const uiCopy = {
     nav: {
       home: "Carnalys home",
       howItWorks: "How it works",
+      search: "Search",
       analysis: "Analysis",
+      insights: "Insights",
       saved: "Saved",
       savedCars: (count: number) => `${count} saved cars`,
       compare: "Compare",
       compareCars: (count: number) => `${count} cars in comparison`,
       menu: "Menu",
+      signIn: "Sign in",
+      account: "Account",
     },
     hero: {
-      eyebrow: "Smarter car buying starts here",
+      eyebrow: "Smart insights. Better car decisions.",
       title: "Carnalys",
+      headlineLead: "Find the right car.",
+      headlineRest: "Know if it’s a ",
+      headlineEmphasis: "good deal.",
+      analysedCount: (count: number) =>
+        `${count.toLocaleString("en-SE")} cars analysed across Sweden`,
       description:
         "We compare market value, ownership cost and reliability so you can find the best buys—not just more listings.",
       searchLabel: "Search by make or model",
-      searchPlaceholder: "Try “Volvo V60” or “Tesla Model 3”",
+      searchPlaceholder: "Search make, model or keyword…",
       showCars: (count: number) =>
         `Show ${count.toLocaleString("en-SE")} ${count === 1 ? "car" : "cars"}`,
+      searchAction: "Search",
       popular: "Popular",
       suggestionsLabel: "Popular searches",
       benefits: [
@@ -275,6 +323,18 @@ export const uiCopy = {
       locationUnavailable: "Couldn't get location",
       locationDenied: "Location blocked",
       filterButton: "Filters",
+      searchAria: "Search cars",
+      quickFilters: {
+        label: "Quick filters",
+        bestDeals: "Best deals",
+        maxPrice: "Under 100,000 kr",
+        maxPrice200: "Under 200,000 kr",
+        lowMileage: "Low mileage",
+        automatic: "Automatic",
+      },
+      viewGrid: "Grid view",
+      viewList: "List view",
+      viewToggleLabel: "Result layout",
       sortLabel: "Sort",
       sortAria: "Sort results",
       postedLabel: "Posted",
@@ -286,7 +346,7 @@ export const uiCopy = {
         month: "This month",
       },
       sorts: {
-        deal_score: "Best Deal Score",
+        deal_score: "Highest Deal Score",
         buy_confidence: "Highest confidence",
         price_asc: "Lowest price",
         price_desc: "Highest price",
@@ -329,11 +389,13 @@ export const uiCopy = {
       belowMarket: (percent: number) => `${percent}% below market`,
       aboveMarket: (percent: number) => `${percent}% above market`,
       atMarket: "At estimated market value",
-      marketEstimatePending: "Market estimate pending",
+      marketEstimatePending: "Market value not available yet",
       insufficientMarketData: (count: number) =>
         `${count} comparable ${count === 1 ? "car" : "cars"}; at least 3 required`,
-      dealScoreHelp: "Price attractiveness compared with similar cars.",
-      confidenceHelp: "Overall purchase quality, ownership cost and risk.",
+      dealScoreHelp: "How the asking price compares with similar cars.",
+      confidenceHelp: "How reassuring the car itself looks — age, mileage, history.",
+      notRated: "Not rated",
+      notRatedHelp: "The asking price could not be compared with the market.",
       financingFrom: "Financing from",
       perMonth: "/mo",
       dealerBadge: "Dealer",
@@ -342,7 +404,8 @@ export const uiCopy = {
       firstSeen: "First seen",
       distanceAway: (distanceKm: number) => `${distanceKm} km away`,
       viewListing: "View listing",
-      scoreOutOf: (label: string, value: number) => `${label}: ${value} out of 100`,
+      scoreOutOf: (label: string, value: number | null) =>
+        value === null ? `${label}: not rated` : `${label}: ${value} out of 100`,
     },
     detail: {
       back: "Back to results",
@@ -351,15 +414,23 @@ export const uiCopy = {
       photoPosition: (index: number, total: number) => `Photo ${index} of ${total}`,
       openFullscreen: "View full screen",
       closeFullscreen: "Close full screen",
+      share: "Share",
+      shareCopied: "Link copied",
       dealScoreTitle: "Deal Score",
       buyConfidenceTitle: "Buy Confidence",
+      scoreRatings: {
+        excellent: "Excellent",
+        good: "Good",
+        average: "Average",
+        low: "Low",
+      },
       whyThisScore: "Why this score",
       marketValueTitle: "Estimated market value",
       marketRange: "Likely range",
       comparablePricesLabel: "Comparable listings",
       thisCarLabel: "This car",
       analyseModel: (model: string) => `Analyse the ${model} market`,
-      ownershipCostTitle: "Estimated annual ownership cost",
+      ownershipCostTitle: "Estimated ownership cost",
       ownershipCostCaption: (km: number) =>
         `Based on ${km.toLocaleString("en-SE")} km per year`,
       equipmentTitle: "Equipment",
@@ -392,6 +463,40 @@ export const uiCopy = {
         "Above average",
         "Well above average",
       ],
+      tabs: {
+        overview: "Overview",
+        analysis: "Analysis",
+        equipment: "Equipment",
+        costs: "Costs",
+        vehicleInfo: "Vehicle info",
+      },
+      viewOn: (source: string) => `View on ${source}`,
+      listedBy: (seller: string) => `Listed by ${seller}`,
+      aboveEstimate: (amount: string) => `${amount} above estimated market value`,
+      belowEstimate: (amount: string) => `${amount} below estimated market value`,
+      priceVsMarketTitle: "Price vs market",
+      listingDetailsTitle: "Listing details",
+      listingDescriptionTitle: "About this listing",
+      listedPriceLabel: "Listed price",
+      listingAgeLabel: "Listing age",
+      locationLabel: "Location",
+      sellerTypeRowLabel: "Seller type",
+      mileageLabel: "Mileage",
+      costPerMonth: (amount: string) => `${amount} / month`,
+      costPerYear: (amount: string) => `${amount} / year`,
+      viewFullBreakdown: "View full breakdown",
+      highlightsTitle: "Highlights",
+      keyInsightsTitle: "Key insights",
+      atAGlanceTitle: "At a glance",
+      costAssumptionsTitle: "Assumptions",
+      flags: {
+        fullServiceHistory: "Full service history",
+        singleOwner: "One previous owner",
+        newModel: (year: number) => `New model (${year})`,
+        priceAboveMarket: "Priced above market",
+        priceBelowMarket: "Priced below market",
+        limitedServiceHistory: "Limited service history",
+      },
       ownershipCostBreakdown: "Estimated cost split",
       ownershipCostCategories: {
         depreciation: "Depreciation",
@@ -433,24 +538,34 @@ export const uiCopy = {
     lightTheme: "Ljust",
     darkTheme: "Mörkt",
     nav: {
-      home: "Carnalys hem",
+      home: "Carnalys startsida",
       howItWorks: "Så fungerar det",
+      search: "Sök",
       analysis: "Analys",
+      insights: "Insikter",
       saved: "Sparade",
       savedCars: (count: number) => `${count} sparade bilar`,
       compare: "Jämför",
       compareCars: (count: number) => `${count} bilar att jämföra`,
       menu: "Meny",
+      signIn: "Logga in",
+      account: "Konto",
     },
     hero: {
-      eyebrow: "Smartare bilköp börjar här",
+      eyebrow: "Smarta insikter. Bättre bilköp.",
       title: "Carnalys",
+      headlineLead: "Hitta rätt bil.",
+      headlineRest: "Vet om det är ett ",
+      headlineEmphasis: "bra köp.",
+      analysedCount: (count: number) =>
+        `${count.toLocaleString("sv-SE")} bilar analyserade i Sverige`,
       description:
         "Vi jämför marknadsvärde, ägandekostnad och tillförlitlighet så att du hittar de bästa köpen — inte bara fler annonser.",
       searchLabel: "Sök efter märke eller modell",
-      searchPlaceholder: "Prova ”Volvo V60” eller ”Tesla Model 3”",
+      searchPlaceholder: "Sök märke, modell eller nyckelord…",
       showCars: (count: number) =>
         `Visa ${count.toLocaleString("sv-SE")} ${count === 1 ? "bil" : "bilar"}`,
+      searchAction: "Sök",
       popular: "Populärt",
       suggestionsLabel: "Populära sökningar",
       benefits: [
@@ -544,6 +659,18 @@ export const uiCopy = {
       locationUnavailable: "Kunde inte hämta plats",
       locationDenied: "Plats blockerad",
       filterButton: "Filter",
+      searchAria: "Sök bilar",
+      quickFilters: {
+        label: "Snabbfilter",
+        bestDeals: "Bästa affärerna",
+        maxPrice: "Under 100 000 kr",
+        maxPrice200: "Under 200 000 kr",
+        lowMileage: "Lågt miltal",
+        automatic: "Automat",
+      },
+      viewGrid: "Rutnätsvy",
+      viewList: "Listvy",
+      viewToggleLabel: "Resultatlayout",
       sortLabel: "Sortera",
       sortAria: "Sortera resultat",
       postedLabel: "Publicerad",
@@ -555,7 +682,7 @@ export const uiCopy = {
         month: "Denna månad",
       },
       sorts: {
-        deal_score: "Bäst Deal Score",
+        deal_score: "Högst Deal Score",
         buy_confidence: "Högst köptrygghet",
         price_asc: "Lägst pris",
         price_desc: "Högst pris",
@@ -598,11 +725,13 @@ export const uiCopy = {
       belowMarket: (percent: number) => `${percent}% under marknaden`,
       aboveMarket: (percent: number) => `${percent}% över marknaden`,
       atMarket: "Vid uppskattat marknadsvärde",
-      marketEstimatePending: "Marknadsestimat inväntas",
+      marketEstimatePending: "Marknadsvärde saknas ännu",
       insufficientMarketData: (count: number) =>
         `${count} jämförbara ${count === 1 ? "bil" : "bilar"}; minst 3 krävs`,
-      dealScoreHelp: "Prisets attraktivitet jämfört med liknande bilar.",
-      confidenceHelp: "Helhetsbedömning av kvalitet, ägandekostnad och risk.",
+      dealScoreHelp: "Hur begärt pris står sig mot liknande bilar.",
+      confidenceHelp: "Hur trygg bilen själv ser ut — ålder, miltal, historik.",
+      notRated: "Ej bedömt",
+      notRatedHelp: "Begärt pris kunde inte jämföras med marknaden.",
       financingFrom: "Finansiering från",
       perMonth: "/mån",
       dealerBadge: "Handlare",
@@ -611,7 +740,8 @@ export const uiCopy = {
       firstSeen: "Först sedd",
       distanceAway: (distanceKm: number) => `${distanceKm} km bort`,
       viewListing: "Visa annons",
-      scoreOutOf: (label: string, value: number) => `${label}: ${value} av 100`,
+      scoreOutOf: (label: string, value: number | null) =>
+        value === null ? `${label}: ej bedömt` : `${label}: ${value} av 100`,
     },
     detail: {
       back: "Tillbaka till resultat",
@@ -620,15 +750,23 @@ export const uiCopy = {
       photoPosition: (index: number, total: number) => `Bild ${index} av ${total}`,
       openFullscreen: "Visa i helskärm",
       closeFullscreen: "Stäng helskärm",
+      share: "Dela",
+      shareCopied: "Länk kopierad",
       dealScoreTitle: "Deal Score",
       buyConfidenceTitle: "Köptrygghet",
+      scoreRatings: {
+        excellent: "Utmärkt",
+        good: "Bra",
+        average: "Genomsnittlig",
+        low: "Låg",
+      },
       whyThisScore: "Varför detta betyg",
       marketValueTitle: "Uppskattat marknadsvärde",
-      marketRange: "Trolig prisspann",
+      marketRange: "Troligt prisintervall",
       comparablePricesLabel: "Jämförbara annonser",
       thisCarLabel: "Den här bilen",
       analyseModel: (model: string) => `Analysera marknaden för ${model}`,
-      ownershipCostTitle: "Uppskattad årlig ägandekostnad",
+      ownershipCostTitle: "Uppskattad ägandekostnad",
       ownershipCostCaption: (km: number) =>
         `Baserat på ${km.toLocaleString("sv-SE")} km per år`,
       equipmentTitle: "Utrustning",
@@ -661,6 +799,40 @@ export const uiCopy = {
         "Över snittet",
         "Långt över snittet",
       ],
+      tabs: {
+        overview: "Översikt",
+        analysis: "Analys",
+        equipment: "Utrustning",
+        costs: "Kostnader",
+        vehicleInfo: "Fordonsinfo",
+      },
+      viewOn: (source: string) => `Visa på ${source}`,
+      listedBy: (seller: string) => `Annonserad av ${seller}`,
+      aboveEstimate: (amount: string) => `${amount} över uppskattat marknadsvärde`,
+      belowEstimate: (amount: string) => `${amount} under uppskattat marknadsvärde`,
+      priceVsMarketTitle: "Pris mot marknaden",
+      listingDetailsTitle: "Annonsdetaljer",
+      listingDescriptionTitle: "Om annonsen",
+      listedPriceLabel: "Annonspris",
+      listingAgeLabel: "Annonsålder",
+      locationLabel: "Plats",
+      sellerTypeRowLabel: "Säljartyp",
+      mileageLabel: "Miltal",
+      costPerMonth: (amount: string) => `${amount} / mån`,
+      costPerYear: (amount: string) => `${amount} / år`,
+      viewFullBreakdown: "Se hela uppdelningen",
+      highlightsTitle: "Höjdpunkter",
+      keyInsightsTitle: "Att tänka på",
+      atAGlanceTitle: "I korthet",
+      costAssumptionsTitle: "Antaganden",
+      flags: {
+        fullServiceHistory: "Fullständig servicehistorik",
+        singleOwner: "En tidigare ägare",
+        newModel: (year: number) => `Ny modell (${year})`,
+        priceAboveMarket: "Priset är över marknaden",
+        priceBelowMarket: "Priset är under marknaden",
+        limitedServiceHistory: "Begränsad servicehistorik",
+      },
       ownershipCostBreakdown: "Uppskattad kostnadsfördelning",
       ownershipCostCategories: {
         depreciation: "Värdeminskning",

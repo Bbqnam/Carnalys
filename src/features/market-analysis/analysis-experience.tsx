@@ -43,6 +43,15 @@ interface AnalysisExperienceProps {
 
 const iconClass = "size-4";
 
+// These analyses are useful research tools, but they are intentionally kept
+// out of the primary page until we have a denser way to present them. Keeping
+// the modules mounted behind explicit visibility flags preserves the work and
+// makes re-enabling either section a one-line change.
+const analysisModuleVisibility = {
+  variantAndValueMap: false,
+  equipmentValue: false,
+} as const;
+
 export function AnalysisExperience({
   analysis,
   available,
@@ -181,27 +190,31 @@ export function AnalysisExperience({
               <DepreciationCurve data={analysis.depreciation} locale={locale} />
             </Module>
 
-            <Module
-              className="lg:col-span-5"
-              explanation={copy.variants.explanation}
-              headline={copy.variants.headline}
-              icon={<TrophyIcon className={iconClass} />}
-              title={copy.variants.title}
-            >
-              <VariantValue data={analysis.variantValue} locale={locale} />
-            </Module>
+            {analysisModuleVisibility.variantAndValueMap ? (
+              <>
+                <Module
+                  className="lg:col-span-5"
+                  explanation={copy.variants.explanation}
+                  headline={copy.variants.headline}
+                  icon={<TrophyIcon className={iconClass} />}
+                  title={copy.variants.title}
+                >
+                  <VariantValue data={analysis.variantValue} locale={locale} />
+                </Module>
+
+                <Module
+                  className="lg:col-span-7"
+                  explanation={copy.valueMap.description}
+                  icon={<GridIcon className={iconClass} />}
+                  title={copy.valueMap.title}
+                >
+                  <ValueMap data={analysis.valueMap} locale={locale} />
+                </Module>
+              </>
+            ) : null}
 
             <Module
-              className="lg:col-span-7"
-              explanation={copy.valueMap.description}
-              icon={<GridIcon className={iconClass} />}
-              title={copy.valueMap.title}
-            >
-              <ValueMap data={analysis.valueMap} locale={locale} />
-            </Module>
-
-            <Module
-              className="lg:col-span-4"
+              className="lg:col-span-6"
               explanation={copy.relationships.methodology}
               icon={<ScalesIcon className={iconClass} />}
               title={copy.relationships.title}
@@ -212,17 +225,19 @@ export function AnalysisExperience({
               />
             </Module>
 
-            <Module
-              className="lg:col-span-4"
-              explanation={copy.equipment.explanation}
-              icon={<OptionsIcon className={iconClass} />}
-              title={copy.equipment.title}
-            >
-              <EquipmentValue data={analysis.equipmentValue} locale={locale} />
-            </Module>
+            {analysisModuleVisibility.equipmentValue ? (
+              <Module
+                className="lg:col-span-4"
+                explanation={copy.equipment.explanation}
+                icon={<OptionsIcon className={iconClass} />}
+                title={copy.equipment.title}
+              >
+                <EquipmentValue data={analysis.equipmentValue} locale={locale} />
+              </Module>
+            ) : null}
 
             <Module
-              className="lg:col-span-4"
+              className="lg:col-span-6"
               explanation={copy.regions.explanation}
               icon={<RegionIcon className={iconClass} />}
               title={copy.regions.title}

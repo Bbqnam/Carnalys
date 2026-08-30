@@ -306,41 +306,36 @@ function createStoredAnalysis(
           ? `Medianpris från ${comparableCount} jämförbara aktiva annonser.`
           : "För få jämförbara annonser; värderingen visas neutralt.",
     },
-    // Unlike market value / deal score, ownership cost depends only on this
-    // one car's own price, age, and powertrain — never on other listings —
-    // so it's computed live here instead of read from a precomputed,
-    // batch-refreshed column. A formula change takes effect immediately for
-    // every listing, with nothing to backfill.
-    //
-    // The card does not draw any of it. On a page of thirty-five that was six
-    // itemised lines each — with their category, annual cost and explanation —
-    // computed and serialised to the browser for nothing, so the breakdown is
-    // built only when the caller will show it.
-    ownershipCost: itemised
-      ? estimateOwnershipCost(specification, askingPrice, result.vehicle.modelYear)
-      : {
-          annualCost: {
-            amount: stored?.annualOwnershipCost ?? 0,
-            currency: "SEK",
-          },
-          estimatedForAnnualDistanceKm: 15_000,
-          confidence,
-          items: [],
-          assumptions: [],
-        },
+    // Ownership cost depends only on this one car's own price, age and
+    // powertrain — never on other listings — so it is computed live here for
+    // both the card and the detail page (one formula, no drift), and read from
+    // no stored column. The card gets the total only; the itemised breakdown is
+    // built solely for the caller that will render it.
+    ownershipCost: (() => {
+      const full = estimateOwnershipCost(
+        specification,
+        askingPrice,
+        result.vehicle.modelYear,
+      );
+      return itemised ? full : { ...full, items: [], assumptions: [] };
+    })(),
     dealScore: {
       kind: "deal",
-      value: stored?.dealScore ?? 70,
+      // `null` = unrated (no comparable value, or the price was quarantined).
+      // Never coerced to a number — the UI must show "not rated", not 50.
+      value: stored?.dealScore ?? null,
       confidence,
       summary:
-        comparableCount >= 3
-          ? "Priset jämförs med liknande aktiva annonser."
-          : "För få jämförbara annonser för en säker prisbedömning.",
+        stored?.dealScore == null
+          ? "Priset kunde inte bedömas mot marknaden."
+          : comparableCount >= 3
+            ? "Priset jämförs med liknande aktiva annonser."
+            : "För få jämförbara annonser för en säker prisbedömning.",
       factors: (narrow.dealScoreFactors as ScoreFactor[] | undefined) ?? [],
     },
     buyConfidenceScore: {
       kind: "buy_confidence",
-      value: stored?.buyConfidenceScore ?? 70,
+      value: stored?.buyConfidenceScore ?? 50,
       confidence,
       summary: "Sparad bedömning baserad på tillgänglig annonsdata.",
       factors:
@@ -583,7 +578,12 @@ function listingOrder(
       return [{ analysis: { buyConfidenceScore: "desc" } }, { id: "asc" }];
     case "deal_score":
     default:
-      return [{ analysis: { dealScore: "desc" } }, { id: "asc" }];
+      // Unrated listings (dealScore IS NULL) sort last, not first — a missing
+      // score is not the best deal on the page.
+      return [
+        { analysis: { dealScore: { sort: "desc", nulls: "last" } } },
+        { id: "asc" },
+      ];
   }
 }
 

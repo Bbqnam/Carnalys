@@ -7,15 +7,25 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { uiCopy, type Locale } from "./copy";
 import { CompareMobileBar, CompareTrayPanel } from "./compare-tray";
 import { FilterPanel } from "./filter-panel";
-import { CloseIcon, SearchEmptyIcon, SlidersIcon } from "./icons";
+import {
+  CloseIcon,
+  GridIcon,
+  ListIcon,
+  SearchEmptyIcon,
+  SearchIcon,
+  SlidersIcon,
+} from "./icons";
+import { QuickFilters } from "./quick-filters";
 import { SearchHero } from "./search-hero";
 import { SingleChoiceDropdown } from "./single-choice-dropdown";
+import { SiteHeader } from "./site-header";
 import { SynchronizationButton } from "./synchronization-button";
 import { defaultSearchFilters, vehicleSearchUrl } from "./search-state";
 import { setLocaleCookie } from "./locale";
 import { useCompare } from "./use-compare";
 import { useCurrentLocation } from "./use-current-location";
 import { useFavorites } from "./use-favorites";
+import { useViewMode } from "./use-view-mode";
 import type {
   AvailableVehicleFilters,
   SearchFilters,
@@ -24,6 +34,7 @@ import type {
   VehicleSearchResult,
 } from "./types";
 import { VehicleCard } from "./vehicle-card";
+import { VehicleRow } from "./vehicle-row";
 
 const savedSearchKey = "carnalys:search-state:v1";
 
@@ -143,6 +154,7 @@ export function SearchExperience({
   } = useCompare();
   const comparedIds = new Set(compared.map((vehicle) => vehicle.id));
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, changeViewMode] = useViewMode();
   const {
     location: userLocation,
     status: locationStatus,
@@ -153,6 +165,7 @@ export function SearchExperience({
   const navigationTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const copy = uiCopy[locale];
   const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
+  const showHero = pagination.page <= 1;
 
   if (renderedSearchState !== incomingSearchState) {
     setRenderedSearchState(incomingSearchState);
@@ -162,8 +175,11 @@ export function SearchExperience({
 
   const results = useMemo(() => {
     if (sort === "deal_score") {
+      // Unrated (null) sorts last, mirroring the server's `nulls: "last"`.
       return listings.toSorted(
-        (left, right) => right.analysis.dealScore.value - left.analysis.dealScore.value,
+        (left, right) =>
+          (right.analysis.dealScore.value ?? -1) -
+          (left.analysis.dealScore.value ?? -1),
       );
     }
     if (sort === "buy_confidence") {
@@ -332,10 +348,14 @@ export function SearchExperience({
 
     try {
       const savedUrl = window.localStorage.getItem(savedSearchKey);
-      // Sanitize on read too: values persisted before `page` was stripped can
-      // still carry `?page=20`.
-      const restoreUrl = savedUrl ? withoutPageParam(savedUrl) : null;
-      if (restoreUrl && restoreUrl !== "/#cars" && restoreUrl !== "/") {
+      // Sanitize on read: drop `page` (a returning visitor shouldn't land deep
+      // in pagination) and the `#cars` hash — a fresh visit restores the
+      // filters but stays at the top of the page rather than jumping straight
+      // to the results grid.
+      const restoreUrl = savedUrl
+        ? withoutPageParam(savedUrl).replace(/#.*$/, "")
+        : null;
+      if (restoreUrl && restoreUrl !== "/") {
         router.replace(restoreUrl, { scroll: false });
       }
     } catch {
@@ -347,15 +367,33 @@ export function SearchExperience({
     if (!showFilters) return;
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // iOS Safari ignores `overflow: hidden` on <body> for touch scrolling, so a
+    // drag that starts inside the drawer gets stolen by the page behind it —
+    // which reads as "scrolling doesn't work in the filters". Pin the body in
+    // place instead, remembering the scroll position to restore on close.
+    const { body } = document;
+    const scrollY = window.scrollY;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
     closeFiltersRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") setShowFilters(false);
       if (event.key !== "Tab") return;
 
-      const dialog = document.getElementById("mobile-filters");
+      const dialog = document.getElementById("filters-drawer");
       const focusable = dialog?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
       );
@@ -374,7 +412,13 @@ export function SearchExperience({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.left = previous.left;
+      body.style.right = previous.right;
+      body.style.width = previous.width;
+      body.style.overflow = previous.overflow;
+      window.scrollTo(0, scrollY);
       window.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus();
     };
@@ -453,20 +497,260 @@ export function SearchExperience({
     document.getElementById("cars")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  const quickFilters = (
+    <QuickFilters filters={filters} locale={locale} onChange={changeFilters} />
+  );
+
+  const resultsBlock =
+    results.length > 0 ? (
+      <>
+        {viewMode === "list" ? (
+          <div className="flex min-w-0 flex-col gap-3">
+            <AnimatePresence initial={false}>
+              {results.map((result, index) => (
+                <motion.div
+                  animate={{ opacity: 1, y: 0 }}
+                  className="min-w-0"
+                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 8 }}
+                  key={result.listing.id}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                >
+                  <VehicleRow
+                    currentLocation={userLocation}
+                    isFavorite={favorites.has(result.listing.id)}
+                    isCompared={comparedIds.has(result.listing.id)}
+                    compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
+                    locale={locale}
+                    onToggleFavorite={() => toggleFavorite(result.listing.id)}
+                    onToggleCompare={() =>
+                      toggleCompare({
+                        id: result.listing.id,
+                        make: result.vehicle.identity.make,
+                        model: result.vehicle.identity.model,
+                        variant: result.vehicle.identity.variant,
+                        imageUrl: result.listing.images[0]?.url,
+                      })
+                    }
+                    priority={index < 3}
+                    result={result}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        ) : (
+          /* Column count follows the space rather than a breakpoint ladder:
+             `auto-fill` with a floor keeps every card inside one sane band at
+             every width, with or without the compare tray beside it. The
+             `max(20rem, (100% - 4 gaps)/5)` term caps the row at five cards so
+             the cards keep real breathing room on wide screens instead of
+             shrinking to fit six or seven across. */
+          <div className="grid min-w-0 gap-5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,max(20rem,calc((100%_-_5rem)/5))),1fr))]">
+            <AnimatePresence initial={false}>
+              {results.map((result, index) => (
+                <motion.div
+                  animate={{ opacity: 1, y: 0 }}
+                  className="min-w-0"
+                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 8 }}
+                  key={result.listing.id}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                >
+                  <VehicleCard
+                    currentLocation={userLocation}
+                    isFavorite={favorites.has(result.listing.id)}
+                    isCompared={comparedIds.has(result.listing.id)}
+                    compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
+                    locale={locale}
+                    onToggleFavorite={() => toggleFavorite(result.listing.id)}
+                    onToggleCompare={() =>
+                      toggleCompare({
+                        id: result.listing.id,
+                        make: result.vehicle.identity.make,
+                        model: result.vehicle.identity.model,
+                        variant: result.vehicle.identity.variant,
+                        imageUrl: result.listing.images[0]?.url,
+                      })
+                    }
+                    priority={index < 2}
+                    result={result}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {pagination.totalPages > 1 ? (
+          <nav
+            aria-label={copy.results.paginationLabel}
+            className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-[0_8px_30px_rgba(26,35,29,0.04)] sm:p-4"
+          >
+            <div className="flex w-full min-w-0 items-center justify-between gap-1.5">
+              {pagination.page > 1 ? (
+                <Link
+                  aria-label={copy.results.previousPage}
+                  className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted active:scale-[0.98] sm:flex-none"
+                  href={vehicleSearchUrl({
+                    filters,
+                    sort,
+                    page: pagination.page - 1,
+                    pageSize: pagination.pageSize,
+                  })}
+                  prefetch={false}
+                >
+                  <span className="sm:hidden">‹</span>
+                  <span className="hidden sm:inline">{copy.results.previousPage}</span>
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  className="flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-ink-subtle sm:flex-none"
+                >
+                  <span className="sm:hidden">‹</span>
+                  <span className="hidden sm:inline">{copy.results.previousPage}</span>
+                </span>
+              )}
+
+              <div className="flex min-w-0 items-center gap-1" aria-label={copy.results.pageNumbers}>
+                {pages.map((item) =>
+                  typeof item === "number" ? (
+                    item === pagination.page ? (
+                      <span
+                        aria-current="page"
+                        className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-sm font-bold text-surface shadow-sm"
+                        key={item}
+                      >
+                        {item}
+                      </span>
+                    ) : (
+                      <Link
+                        aria-label={copy.results.goToPage(item)}
+                        className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-ink-muted transition hover:bg-surface-muted hover:text-ink active:scale-[0.96]"
+                        href={vehicleSearchUrl({
+                          filters,
+                          sort,
+                          page: item,
+                          pageSize: pagination.pageSize,
+                        })}
+                        key={item}
+                        prefetch={false}
+                      >
+                        {item}
+                      </Link>
+                    )
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="grid size-6 shrink-0 place-items-center text-sm text-ink-subtle sm:size-8"
+                      key={item}
+                    >
+                      …
+                    </span>
+                  ),
+                )}
+              </div>
+
+              {pagination.page < pagination.totalPages ? (
+                <Link
+                  aria-label={copy.results.nextPage}
+                  className="flex h-10 flex-1 items-center justify-center rounded-xl bg-ink px-3 text-sm font-semibold text-surface shadow-sm transition hover:opacity-90 hover:shadow-md active:scale-[0.98] sm:flex-none"
+                  href={vehicleSearchUrl({
+                    filters,
+                    sort,
+                    page: pagination.page + 1,
+                    pageSize: pagination.pageSize,
+                  })}
+                  prefetch={false}
+                >
+                  <span className="sm:hidden">›</span>
+                  <span className="hidden sm:inline">{copy.results.nextPage}</span>
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  className="flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-xl bg-surface-muted px-3 text-sm font-semibold text-ink-subtle sm:flex-none"
+                >
+                  <span className="sm:hidden">›</span>
+                  <span className="hidden sm:inline">{copy.results.nextPage}</span>
+                </span>
+              )}
+            </div>
+          </nav>
+        ) : null}
+      </>
+    ) : (
+      <div className="grid min-h-96 place-items-center rounded-[1.6rem] border border-dashed border-border bg-surface p-8 text-center shadow-[0_12px_40px_rgba(26,35,29,0.035)]">
+        <div className="max-w-sm">
+          <span className="mx-auto grid size-14 place-items-center rounded-full bg-surface-muted text-ink-muted">
+            <SearchEmptyIcon className="size-6" />
+          </span>
+          <h3 className="mt-5 text-xl font-semibold text-ink">
+            {copy.results.noResultsTitle}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">
+            {copy.results.noResultsBody}
+          </p>
+          <button
+            className="mt-5 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-surface transition hover:opacity-90"
+            onClick={() => changeFilters(defaultSearchFilters, 0)}
+            type="button"
+          >
+            {copy.results.clearFilters}
+          </button>
+        </div>
+      </div>
+    );
+
   return (
     <main>
-      <SearchHero
+      <SiteHeader
+        activePage="cars"
         locale={locale}
         locationStatus={locationStatus}
         onLocaleChange={changeLocale}
-        onQueryChange={(query) => changeFilters({ ...filters, query }, 300)}
         onRequestLocation={requestCurrentLocation}
-        onSearch={scrollToResults}
-        query={filters.query}
         savedCount={favorites.size}
         compareCount={compared.length}
-        totalListings={pagination.totalListings}
       />
+
+      {showHero ? (
+        <SearchHero
+          locale={locale}
+          onQueryChange={(query) => changeFilters({ ...filters, query }, 300)}
+          onSearch={scrollToResults}
+          query={filters.query}
+          totalListings={pagination.totalListings}
+        >
+          {quickFilters}
+        </SearchHero>
+      ) : (
+        <div className="border-b border-border bg-surface">
+          <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-5 py-3 sm:px-8 lg:px-12">
+            <form
+              className="flex h-11 max-w-xl items-center gap-2.5 rounded-full border border-border bg-surface-subtle px-4 transition focus-within:border-accent/50"
+              role="search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                scrollToResults();
+              }}
+            >
+              <SearchIcon className="size-4 shrink-0 text-ink-subtle" />
+              <span className="sr-only">{copy.results.searchAria}</span>
+              <input
+                autoComplete="off"
+                className="w-full bg-transparent text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-subtle"
+                onChange={(event) => changeFilters({ ...filters, query: event.target.value }, 300)}
+                placeholder={copy.hero.searchPlaceholder}
+                type="search"
+                value={filters.query}
+              />
+            </form>
+            {quickFilters}
+          </div>
+        </div>
+      )}
 
       <section
         aria-busy={isUpdating}
@@ -474,7 +758,7 @@ export function SearchExperience({
         id="cars"
       >
         <div className="mx-auto max-w-[1800px]">
-          <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-4 flex flex-col gap-4 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               {/* The results page had no h1 at all — its outline began at h2, so a
                   screen reader navigating by heading landed mid-page with no
@@ -497,14 +781,11 @@ export function SearchExperience({
               </div>
             </div>
 
-            {/* On mobile the filter entry is the primary action and gets its
-                own full-width row; Update and Sort sit together below it. From
-                sm up they all share one right-aligned row. */}
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end sm:justify-end">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <button
-                aria-controls="mobile-filters"
+                aria-controls="filters-drawer"
                 aria-expanded={showFilters}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-sm font-semibold text-ink shadow-sm transition hover:border-border-strong hover:shadow-md active:scale-[0.98] md:hidden"
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-sm font-semibold text-ink shadow-sm transition hover:border-border-strong hover:shadow-md active:scale-[0.98]"
                 onClick={() => setShowFilters(true)}
                 type="button"
               >
@@ -516,22 +797,45 @@ export function SearchExperience({
                   </span>
                 ) : null}
               </button>
-              <div className="flex items-center gap-2 sm:contents">
-                <SynchronizationButton
-                  activeSynchronization={activeSynchronization}
-                  locale={locale}
-                />
-                <SingleChoiceDropdown
-                  ariaLabel={copy.results.sortAria}
-                  className="min-w-0 flex-1 sm:flex-none"
-                  inlineLabel={copy.results.sortLabel}
-                  onChange={changeSort}
-                  options={(Object.keys(copy.results.sorts) as SearchSort[]).map((sortValue) => ({
-                    value: sortValue,
-                    label: copy.results.sorts[sortValue],
-                  }))}
-                  value={sort}
-                />
+              <SynchronizationButton
+                activeSynchronization={activeSynchronization}
+                locale={locale}
+              />
+              <SingleChoiceDropdown
+                ariaLabel={copy.results.sortAria}
+                className="min-w-0 flex-1 sm:flex-none"
+                inlineLabel={copy.results.sortLabel}
+                onChange={changeSort}
+                options={(Object.keys(copy.results.sorts) as SearchSort[]).map((sortValue) => ({
+                  value: sortValue,
+                  label: copy.results.sorts[sortValue],
+                }))}
+                value={sort}
+              />
+              <div
+                aria-label={copy.results.viewToggleLabel}
+                className="flex h-11 shrink-0 items-center gap-0.5 rounded-xl border border-border bg-surface p-1 shadow-sm"
+                role="group"
+              >
+                {([
+                  ["grid", GridIcon, copy.results.viewGrid],
+                  ["list", ListIcon, copy.results.viewList],
+                ] as const).map(([mode, Icon, label]) => (
+                  <button
+                    aria-label={label}
+                    aria-pressed={viewMode === mode}
+                    className={`grid size-9 place-items-center rounded-lg transition ${
+                      viewMode === mode
+                        ? "bg-ink text-surface"
+                        : "text-ink-subtle hover:text-ink"
+                    }`}
+                    key={mode}
+                    onClick={() => changeViewMode(mode)}
+                    type="button"
+                  >
+                    <Icon className="size-4" />
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -563,206 +867,9 @@ export function SearchExperience({
             </div>
           ) : null}
 
-          <div
-            className={
-              compared.length > 0
-                ? "grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)_250px] xl:grid-cols-[280px_minmax(0,1fr)_260px] xl:gap-8"
-                : "grid min-w-0 items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-8"
-            }
-          >
-            <aside className="hidden min-w-0 self-stretch md:block">
-              {/* Deliberately not `overscroll-contain`. The panel is a sticky
-                  column beside the results, not a modal: containing the scroll
-                  chain meant a wheel gesture anywhere over the filters stopped
-                  dead — including when the panel fits its column and has
-                  nothing of its own to scroll — so the page appeared frozen
-                  under the cursor. Chaining lets the panel scroll its own
-                  overflow first and hand the rest to the page. */}
-              <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-border bg-surface p-4 shadow-[0_8px_30px_rgba(26,35,29,0.04)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <FilterPanel
-                  brands={availableFilters.brands}
-                  filters={filters}
-                  locale={locale}
-                  models={availableFilters.models}
-                  onChange={changeFilters}
-                  onReset={resetFilters}
-                  resultCount={pagination.totalListings}
-                  years={availableFilters.years}
-                />
-              </div>
-            </aside>
-
-            <div className="min-w-0">
-              {results.length > 0 ? (
-                <>
-                  {/* Column count follows the space rather than a breakpoint
-                      ladder. The ladder gave one card per row everywhere below
-                      1280px — a single 825px-wide card at 1200 — and then
-                      halved the card from 515px to 273px across the 96px
-                      between 1440 and 1536, because there was no three-column
-                      step. `auto-fill` with a floor keeps every card inside one
-                      sane band at every width, and needs no separate rule for
-                      the narrower grid that the compare tray leaves behind. */}
-                  <div
-                    className="grid min-w-0 gap-5 [grid-template-columns:repeat(auto-fill,minmax(min(19rem,100%),1fr))]"
-                  >
-                    <AnimatePresence initial={false}>
-                      {results.map((result, index) => (
-                        <motion.div
-                          animate={{ opacity: 1, y: 0 }}
-                          className="min-w-0"
-                          exit={{ opacity: 0 }}
-                          initial={{ opacity: 0, y: 8 }}
-                          key={result.listing.id}
-                          transition={{ duration: 0.2, ease: "easeOut" }}
-                        >
-                          <VehicleCard
-                            currentLocation={userLocation}
-                            isFavorite={favorites.has(result.listing.id)}
-                            isCompared={comparedIds.has(result.listing.id)}
-                            compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
-                            locale={locale}
-                            onToggleFavorite={() => toggleFavorite(result.listing.id)}
-                            onToggleCompare={() =>
-                              toggleCompare({
-                                id: result.listing.id,
-                                make: result.vehicle.identity.make,
-                                model: result.vehicle.identity.model,
-                                variant: result.vehicle.identity.variant,
-                                imageUrl: result.listing.images[0]?.url,
-                              })
-                            }
-                            priority={index < 2}
-                            result={result}
-                          />
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                  </div>
-
-                  {pagination.totalPages > 1 ? (
-                    <nav
-                      aria-label={copy.results.paginationLabel}
-                      className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-[0_8px_30px_rgba(26,35,29,0.04)] sm:p-4"
-                    >
-                      <div className="flex w-full min-w-0 items-center justify-between gap-1.5">
-                        {pagination.page > 1 ? (
-                          <Link
-                            aria-label={copy.results.previousPage}
-                            className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-ink transition hover:border-border-strong hover:bg-surface-muted active:scale-[0.98] sm:flex-none"
-                            href={vehicleSearchUrl({
-                              filters,
-                              sort,
-                              page: pagination.page - 1,
-                              pageSize: pagination.pageSize,
-                            })}
-                            prefetch={false}
-                          >
-                            <span className="sm:hidden">‹</span>
-                            <span className="hidden sm:inline">{copy.results.previousPage}</span>
-                          </Link>
-                        ) : (
-                          <span
-                            aria-disabled="true"
-                            className="flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-ink-subtle sm:flex-none"
-                          >
-                            <span className="sm:hidden">‹</span>
-                            <span className="hidden sm:inline">{copy.results.previousPage}</span>
-                          </span>
-                        )}
-
-                        <div className="flex min-w-0 items-center gap-1" aria-label={copy.results.pageNumbers}>
-                          {pages.map((item) =>
-                            typeof item === "number" ? (
-                              item === pagination.page ? (
-                                <span
-                                  aria-current="page"
-                                  className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-sm font-bold text-surface shadow-sm"
-                                  key={item}
-                                >
-                                  {item}
-                                </span>
-                              ) : (
-                                <Link
-                                  aria-label={copy.results.goToPage(item)}
-                                  className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-ink-muted transition hover:bg-surface-muted hover:text-ink active:scale-[0.96]"
-                                  href={vehicleSearchUrl({
-                                    filters,
-                                    sort,
-                                    page: item,
-                                    pageSize: pagination.pageSize,
-                                  })}
-                                  key={item}
-                                  prefetch={false}
-                                >
-                                  {item}
-                                </Link>
-                              )
-                            ) : (
-                              <span
-                                aria-hidden="true"
-                                className="grid size-6 shrink-0 place-items-center text-sm text-ink-subtle sm:size-8"
-                                key={item}
-                              >
-                                …
-                              </span>
-                            ),
-                          )}
-                        </div>
-
-                        {pagination.page < pagination.totalPages ? (
-                          <Link
-                            aria-label={copy.results.nextPage}
-                            className="flex h-10 flex-1 items-center justify-center rounded-xl bg-ink px-3 text-sm font-semibold text-surface shadow-sm transition hover:opacity-90 hover:shadow-md active:scale-[0.98] sm:flex-none"
-                            href={vehicleSearchUrl({
-                              filters,
-                              sort,
-                              page: pagination.page + 1,
-                              pageSize: pagination.pageSize,
-                            })}
-                            prefetch={false}
-                          >
-                            <span className="sm:hidden">›</span>
-                            <span className="hidden sm:inline">{copy.results.nextPage}</span>
-                          </Link>
-                        ) : (
-                          <span
-                            aria-disabled="true"
-                            className="flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-xl bg-surface-muted px-3 text-sm font-semibold text-ink-subtle sm:flex-none"
-                          >
-                            <span className="sm:hidden">›</span>
-                            <span className="hidden sm:inline">{copy.results.nextPage}</span>
-                          </span>
-                        )}
-                      </div>
-                    </nav>
-                  ) : null}
-                </>
-              ) : (
-                <div className="grid min-h-96 place-items-center rounded-[1.6rem] border border-dashed border-border bg-surface p-8 text-center shadow-[0_12px_40px_rgba(26,35,29,0.035)]">
-                  <div className="max-w-sm">
-                    <span className="mx-auto grid size-14 place-items-center rounded-full bg-surface-muted text-ink-muted">
-                      <SearchEmptyIcon className="size-6" />
-                    </span>
-                    <h3 className="mt-5 text-xl font-semibold text-ink">
-                      {copy.results.noResultsTitle}
-                    </h3>
-                    <p className="mt-2 text-sm leading-6 text-ink-muted">
-                      {copy.results.noResultsBody}
-                    </p>
-                    <button
-                      className="mt-5 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-surface transition hover:opacity-90"
-                      onClick={() => changeFilters(defaultSearchFilters, 0)}
-                      type="button"
-                    >
-                      {copy.results.clearFilters}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {compared.length > 0 ? (
+          {compared.length > 0 ? (
+            <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_250px] xl:grid-cols-[minmax(0,1fr)_260px] xl:gap-8">
+              <div className="min-w-0">{resultsBlock}</div>
               <aside className="hidden min-w-0 self-stretch lg:block">
                 <div className="sticky top-4">
                   <CompareTrayPanel
@@ -773,8 +880,10 @@ export function SearchExperience({
                   />
                 </div>
               </aside>
-            ) : null}
-          </div>
+            </div>
+          ) : (
+            <div className="min-w-0">{resultsBlock}</div>
+          )}
         </div>
       </section>
 
@@ -789,33 +898,36 @@ export function SearchExperience({
         {showFilters ? (
           <motion.div
             animate={{ opacity: 1 }}
-            aria-labelledby="mobile-filters-title"
+            aria-labelledby="filters-drawer-title"
             aria-modal="true"
-            className="fixed inset-0 z-50 md:hidden"
+            className="fixed inset-0 z-50"
             exit={{ opacity: 0 }}
-            id="mobile-filters"
+            id="filters-drawer"
             initial={{ opacity: 0 }}
             role="dialog"
           >
             <button
               aria-label={copy.results.closeFilters}
-              className="absolute inset-0 bg-[#101712]/45 backdrop-blur-sm"
+              className="absolute inset-0 bg-[#101712]/55"
               onClick={() => setShowFilters(false)}
               tabIndex={-1}
               type="button"
             />
+            {/* The animated element carries a transform; iOS momentum scrolling
+                on a transformed overflow container is unreliable, so the panel
+                only slides — a plain inner <div> does the scrolling, with the
+                header and footer pinned outside it. */}
             <motion.div
-              animate={{ y: 0 }}
-              className="absolute inset-x-0 bottom-0 z-10 max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[1.75rem] bg-background px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-4 shadow-2xl sm:inset-x-6 sm:bottom-6 sm:rounded-[1.75rem] lg:inset-x-auto lg:right-6 lg:w-[400px] lg:max-h-[calc(100dvh-3rem)]"
-              exit={{ y: "100%" }}
-              initial={{ y: "100%" }}
+              animate={{ x: 0 }}
+              className="absolute inset-y-0 right-0 z-10 flex w-full max-w-[26rem] flex-col bg-background shadow-2xl"
+              exit={{ x: "100%" }}
+              initial={{ x: "100%" }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
-              <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center justify-between px-5 pb-3 pt-4">
                 <h2
                   className="text-lg font-semibold tracking-[-0.025em] text-ink"
-                  id="mobile-filters-title"
+                  id="filters-drawer-title"
                 >
                   {copy.results.mobileTitle}
                 </h2>
@@ -829,23 +941,27 @@ export function SearchExperience({
                   <CloseIcon className="size-5" />
                 </button>
               </div>
-              <FilterPanel
-                brands={availableFilters.brands}
-                filters={filters}
-                locale={locale}
-                models={availableFilters.models}
-                onChange={changeFilters}
-                onReset={resetFilters}
-                resultCount={pagination.totalListings}
-                years={availableFilters.years}
-              />
-              <button
-                className="sticky bottom-0 mt-7 h-13 w-full rounded-full bg-ink text-sm font-semibold text-surface shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition hover:opacity-90 active:scale-[0.99]"
-                onClick={() => setShowFilters(false)}
-                type="button"
-              >
-                {copy.hero.showCars(pagination.totalListings)}
-              </button>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 [-webkit-overflow-scrolling:touch]">
+                <FilterPanel
+                  brands={availableFilters.brands}
+                  filters={filters}
+                  locale={locale}
+                  models={availableFilters.models}
+                  onChange={changeFilters}
+                  onReset={resetFilters}
+                  resultCount={pagination.totalListings}
+                  years={availableFilters.years}
+                />
+              </div>
+              <div className="border-t border-border px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+                <button
+                  className="h-13 w-full rounded-full bg-ink text-sm font-semibold text-surface shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition hover:opacity-90 active:scale-[0.99]"
+                  onClick={() => setShowFilters(false)}
+                  type="button"
+                >
+                  {copy.hero.showCars(pagination.totalListings)}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         ) : null}

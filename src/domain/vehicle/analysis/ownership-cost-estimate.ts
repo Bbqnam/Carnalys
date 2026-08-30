@@ -1,4 +1,5 @@
 import type { Money } from "../types";
+import { minimumPlausibleAskingPrice } from "../pricing";
 import {
   estimateFuelConsumptionL100km,
   parseFuelConsumptionValue,
@@ -142,7 +143,17 @@ export function estimateOwnershipCost(
   const isElectric = specification.powertrain.fuelType === "electric";
   const consumption = resolveConsumption(specification);
 
-  const depreciation = annualDepreciation(askingPrice, age, isElectric);
+  // Depreciation and insurance are anchored to the asking price, so a listing
+  // whose "price" is really a monthly rate or a 1 kr placeholder would produce
+  // a nonsensically cheap cost of ownership. When the price is not credible for
+  // the car's age, cost it as if it were priced at the plausibility floor and
+  // drop the confidence — better a conservative over-estimate than an
+  // attractive fiction.
+  const plausiblePrice = minimumPlausibleAskingPrice(modelYear, referenceYear);
+  const priceIsImplausible = askingPrice < plausiblePrice;
+  const costBasisPrice = priceIsImplausible ? plausiblePrice : askingPrice;
+
+  const depreciation = annualDepreciation(costBasisPrice, age, isElectric);
   const energy =
     (annualDistanceKm / 100) *
     consumption.value *
@@ -153,7 +164,7 @@ export function estimateOwnershipCost(
     modelYear,
     referenceYear,
   );
-  const insurance = annualInsurance(askingPrice, specification.powertrain.powerHp);
+  const insurance = annualInsurance(costBasisPrice, specification.powertrain.powerHp);
   const maintenance = annualMaintenance(age);
 
   const items: OwnershipCostItem[] = [
@@ -191,7 +202,8 @@ export function estimateOwnershipCost(
   return {
     annualCost: { amount: totalAnnualCost, currency: "SEK" },
     estimatedForAnnualDistanceKm: annualDistanceKm,
-    confidence: consumption.isReal ? "medium" : "low",
+    confidence:
+      priceIsImplausible || !consumption.isReal ? "low" : "medium",
     items,
     assumptions: [
       "1 500 mil per år",
