@@ -127,6 +127,89 @@ test("normalizes Bytbil to the shared source-independent listing shape", () => {
   assert.equal(listing.listing.equipment.length, 3);
 });
 
+// A "Tidigare pris" is only trusted when the price block's own current price
+// agrees with the price we publish, the drop is 1-100%, and it's a whole
+// hundred. These are the shapes that used to surface a phantom "Reduced".
+const priceBlockDetail = (block: string, product = `"price":"254900"`) => `
+<h1>Test Bil</h1>
+<div class="vehicle-detail-price">${block}</div>
+<dl><dt>Regnr</dt><dd>ABC123</dd><dt>Modell</dt><dd>X</dd></dl>
+<script>dataLayer.push({'ecommerce':{'detail':{'products':[{"id":"1","name":"Test",${product}}]}}});</script>`;
+
+test("Bytbil: genuine small price cut is kept", () => {
+  const detail = parseBytbilDetailPage(
+    priceBlockDetail(
+      `<span class="car-price-details"><span class="car-price-main">254&#xA0;900 kr` +
+        `<i title="Priss&#xE4;nkt! Tidigare pris: 259&#xA0;000 kr"></i></span></span>`,
+    ),
+  );
+  assert.equal(detail.priceAmount, 254900);
+  assert.equal(detail.previousPriceAmount, 259000);
+});
+
+test("Bytbil: no phantom reduction when dataLayer price and block price disagree", () => {
+  // dataLayer carries an ex-VAT / stale figure (200 000) while the block shows
+  // the real 250 000 and a 259 000 "Tidigare pris". Comparing 259k to 200k
+  // used to emit a fake 59k reduction.
+  const detail = parseBytbilDetailPage(
+    priceBlockDetail(
+      `<span class="car-price-details"><span class="car-price-main">250&#xA0;000 kr` +
+        `<i title="Tidigare pris: 259&#xA0;000 kr"></i></span></span>`,
+      `"price":"200000"`,
+    ),
+  );
+  assert.equal(detail.priceAmount, 200000);
+  assert.equal(detail.previousPriceAmount, undefined);
+});
+
+test("Bytbil: garbled 'Tidigare pris' spanning tags is rejected", () => {
+  const detail = parseBytbilDetailPage(
+    priceBlockDetail(
+      `<span class="car-price-details"><span class="car-price-main">254&#xA0;900 kr</span></span>` +
+        `<div><span>1</span></div><span>Tidigare pris:</span> <span>259&#xA0;000</span> kr`,
+    ),
+  );
+  // Whatever the loose match yields must be a whole hundred within 2x, or nothing.
+  assert.ok(
+    detail.previousPriceAmount === undefined || detail.previousPriceAmount === 259000,
+  );
+});
+
+test("Bytbil: implausible 'Tidigare pris' (more than double) is rejected", () => {
+  const detail = parseBytbilDetailPage(
+    priceBlockDetail(
+      `<span class="car-price-details"><span class="car-price-main">254&#xA0;900 kr` +
+        `<i title="Tidigare pris: 2&#xA0;549&#xA0;000 kr"></i></span></span>`,
+    ),
+  );
+  assert.equal(detail.previousPriceAmount, undefined);
+});
+
+test("Bytbil: block with no 'Tidigare pris' has no previous price", () => {
+  const detail = parseBytbilDetailPage(
+    priceBlockDetail(
+      `<span class="car-price-details"><span class="car-price-main">254&#xA0;900 kr</span></span>`,
+    ),
+  );
+  assert.equal(detail.priceAmount, 254900);
+  assert.equal(detail.previousPriceAmount, undefined);
+});
+
+test("Bytbil: a cached (not fresh) detail defers to the re-read search price", () => {
+  const [document] = parseBytbilSearchPage(searchHtml()).documents; // search price 254900
+  const staleDetail = { ...parseBytbilDetailPage(detailHtml()), priceAmount: 999000 };
+  // Fresh detail wins…
+  assert.equal(
+    normalizeBytbilListing(document, staleDetail, "all-vehicles", true).listing.priceAmount,
+    999000,
+  );
+  // …but a cached detail's frozen price yields to the search-page price.
+  assert.equal(
+    normalizeBytbilListing(document, staleDetail, "all-vehicles", false).listing.priceAmount,
+    254900,
+  );
+});
+
 test("summary fingerprint changes only when a market-relevant field changes", () => {
   const [a, b] = parseBytbilSearchPage(searchHtml()).documents;
   assert.equal(bytbilSummaryFingerprint(a), bytbilSummaryFingerprint({ ...a }));

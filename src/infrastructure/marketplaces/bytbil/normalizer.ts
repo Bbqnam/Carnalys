@@ -72,6 +72,13 @@ export function normalizeBytbilListing(
   document: BytbilSearchDocument,
   detail: BytbilListingDetail | undefined,
   scope: string,
+  /**
+   * Whether `detail` was fetched fresh this run. Bytbil's search-results price
+   * lags its detail page, and a cached detail's price freezes at fetch time —
+   * so a fresh detail is authoritative, but a cached one is trusted only after
+   * the search price (re-read every run) has nothing to offer.
+   */
+  detailIsFresh = true,
 ): NormalizedVehicleListing {
   const observedAt = new Date();
   const title = detail?.title ?? document.title;
@@ -119,7 +126,11 @@ export function normalizeBytbilListing(
       sellerName: detail?.sellerName,
       dealerStockNumber: undefined,
       sellerType: "dealer",
-      priceAmount: detail?.priceAmount ?? document.priceAmount ?? 0,
+      priceAmount:
+        (detailIsFresh ? detail?.priceAmount : undefined) ??
+        document.priceAmount ??
+        detail?.priceAmount ??
+        0,
       previousPriceAmount: detail?.previousPriceAmount,
       mileageKm: mileageKm ?? 0,
       location: place(document.location),

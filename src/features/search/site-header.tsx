@@ -9,6 +9,8 @@ import {
   MapPinIcon,
   MarketAnalysisIcon,
   MenuIcon,
+  SearchIcon,
+  UserIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { uiCopy, type Locale } from "./copy";
@@ -24,6 +26,8 @@ interface SiteHeaderProps {
   logoHref?: string;
   locationStatus?: LocationStatus;
   onRequestLocation?: () => void;
+  /** Visual-only for now: opens the account menu's sign-in affordance. */
+  onSignIn?: () => void;
 }
 
 export function SiteHeader({
@@ -35,11 +39,15 @@ export function SiteHeader({
   logoHref = "/",
   locationStatus,
   onRequestLocation,
+  onSignIn,
 }: SiteHeaderProps) {
   const copy = uiCopy[locale];
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const accountRef = useRef<HTMLDivElement | null>(null);
   const menuId = useId();
+  const accountId = useId();
 
   const locationLabel =
     locationStatus === "locating"
@@ -53,12 +61,17 @@ export function SiteHeader({
             : copy.results.useCurrentLocation;
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !accountOpen) return;
     function onPointerDown(event: PointerEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+      const target = event.target as Node;
+      if (menuOpen && !menuRef.current?.contains(target)) setMenuOpen(false);
+      if (accountOpen && !accountRef.current?.contains(target)) setAccountOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setAccountOpen(false);
+      }
     }
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
@@ -66,13 +79,14 @@ export function SiteHeader({
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [menuOpen]);
+  }, [menuOpen, accountOpen]);
 
   const navItems = (
     [
-      ["analysis", "/analysis", copy.nav.analysis, MarketAnalysisIcon, null],
-      ["compare", "/compare", copy.nav.compare, CompareIcon, compareCount],
+      ["cars", "/", copy.nav.search, SearchIcon, null],
       ["saved", "/saved", copy.nav.saved, HeartIcon, savedCount],
+      ["compare", "/compare", copy.nav.compare, CompareIcon, compareCount],
+      ["analysis", "/analysis", copy.nav.insights, MarketAnalysisIcon, null],
     ] as const
   ).map(([page, href, label, Icon, count]) => ({
     page,
@@ -83,71 +97,73 @@ export function SiteHeader({
     isActive: activePage === page,
   }));
 
-  return (
-    <header className="relative border-b border-border">
-      <div className="mx-auto flex h-16 max-w-[1800px] items-center justify-between px-5 sm:h-[4.5rem] sm:px-8 lg:px-12">
-        <Link
-          aria-label={copy.nav.home}
-          className="group flex items-center gap-2.5 rounded-lg"
-          href={logoHref}
-        >
-          <CarnalysMark className="size-8 text-ink transition-transform duration-300 group-hover:scale-105" />
-          <span className="text-[15px] font-semibold uppercase tracking-[0.16em] text-ink max-[360px]:hidden">
-            Carnalys
-          </span>
-        </Link>
+  function handleSignIn() {
+    setAccountOpen(false);
+    setMenuOpen(false);
+    onSignIn?.();
+  }
 
-        <div className="flex items-center gap-2 sm:gap-4">
-          {/* Full labelled nav from lg up, where logo + cluster fits the
-              content box. Below that the same items live in the menu. */}
-          <nav className="hidden items-center gap-2 text-sm lg:flex">
-            {onRequestLocation ? (
-              <button
-                aria-live="polite"
-                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 font-semibold shadow-sm transition ${
-                  locationStatus === "ready"
-                    ? "border-accent/40 bg-accent-soft text-accent-strong"
-                    : "border-border bg-surface text-ink hover:border-border-strong hover:shadow-md"
-                } disabled:opacity-60`}
-                disabled={locationStatus === "locating"}
-                onClick={onRequestLocation}
-                type="button"
-              >
-                <MapPinIcon className="size-4" />
-                {locationLabel}
-              </button>
-            ) : null}
+  return (
+    <header className="relative z-30 border-b border-border bg-surface">
+      <div className="mx-auto flex h-16 max-w-[1800px] items-stretch justify-between gap-4 px-5 sm:h-[4.5rem] sm:px-8 lg:px-12">
+        <div className="flex items-center gap-7">
+          <Link
+            aria-label={copy.nav.home}
+            className="group flex shrink-0 items-center gap-2.5 rounded-lg"
+            href={logoHref}
+          >
+            <CarnalysMark className="size-8 text-ink transition-transform duration-300 group-hover:scale-105" />
+            <span className="text-[15px] font-semibold uppercase tracking-[0.16em] text-ink max-[360px]:hidden">
+              Carnalys
+            </span>
+          </Link>
+
+          {/* Full labelled nav from lg up. Below that the same items live in the
+              menu. Active item carries an accent underline flush with the
+              header's bottom border. */}
+          <nav className="hidden h-full items-stretch gap-1 lg:flex">
             {navItems.map(({ page, href, label, Icon, count, isActive }) => (
               <Link
                 aria-current={isActive ? "page" : undefined}
-                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 font-semibold shadow-sm transition ${
+                className={`inline-flex h-full items-center gap-2 border-b-2 px-2.5 text-sm font-medium transition ${
                   isActive
-                    ? "border-ink bg-ink text-surface"
-                    : "border-border bg-surface text-ink hover:border-border-strong hover:shadow-md"
+                    ? "border-accent text-ink"
+                    : "border-transparent text-ink-muted hover:text-ink"
                 }`}
                 href={href}
                 key={page}
               >
                 <Icon className="size-4" />
                 {label}
-                {count !== null ? (
-                  <span
-                    className={`grid min-h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold tabular-nums ${
-                      count > 0
-                        ? "bg-accent text-surface"
-                        : isActive
-                          ? "text-surface/60"
-                          : "text-ink-subtle"
-                    }`}
-                  >
-                    {count}
+                {count !== null && count > 0 ? (
+                  <span className="grid min-h-[18px] min-w-[18px] place-items-center rounded-full bg-accent px-1 text-[11px] font-bold tabular-nums text-surface">
+                    {count > 99 ? "99+" : count}
                   </span>
                 ) : null}
               </Link>
             ))}
           </nav>
+        </div>
 
-          <div className="hidden lg:flex lg:items-center lg:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {onRequestLocation ? (
+            <button
+              aria-live="polite"
+              className={`hidden items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold shadow-sm transition lg:inline-flex ${
+                locationStatus === "ready"
+                  ? "border-accent/40 bg-accent-soft text-accent-strong"
+                  : "border-border bg-surface text-ink hover:border-border-strong hover:shadow-md"
+              } disabled:opacity-60`}
+              disabled={locationStatus === "locating"}
+              onClick={onRequestLocation}
+              type="button"
+            >
+              <MapPinIcon className="size-4" />
+              {locationLabel}
+            </button>
+          ) : null}
+
+          <div className="hidden lg:flex lg:items-center lg:gap-3">
             <div
               aria-label={copy.languageSwitchLabel}
               className="flex rounded-full border border-border bg-surface/65 p-0.5 text-[11px] font-semibold shadow-sm backdrop-blur"
@@ -174,6 +190,44 @@ export function SiteHeader({
               darkLabel={copy.darkTheme}
               lightLabel={copy.lightTheme}
             />
+          </div>
+
+          {/* Account — visual only. Opens a small menu whose one action is a
+              sign-in stub; real auth is a later project. */}
+          <div className="relative hidden lg:block" ref={accountRef}>
+            <button
+              aria-controls={accountOpen ? accountId : undefined}
+              aria-expanded={accountOpen}
+              aria-haspopup="menu"
+              aria-label={copy.nav.account}
+              className={`grid size-9 place-items-center rounded-full border shadow-sm transition ${
+                accountOpen
+                  ? "border-ink bg-ink text-surface"
+                  : "border-border bg-surface text-ink hover:border-border-strong hover:shadow-md"
+              }`}
+              onClick={() => setAccountOpen((open) => !open)}
+              type="button"
+            >
+              <UserIcon className="size-[18px]" />
+            </button>
+
+            {accountOpen ? (
+              <div
+                className="absolute right-0 top-[calc(100%+0.6rem)] z-50 w-48 overflow-hidden rounded-2xl border border-border bg-surface p-1.5 shadow-[0_18px_48px_rgba(26,35,29,0.16)]"
+                id={accountId}
+                role="menu"
+              >
+                <button
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
+                  onClick={handleSignIn}
+                  role="menuitem"
+                  type="button"
+                >
+                  <UserIcon className="size-[18px] shrink-0" />
+                  {copy.nav.signIn}
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {/* Below lg: at most two controls — the contextual location action,
@@ -244,6 +298,15 @@ export function SiteHeader({
                       ) : null}
                     </Link>
                   ))}
+                  <button
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
+                    onClick={handleSignIn}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <UserIcon className="size-[18px] shrink-0" />
+                    <span className="flex-1 text-left">{copy.nav.signIn}</span>
+                  </button>
                 </div>
 
                 <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-3">

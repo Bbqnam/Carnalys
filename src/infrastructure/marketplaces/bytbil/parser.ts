@@ -212,17 +212,34 @@ export function parseBytbilDetailPage(html: string): BytbilListingDetail {
   // after the `.vehicle-detail-price` anchor and nothing beyond it.
   const anchor = html.indexOf("vehicle-detail-price");
   const priceBlock = anchor >= 0 ? html.slice(anchor, anchor + 320) : undefined;
-  const priceAmount =
-    integer(text(product?.price)) ??
+  // The current price *as printed in that same block* — the only figure a
+  // "Tidigare pris" in the block can honestly be compared against.
+  const blockPrice =
     integer(priceBlock?.match(/car-price-details[^>]*>([\s\S]*?)kr/)?.[1]) ??
     integer(priceBlock?.match(/>\s*([^<]*?)kr/)?.[1]);
+  const priceAmount = integer(text(product?.price)) ?? blockPrice;
+  // Capture only a bounded digit/entity run between the label and "kr", so it
+  // can never span tags into a neighbouring number and concatenate digits.
   const previousParsed = integer(
-    priceBlock?.match(/[Tt]idigare pris:\s*([\s\S]*?)kr/)?.[1],
+    priceBlock?.match(
+      /[Tt]idigare pris:\s*(?:<\/?[a-z][^>]*>\s*)*([0-9][0-9\s.,&#;xa-fA-F ]{0,18}?)\s*(?:<\/?[a-z][^>]*>\s*)*kr/,
+    )?.[1],
   );
-  const previousPriceAmount =
-    previousParsed !== undefined &&
+  // Only a reduction that is internally consistent within the price block is
+  // trusted: the block's own current price must agree with the price we're
+  // publishing (guards the dataLayer-vs-HTML mismatch), the previous price must
+  // sit a plausible 1-100% above it, and be a whole hundred like every real
+  // sticker price. Anything else is a layout artefact, not a price cut.
+  const priceIsConsistent =
+    blockPrice !== undefined &&
     priceAmount !== undefined &&
-    previousParsed > priceAmount
+    Math.abs(blockPrice - priceAmount) <= priceAmount * 0.02;
+  const previousPriceAmount =
+    priceIsConsistent &&
+    previousParsed !== undefined &&
+    previousParsed % 100 === 0 &&
+    previousParsed > blockPrice! &&
+    previousParsed <= blockPrice! * 2
       ? previousParsed
       : undefined;
 

@@ -7,9 +7,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BrandLogo } from "@/features/search/brand-logo";
 import { PriceDistribution } from "./price-distribution";
 import {
-  buyConfidenceSummaryText,
-  dealScoreSummaryText,
-  marketValueExplanationText,
   scoreFactorText,
   uiCopy,
   type Locale,
@@ -20,7 +17,6 @@ import {
   distanceBetweenKm,
   factorBarTone,
   factorChipTone,
-  factorTierIndex,
   formatExactListingDate,
   formatRelativeListingDate,
   ownershipCostCategoryTone,
@@ -57,56 +53,94 @@ interface VehicleDetailProps {
 function ScoreCard({
   title,
   value,
-  summary,
   factors,
   locale,
 }: {
   title: string;
-  value: number;
-  summary: string;
+  value: number | null;
   factors: readonly ScoreFactor[];
   locale: Locale;
 }) {
   const copy = uiCopy[locale];
   return (
-    <div className="rounded-2xl border border-border bg-surface p-3.5">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-ink">{title}</h3>
-        <span
-          className={`flex items-center gap-1.5 rounded-full border-2 bg-surface px-2.5 py-0.5 text-sm font-bold tabular-nums ${scoreTone(value)}`}
-        >
-          {value}
-        </span>
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex items-end justify-between gap-3">
+        <h3 className="pb-0.5 text-sm font-semibold text-ink">{title}</h3>
+        {value === null ? (
+          <p className="text-sm font-semibold leading-none text-ink-subtle">
+            {copy.card.notRated}
+          </p>
+        ) : (
+          <p className={`text-3xl font-semibold leading-none tabular-nums ${scoreTone(value)}`}>
+            {value}
+            <span className="ml-1 text-[10px] font-medium text-ink-subtle">/100</span>
+          </p>
+        )}
       </div>
-      <p className="mt-1 text-xs text-ink-muted">{summary}</p>
       {factors.length > 0 ? (
-        <ul className="mt-2.5 space-y-1.5 border-t border-border pt-2.5">
+        <ul className="mt-3 grid gap-2 border-t border-border pt-3">
           {factors.map((factor) => {
             const factorText = scoreFactorText(locale, factor);
+            const compactDetail =
+              factor.key === "mileage" && factor.params.mileageKm !== undefined
+                ? `${Math.round(factor.params.mileageKm / 10).toLocaleString(locale === "en" ? "en-SE" : "sv-SE")} mil · ${
+                    factor.impact === "positive"
+                      ? locale === "en"
+                        ? "Low mileage"
+                        : "Lågt miltal"
+                      : factor.impact === "negative"
+                        ? locale === "en"
+                          ? "High mileage"
+                          : "Högt miltal"
+                        : locale === "en"
+                          ? "Moderate mileage"
+                          : "Måttligt miltal"
+                  }`
+                : factor.key === "condition"
+                ? factor.impact === "positive"
+                  ? locale === "en"
+                    ? "Lower wear risk"
+                    : "Lägre risk för slitage"
+                  : factor.impact === "negative"
+                    ? locale === "en"
+                      ? "Higher wear risk"
+                      : "Högre risk för slitage"
+                    : locale === "en"
+                      ? "Moderate wear risk"
+                      : "Måttlig risk för slitage"
+                : factorText.explanation.replace(/\.$/, "");
+            const verdict =
+              factor.impact === "positive"
+                ? locale === "en"
+                  ? "Positive"
+                  : "Positivt"
+                : factor.impact === "negative"
+                  ? locale === "en"
+                    ? "Caution"
+                    : "Observera"
+                  : locale === "en"
+                    ? "Neutral"
+                    : "Neutralt";
             return (
-              <li key={factor.key}>
+              <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3" key={factor.key}>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-ink">{factorText.label}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-ink-subtle">{compactDetail}</p>
+                </div>
                 <div className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">
-                    {factorText.label}
-                  </span>
-                  <div className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-surface-muted">
+                  <div className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-surface-muted">
                     <div
                       className={`h-full rounded-full ${factorBarTone(factor.impact)}`}
-                      style={{
-                        width: `${Math.max(4, Math.min(100, factor.score))}%`,
-                      }}
+                      style={{ width: `${Math.max(4, Math.min(100, factor.score))}%` }}
                     />
                   </div>
                   <span
                     aria-label={copy.detail.factorImpact[factor.impact]}
-                    className={`shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold ${factorChipTone(factor.impact)}`}
+                    className={`min-w-[4.5rem] shrink-0 rounded-full px-2 py-1 text-center text-[10px] font-semibold ${factorChipTone(factor.impact)}`}
                   >
-                    {copy.detail.factorTiers[factorTierIndex(factor.score)]}
+                    {verdict}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
-                  {factorText.explanation}
-                </p>
               </li>
             );
           })}
@@ -646,14 +680,12 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           <ScoreCard
             factors={analysis.dealScore.factors}
             locale={locale}
-            summary={dealScoreSummaryText(locale, analysis.marketValue.comparableListingCount)}
             title={copy.detail.dealScoreTitle}
             value={analysis.dealScore.value}
           />
           <ScoreCard
             factors={analysis.buyConfidenceScore.factors}
             locale={locale}
-            summary={buyConfidenceSummaryText(locale)}
             title={copy.detail.buyConfidenceTitle}
             value={analysis.buyConfidenceScore.value}
           />
@@ -676,6 +708,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                     likelyRangeMaximum={analysis.marketValue.range.maximum.amount}
                     likelyRangeMinimum={analysis.marketValue.range.minimum.amount}
                     locale={locale}
+                    marketValue={analysis.marketValue.value.amount}
                     prices={analysis.marketValue.comparablePrices}
                     targetLabel={copy.detail.thisCarLabel}
                     targetPrice={askingPrice}
@@ -686,7 +719,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               <p className="mt-2 text-sm text-ink-muted">{copy.card.marketEstimatePending}</p>
             )}
             <p className="mt-2.5 text-xs text-ink-subtle">
-              {marketValueExplanationText(locale, analysis.marketValue.comparableListingCount)}
+              {analysis.marketValue.comparableListingCount} {copy.detail.comparablePricesLabel.toLocaleLowerCase(locale === "en" ? "en-SE" : "sv-SE")}
             </p>
             {/* This was a 12px muted line under a paragraph — indistinguishable
                 from the caption above it, and nobody who did not already know
@@ -704,18 +737,20 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
 
           <div className="rounded-2xl border border-border bg-surface p-4">
             <h3 className="text-sm font-semibold text-ink">{copy.detail.ownershipCostTitle}</h3>
-            <p className="mt-2 text-xl font-semibold text-ink">
-              {moneyFormatter.format(analysis.ownershipCost.annualCost.amount)}
+            <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">
+              {moneyFormatter.format(Math.round(analysis.ownershipCost.annualCost.amount / 12))}
+              <span className="ml-1 text-sm font-medium text-ink-muted">
+                / {locale === "en" ? "month" : "mån"}
+              </span>
             </p>
             <p className="mt-1 text-xs text-ink-subtle">
+              {moneyFormatter.format(analysis.ownershipCost.annualCost.amount)} / {locale === "en" ? "year" : "år"}
+              {" · "}
               {copy.detail.ownershipCostCaption(analysis.ownershipCost.estimatedForAnnualDistanceKm)}
             </p>
             {analysis.ownershipCost.items.length > 0 ? (
               <div className="mt-3 border-t border-border pt-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-subtle">
-                  {copy.detail.ownershipCostBreakdown}
-                </p>
-                <div className="mt-2.5 flex h-4 gap-[2px] bg-surface">
+                <div className="flex h-2.5 gap-[2px] bg-surface">
                   {analysis.ownershipCost.items.map((item, index) => (
                     <div
                       aria-label={`${copy.detail.ownershipCostCategories[item.category]}: ${moneyFormatter.format(item.annualCost.amount)}`}
@@ -736,21 +771,27 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                     </div>
                   ))}
                 </div>
-                <ul className="mt-3 space-y-2">
-                  {analysis.ownershipCost.items.map((item) => (
-                    <li className="flex items-center justify-between text-sm" key={item.category}>
-                      <span className="flex items-center gap-2 text-ink-muted">
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {analysis.ownershipCost.items.map((item) => {
+                    const percentage = Math.round(
+                      (item.annualCost.amount / Math.max(analysis.ownershipCost.annualCost.amount, 1)) * 100,
+                    );
+                    return (
+                    <li className="rounded-lg bg-surface-subtle px-2.5 py-2 text-xs" key={item.category}>
+                      <span className="flex min-w-0 items-center gap-2 text-ink-muted">
                         <span
                           aria-hidden="true"
-                          className={`size-2.5 shrink-0 rounded-full ${ownershipCostCategoryTone(item.category)}`}
+                          className={`size-2 shrink-0 rounded-full ${ownershipCostCategoryTone(item.category)}`}
                         />
-                        {copy.detail.ownershipCostCategories[item.category]}
+                        <span className="truncate">{copy.detail.ownershipCostCategories[item.category]}</span>
                       </span>
-                      <span className="font-medium text-ink">
+                      <span className="mt-1 flex items-baseline justify-between gap-2 pl-4 font-semibold text-ink">
                         {moneyFormatter.format(item.annualCost.amount)}
+                        <span className="text-[10px] font-medium text-ink-subtle">{percentage}%</span>
                       </span>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </div>
             ) : null}

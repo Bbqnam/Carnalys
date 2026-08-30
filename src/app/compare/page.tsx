@@ -83,8 +83,8 @@ export default function ComparePage() {
     },
     {
       label: copy.compare.dealScore,
-      render: (r) => r.analysis.dealScore.value,
-      compareValue: (r) => r.analysis.dealScore.value,
+      render: (r) => r.analysis.dealScore.value ?? copy.card.notRated,
+      compareValue: (r) => r.analysis.dealScore.value ?? undefined,
       betterWhen: "higher",
     },
     {

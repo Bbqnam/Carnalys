@@ -1,86 +1,98 @@
-import { ArrowRightIcon, SearchIcon } from "./icons";
+import type { ReactNode } from "react";
+import { SearchIcon } from "./icons";
 import { uiCopy, type Locale } from "./copy";
-import { SiteHeader } from "./site-header";
-import type { LocationStatus } from "./use-current-location";
 
 interface SearchHeroProps {
   locale: Locale;
   query: string;
   totalListings: number;
-  savedCount: number;
-  compareCount: number;
-  locationStatus: LocationStatus;
-  onLocaleChange: (locale: Locale) => void;
   onQueryChange: (query: string) => void;
-  onRequestLocation: () => void;
   onSearch: () => void;
+  /** The quick-filter row, rendered under the search field. */
+  children?: ReactNode;
 }
 
 export function SearchHero({
   locale,
   query,
   totalListings,
-  savedCount,
-  compareCount,
-  locationStatus,
-  onLocaleChange,
   onQueryChange,
-  onRequestLocation,
   onSearch,
+  children,
 }: SearchHeroProps) {
   const copy = uiCopy[locale];
 
   return (
-    <section className="relative border-b border-border bg-surface-subtle">
-      <SiteHeader
-        activePage="cars"
-        locale={locale}
-        locationStatus={locationStatus}
-        logoHref="#top"
-        onLocaleChange={onLocaleChange}
-        onRequestLocation={onRequestLocation}
-        savedCount={savedCount}
-        compareCount={compareCount}
-      />
-
+    <section className="relative overflow-hidden border-b border-border bg-surface-subtle">
+      {/* Marketing photo, bled off the right edge. A CSS background rather than
+          <Image> so a missing file degrades to the plain band instead of a
+          broken-image box. Asset lives at public/images/hero.png. The overlay
+          is solid only at the far left and fully clear by ~40% across, so the
+          car itself keeps full contrast instead of sitting under a veil. */}
       <div
-        id="top"
-        className="relative mx-auto max-w-[1800px] px-5 py-5 sm:px-8 sm:py-6 lg:px-12"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 hidden w-[58%] bg-cover bg-[position:68%_center] bg-no-repeat sm:block lg:w-[54%]"
+        style={{ backgroundImage: "url(/images/hero.png)" }}
       >
-        <form
-          className="mx-auto flex max-w-[1400px] flex-col gap-2 rounded-[1.2rem] border border-border bg-surface p-1.5 shadow-[0_8px_28px_rgba(42,53,46,0.08)] transition-[box-shadow,border-color] duration-200 focus-within:border-accent/50 focus-within:shadow-[0_10px_32px_rgba(42,53,46,0.12)] sm:flex-row sm:rounded-full"
-          role="search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSearch();
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, var(--surface-subtle) 0%, transparent 42%)",
           }}
-        >
-          {/* The field suppressed its own outline and nothing replaced it, so the
-              first control a keyboard user reaches after the header gave no sign
-              of holding focus. The ring goes on the wrapper because the input
-              itself is transparent and full-bleed. */}
-          <label className="flex min-h-12 flex-1 items-center gap-3 rounded-full px-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent sm:px-4">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
-              <SearchIcon className="size-4" />
+        />
+      </div>
+
+      <div className="relative mx-auto flex min-h-[360px] max-w-[1800px] items-center px-5 py-11 sm:min-h-[400px] sm:px-8 sm:py-12 lg:px-12">
+        <div className="w-full max-w-xl">
+          <span className="inline-flex items-center rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent-strong">
+            {copy.hero.eyebrow}
+          </span>
+
+          <h1 className="mt-4 max-w-[34rem] text-balance text-[2rem] font-semibold leading-[1.12] tracking-[-0.03em] text-ink sm:text-[2.375rem] xl:text-[2.75rem]">
+            <span className="block">{copy.hero.headlineLead}</span>
+            <span className="block">
+              {copy.hero.headlineRest}
+              <span className="whitespace-nowrap text-accent">
+                {copy.hero.headlineEmphasis}
+              </span>
             </span>
-            <span className="sr-only">{copy.hero.searchLabel}</span>
-            <input
-              autoComplete="off"
-              className="w-full bg-transparent text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-subtle"
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder={copy.hero.searchPlaceholder}
-              type="search"
-              value={query}
-            />
-          </label>
-          <button
-            className="group flex min-h-12 items-center justify-center gap-2 rounded-[0.95rem] bg-ink px-6 text-sm font-semibold text-surface shadow-[0_6px_16px_rgba(0,0,0,0.14)] transition duration-200 hover:opacity-90 hover:shadow-[0_8px_20px_rgba(0,0,0,0.18)] active:scale-[0.99] sm:rounded-full"
-            type="submit"
+          </h1>
+
+          <p className="mt-3.5 text-sm font-medium text-ink-muted">
+            {copy.hero.analysedCount(totalListings)}
+          </p>
+
+          <form
+            className="mt-6 flex items-center gap-2 rounded-2xl border border-border bg-surface p-1.5 shadow-[0_8px_28px_rgba(42,53,46,0.1)] transition-[box-shadow,border-color] duration-200 focus-within:border-accent/50 focus-within:shadow-[0_10px_32px_rgba(42,53,46,0.14)]"
+            role="search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSearch();
+            }}
           >
-            {copy.hero.showCars(totalListings)}
-            <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </button>
-        </form>
+            <label className="flex min-h-11 flex-1 items-center gap-3 rounded-xl px-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+              <SearchIcon className="size-5 shrink-0 text-ink-subtle" />
+              <span className="sr-only">{copy.hero.searchLabel}</span>
+              <input
+                autoComplete="off"
+                className="w-full bg-transparent text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-subtle"
+                onChange={(event) => onQueryChange(event.target.value)}
+                placeholder={copy.hero.searchPlaceholder}
+                type="search"
+                value={query}
+              />
+            </label>
+            <button
+              className="min-h-11 shrink-0 rounded-xl bg-accent px-6 text-sm font-semibold text-surface transition duration-200 hover:opacity-90 active:scale-[0.99]"
+              type="submit"
+            >
+              {copy.hero.searchAction}
+            </button>
+          </form>
+
+          {children ? <div className="mt-5">{children}</div> : null}
+        </div>
       </div>
     </section>
   );

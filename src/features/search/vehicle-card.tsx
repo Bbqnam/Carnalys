@@ -4,13 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { BrandLogo } from "./brand-logo";
-import { uiCopy, type Locale } from "./copy";
-import {
-  distanceBetweenKm,
-  formatExactListingDate,
-  formatRelativeListingDate,
-  scoreTone,
-} from "./format";
+import { type Locale } from "./copy";
 import {
   CalendarFilterIcon,
   CompareIcon,
@@ -20,8 +14,8 @@ import {
   StorefrontIcon,
 } from "./icons";
 import type { VehicleSearchResult } from "./types";
+import { deriveVehicleCardData } from "./vehicle-card-data";
 import { SourceLogo } from "@/features/source/source-logo";
-import { listingSource } from "@/infrastructure/marketplaces/source-registry";
 
 interface VehicleCardProps {
   result: VehicleSearchResult;
@@ -50,58 +44,34 @@ export function VehicleCard({
   onToggleCompare,
 }: VehicleCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
-  const { vehicle, listing, analysis } = result;
-  const { identity, specification } = vehicle;
-  const askingPrice = listing.price.askingPrice.amount;
-  const marketValue = analysis.marketValue.value.amount;
-  const hasMarketEstimate = analysis.marketValue.comparableListingCount >= 3;
-  const priceDifference = marketValue - askingPrice;
-  const marketDifferencePercent =
-    marketValue > 0 ? Math.round((Math.abs(priceDifference) / marketValue) * 100) : 0;
-  const financingOffer =
-    listing.seller.type === "dealer" ? listing.price.monthlyCost : undefined;
-  const image = listing.images[0];
-  const source = listingSource(listing.source.provider);
-  const previousPrice = listing.price.previousAskingPrice?.amount;
-  const priceReduction = previousPrice ? previousPrice - askingPrice : 0;
-  const copy = uiCopy[locale];
-  const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
-  const moneyFormatter = new Intl.NumberFormat(formatLocale, {
-    currency: "SEK",
-    maximumFractionDigits: 0,
-    style: "currency",
-  });
-  const numberFormatter = new Intl.NumberFormat(formatLocale);
-  const mileage = listing.mileageKm / 10;
-  const sellerLocation = [listing.seller.name, listing.location.municipality]
-    .filter(Boolean)
-    .join(" · ");
-  const distanceKm =
-    currentLocation &&
-    listing.location.latitude !== undefined &&
-    listing.location.longitude !== undefined
-      ? Math.max(
-          1,
-          Math.round(
-            distanceBetweenKm(currentLocation, {
-              latitude: listing.location.latitude,
-              longitude: listing.location.longitude,
-            }),
-          ),
-        )
-      : undefined;
-  const listingDateValue = listing.publishedAt ?? listing.source.firstSeenAt;
-  const listingDate = formatRelativeListingDate(listingDateValue, locale);
-  const exactListingDate = formatExactListingDate(listingDateValue, locale);
-  const dealScoreTone = scoreTone(analysis.dealScore.value);
-  const sellerTypeLabel =
-    listing.seller.type === "dealer"
-      ? copy.card.dealerBadge
-      : copy.card.privateSellerBadge;
-  const imageAlt =
-    locale === "en"
-      ? `${identity.make} ${identity.model} in a Nordic setting`
-      : image?.alt ?? listing.title;
+  const {
+    listing,
+    identity,
+    specification,
+    copy,
+    moneyFormatter,
+    numberFormatter,
+    askingPrice,
+    marketValue,
+    hasMarketEstimate,
+    priceDifference,
+    marketDifferencePercent,
+    financingOffer,
+    image,
+    source,
+    priceReduction,
+    mileage,
+    sellerLocation,
+    distanceKm,
+    listingDateValue,
+    listingDate,
+    exactListingDate,
+    dealScoreValue,
+    hasDealScore,
+    dealScoreTone,
+    sellerTypeLabel,
+    imageAlt,
+  } = deriveVehicleCardData(result, locale, currentLocation);
 
   return (
     /* The lift lives on the inner element, not on the one that owns `:hover`.
@@ -172,16 +142,18 @@ export function VehicleCard({
               )}
             </span>
             <span
-              aria-label={copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
+              aria-label={copy.card.scoreOutOf(copy.card.dealScore, dealScoreValue)}
               className={`group/score relative grid h-6 min-w-6 place-items-center rounded-full border bg-surface-muted px-1 text-[10px] font-bold tabular-nums ${dealScoreTone}`}
               tabIndex={0}
             >
-              {analysis.dealScore.value}
+              {hasDealScore ? dealScoreValue : "–"}
               <span
                 className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-30 w-max translate-y-[-0.2rem] rounded-md bg-ink px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-md transition group-hover/score:translate-y-0 group-hover/score:opacity-100 group-focus-visible/score:translate-y-0 group-focus-visible/score:opacity-100"
                 role="tooltip"
               >
-                {copy.card.scoreOutOf(copy.card.dealScore, analysis.dealScore.value)}
+                {hasDealScore
+                  ? copy.card.scoreOutOf(copy.card.dealScore, dealScoreValue)
+                  : `${copy.card.dealScore}: ${copy.card.notRated}`}
               </span>
             </span>
           </span>

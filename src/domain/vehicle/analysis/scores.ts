@@ -24,20 +24,30 @@ export interface ScoreFactor {
   params: Record<string, number>;
 }
 
-interface ExplainableScore {
-  /** Integer from 0 (weakest) to 100 (strongest). */
-  value: number;
+interface ExplainableScoreBase {
   confidence: AnalysisConfidence;
   summary: string;
   factors: readonly ScoreFactor[];
 }
 
-/** Price attractiveness relative to the current market. */
-export interface DealScore extends ExplainableScore {
+/**
+ * How good the asking price is, relative to this car's own age- and
+ * mileage-adjusted market value — and nothing else.
+ *
+ * `value` is `null` when the asking price could not be rated: no comparable
+ * market value, or the price was quarantined as a monthly rate / deposit /
+ * placeholder / typo. A `null` here means *unrated*; it must never be shown as
+ * 50, which means "priced about right".
+ */
+export interface DealScore extends ExplainableScoreBase {
   kind: "deal";
+  /** Integer 0-100, or `null` when unrated. */
+  value: number | null;
 }
 
-/** Overall purchase quality, including ownership experience and risk. */
-export interface BuyConfidenceScore extends ExplainableScore {
+/** How reassuring the vehicle itself looks: age, mileage, service history, owners. */
+export interface BuyConfidenceScore extends ExplainableScoreBase {
   kind: "buy_confidence";
+  /** Integer from 0 (weakest) to 100 (strongest). */
+  value: number;
 }

@@ -169,7 +169,9 @@ model ListingAnalysisRecord {
   comparableCount      Int
   comparablePrices     Int[]         @default([])
   confidence           String
-  dealScore            Int
+  // Null = unrated: no comparable market value, or the asking price was
+  // quarantined (monthly rate / deposit / placeholder / typo). Never 50.
+  dealScore            Int?
   dealScoreFactors     Json          @default("[]")
   buyConfidenceScore   Int
   buyConfidenceFactors Json          @default("[]")

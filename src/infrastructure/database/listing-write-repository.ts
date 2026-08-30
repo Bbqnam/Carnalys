@@ -229,8 +229,10 @@ function neutralAnalysis(priceAmount: number) {
     marketValueMaximum: roundedThousands(priceAmount * 1.1),
     comparableCount: 0,
     confidence: "low",
-    dealScore: 70,
-    buyConfidenceScore: 70,
+    // Not yet analysed: the price is unrated, not "average". A real analysis
+    // follows within the same sync via refreshStoredListingAnalyses.
+    dealScore: null,
+    buyConfidenceScore: 50,
     annualOwnershipCost: Math.round(34_000 + priceAmount * 0.065),
     methodologyVersion: "stored-neutral-1.0",
   };

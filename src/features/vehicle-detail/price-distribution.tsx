@@ -1,10 +1,9 @@
 import type { Locale } from "@/features/search/copy";
-import { createMoneyFormatter } from "@/features/search/format";
 
 interface PriceDistributionProps {
   prices: readonly number[];
   targetPrice: number;
-  /** The "likely range" (25th-75th percentile) already shown as text above this chart. */
+  marketValue: number;
   likelyRangeMinimum: number;
   likelyRangeMaximum: number;
   locale: Locale;
@@ -12,16 +11,10 @@ interface PriceDistributionProps {
   targetLabel: string;
 }
 
-const width = 480;
-const height = 150;
-const paddingLeft = 60;
-const paddingRight = 12;
-const paddingTop = 12;
-const paddingBottom = 12;
-
 export function PriceDistribution({
   prices,
   targetPrice,
+  marketValue,
   likelyRangeMinimum,
   likelyRangeMaximum,
   locale,
@@ -30,100 +23,64 @@ export function PriceDistribution({
 }: PriceDistributionProps) {
   if (prices.length === 0) return null;
 
-  // Priced within the likely range (already shown as text above) reads as a
-  // normal/expected price — neutral. Below it is a good deal, above it is
-  // pricier than typical — reusing the app's one positive/negative palette
-  // rather than introducing new colors for the same "good vs bad price" idea
-  // already used elsewhere (e.g. the "below/above market" labels on cards).
   const targetTone =
     targetPrice <= likelyRangeMinimum
       ? "var(--positive)"
       : targetPrice >= likelyRangeMaximum
         ? "var(--negative)"
         : "var(--ink-muted)";
-
-  const moneyFormatter = createMoneyFormatter(locale);
-  const points = [
-    ...prices.map((price) => ({ price, isTarget: false })),
-    { price: targetPrice, isTarget: true },
-  ].toSorted((left, right) => left.price - right.price);
-
-  const min = points[0].price;
-  const max = points.at(-1)!.price;
-  const span = max - min || 1;
-  const plotWidth = width - paddingLeft - paddingRight;
-  const plotHeight = height - paddingTop - paddingBottom;
-
-  const y = (price: number) => paddingTop + plotHeight * (1 - (price - min) / span);
-  const x = (index: number) =>
-    points.length === 1
-      ? paddingLeft + plotWidth / 2
-      : paddingLeft + plotWidth * (index / (points.length - 1));
-
-  const target = points.find((point) => point.isTarget)!;
-  const targetY = y(target.price);
-  const gridlinePrices = [max, min + span / 2, min];
+  const rawMinimum = Math.min(likelyRangeMinimum, marketValue, targetPrice);
+  const rawMaximum = Math.max(likelyRangeMaximum, marketValue, targetPrice);
+  const padding = Math.max((rawMaximum - rawMinimum) * 0.08, rawMaximum * 0.015, 1);
+  const minimum = rawMinimum - padding;
+  const maximum = rawMaximum + padding;
+  const position = (price: number) => `${((price - minimum) / (maximum - minimum)) * 100}%`;
+  const compact = (price: number) =>
+    `${Math.round(price / 1000).toLocaleString(locale === "en" ? "en-SE" : "sv-SE")}k`;
 
   return (
-    <div className="mt-3">
-      <svg
-        aria-hidden="true"
-        className="w-full"
-        height={height}
-        role="img"
-        viewBox={`0 0 ${width} ${height}`}
-      >
-        {gridlinePrices.map((price) => (
-          <g key={price}>
-            <line
-              stroke="var(--border)"
-              x1={paddingLeft}
-              x2={width - paddingRight}
-              y1={y(price)}
-              y2={y(price)}
-            />
-            <text fill="var(--ink-subtle)" fontSize="9" textAnchor="end" x={paddingLeft - 8} y={y(price) + 3}>
-              {moneyFormatter.format(price)}
-            </text>
-          </g>
-        ))}
-        <line
-          stroke={targetTone}
-          strokeDasharray="2 3"
-          strokeWidth="1"
-          x1={paddingLeft}
-          x2={width - paddingRight}
-          y1={targetY}
-          y2={targetY}
+    <div
+      aria-label={`${prices.length} ${comparableLabel}. ${targetLabel}: ${targetPrice.toLocaleString(locale === "en" ? "en-SE" : "sv-SE")}.`}
+      className="mt-4"
+      role="img"
+    >
+      <div className="flex items-center justify-between text-[10px] font-medium tabular-nums text-ink-subtle">
+        <span>{compact(likelyRangeMinimum)}</span>
+        <span>{compact(likelyRangeMaximum)}</span>
+      </div>
+      <div className="relative mt-2 h-7">
+        <div
+          className="absolute inset-x-0 top-2 h-2 rounded-full"
+          style={{
+            background:
+              "linear-gradient(90deg, var(--positive) 0%, #79b897 32%, var(--gold) 62%, #ed9b45 80%, var(--negative) 100%)",
+          }}
         />
-        {points.map((point, index) =>
-          point.isTarget ? null : (
-            <circle
-              cx={x(index)}
-              cy={y(point.price)}
-              fill="var(--border-strong)"
-              key={index}
-              r="3"
-            />
-          ),
-        )}
-        <circle
-          cx={x(points.indexOf(target))}
-          cy={targetY}
-          fill={targetTone}
-          r="5"
-          stroke="var(--surface)"
-          strokeWidth="2"
+        <span
+          className="absolute top-[3px] block size-4 -translate-x-1/2 rounded-full border-[3px] border-surface bg-positive shadow-sm"
+          style={{ left: position(marketValue) }}
         />
-      </svg>
-      <div className="mt-1 flex items-center justify-center gap-4 text-[10px] text-ink-subtle">
-        <span className="flex items-center gap-1">
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-border-strong" />
-          {comparableLabel}
+        <span
+          className="absolute top-[-5px] block h-8 w-px -translate-x-1/2 rounded-full"
+          style={{ background: targetTone, left: position(targetPrice) }}
+        >
+          <span
+            className="absolute -left-[4px] -top-px block size-[9px] rotate-45 rounded-[2px] border-2 border-surface shadow-sm"
+            style={{ background: targetTone }}
+          />
         </span>
-        <span className="flex items-center gap-1 font-medium" style={{ color: targetTone }}>
-          <span aria-hidden="true" className="size-1.5 rounded-full" style={{ backgroundColor: targetTone }} />
-          {targetLabel}: {moneyFormatter.format(targetPrice)}
+      </div>
+      <div className="mt-1 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[10px] text-ink-subtle">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="size-1.5 rounded-full bg-positive" />
+          {compact(marketValue)}
+        </span>
+        <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: targetTone }}>
+          <span className="relative h-3 w-2" aria-hidden="true">
+            <span className="absolute left-1/2 top-0 h-3 w-px -translate-x-1/2" style={{ background: targetTone }} />
+            <span className="absolute left-1/2 top-0 size-1.5 -translate-x-1/2 rotate-45 rounded-[1px]" style={{ background: targetTone }} />
+          </span>
+          {targetLabel}: {compact(targetPrice)}
         </span>
       </div>
     </div>

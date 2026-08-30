@@ -1,19 +1,23 @@
 import type { ScoreFactor, ScoreFactorImpact } from "./scores";
 
 export interface ScoreFactorInputs {
+  /** True when the asking price could be compared to a market value. */
   hasMarketEstimate: boolean;
+  /** (marketValue - askingPrice) / marketValue; only meaningful when compared. */
   priceDelta: number;
+  /** 0-100 price attractiveness sub-score, for the factor bar. */
   priceValueScore: number;
+  /** Why the price was not rated (0 = it was rated). See price-plausibility. */
+  priceReasonCode: number;
   ageScore: number;
   mileageScore: number;
-  affordabilityScore: number;
-  dealScore: number;
+  serviceHistoryScore: number;
   ownerScore: number;
+  hasServiceHistory: boolean;
   ownerCount?: number;
   age: number;
   modelYear: number;
   mileageKm: number;
-  askingPrice: number;
 }
 
 function classify(score: number): ScoreFactorImpact {
@@ -22,13 +26,18 @@ function classify(score: number): ScoreFactorImpact {
   return "neutral";
 }
 
+/**
+ * The one and only Deal Score factor: price against the market. When the price
+ * was not rated it carries the reason code instead of a percentage, so the UI
+ * can explain *why* there is no score rather than showing a silent 50.
+ */
 function priceVsMarketFactor(inputs: ScoreFactorInputs): ScoreFactor {
   if (!inputs.hasMarketEstimate) {
     return {
       key: "price_vs_market",
       impact: "neutral",
       score: inputs.priceValueScore,
-      params: {},
+      params: { reasonCode: inputs.priceReasonCode },
     };
   }
 
@@ -47,72 +56,42 @@ function priceVsMarketFactor(inputs: ScoreFactorInputs): ScoreFactor {
   };
 }
 
-function vehicleAgeFactor(inputs: ScoreFactorInputs): ScoreFactor {
-  return {
-    key: "vehicle_age",
-    impact: classify(inputs.ageScore),
-    score: inputs.ageScore,
-    params: { age: inputs.age, modelYear: inputs.modelYear },
-  };
-}
-
-function mileageFactor(inputs: ScoreFactorInputs): ScoreFactor {
-  return {
-    key: "mileage",
-    impact: classify(inputs.mileageScore),
-    score: inputs.mileageScore,
-    params: { mileageKm: inputs.mileageKm },
-  };
-}
-
 /**
- * Buy Confidence is partly derived from age + mileage too, but the Deal
- * Score card already states the raw facts ("11 år gammal", "187 000 km").
- * Repeating those verbatim reads as duplicated content, so this reframes
- * them as a single reliability/risk statement instead of restating numbers
- * the reader already saw one card up.
+ * Buy Confidence's condition factor: age, mileage and service history rolled
+ * into one reliability statement rather than restating the raw numbers.
  */
 function conditionFactor(inputs: ScoreFactorInputs): ScoreFactor {
-  const combinedScore = Math.round((inputs.ageScore + inputs.mileageScore) / 2);
-  const impact = classify(combinedScore);
+  const combinedScore = Math.round(
+    (inputs.ageScore + inputs.mileageScore + inputs.serviceHistoryScore) / 3,
+  );
   return {
     key: "condition",
-    impact,
+    impact: classify(combinedScore),
     score: combinedScore,
     params: {},
   };
 }
 
 function ownershipHistoryFactor(inputs: ScoreFactorInputs): ScoreFactor {
-  const impact = classify(inputs.ownerScore);
   return {
     key: "ownership_history",
-    impact,
+    impact: classify(inputs.ownerScore),
     score: inputs.ownerScore,
     params:
       inputs.ownerCount === undefined ? {} : { ownerCount: inputs.ownerCount },
   };
 }
 
+/**
+ * Philosophy A: the Deal Score is the price comparison, so that is its only
+ * factor. Age, mileage and price bracket are not listed here because they do
+ * not move the score — they are already inside the market value it is measured
+ * against.
+ */
 export function buildDealScoreFactors(inputs: ScoreFactorInputs): ScoreFactor[] {
-  return [
-    priceVsMarketFactor(inputs),
-    vehicleAgeFactor(inputs),
-    mileageFactor(inputs),
-    {
-      key: "affordability",
-      impact: classify(inputs.affordabilityScore),
-      score: inputs.affordabilityScore,
-      params: { askingPrice: inputs.askingPrice },
-    },
-  ];
+  return [priceVsMarketFactor(inputs)];
 }
 
-/**
- * Deliberately independent of Deal Score/price — this used to reference
- * the Deal Score value directly, which made the two cards read as nearly
- * the same content. Now driven purely by condition and ownership history.
- */
 export function buildBuyConfidenceFactors(inputs: ScoreFactorInputs): ScoreFactor[] {
   return [conditionFactor(inputs), ownershipHistoryFactor(inputs)];
 }

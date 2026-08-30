@@ -287,6 +287,114 @@ export function BestTimeToBuy({ data, locale }: BestTimeToBuyProps) {
     );
   }
 
+  if (!data.isSeasonal) {
+    const recentStats = [
+      {
+        label: copy.inventory,
+        value: formatNumber(selected.listingCount, locale),
+      },
+      {
+        label: copy.listingAge,
+        value:
+          selected.medianListingAgeDays === null
+            ? "–"
+            : copy.days(formatNumber(selected.medianListingAgeDays, locale)),
+      },
+      {
+        label: copy.reductions,
+        value:
+          selected.priceReductionRate === null
+            ? "–"
+            : `${(selected.priceReductionRate * 100).toFixed(1)}${locale === "en" ? "%" : " %"}`,
+      },
+      {
+        label: copy.observations,
+        value: formatNumber(selected.observationCount, locale),
+      },
+    ];
+
+    return (
+      <div>
+        <div className="rounded-2xl border border-border bg-surface-subtle p-4 sm:p-5">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-subtle">
+                {copy.months[selected.month - 1]}
+              </p>
+              <p className="mt-1 text-2xl font-semibold tracking-[-0.035em] text-ink">
+                {selected.medianPrice === null
+                  ? "–"
+                  : compactMoney(selected.medianPrice, locale, true)}
+              </p>
+              <p className="mt-0.5 text-[11px] text-ink-muted">{copy.medianPrice}</p>
+            </div>
+            <p className="rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-ink-muted">
+              {copy.coverage(data.coveredMonthCount)}
+            </p>
+          </div>
+
+          <div className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0" ref={stripRef}>
+            <div className="relative min-w-[42rem] px-2">
+              <span className="absolute left-[4.3%] right-[4.3%] top-[7px] h-px bg-border-strong" />
+              <div className="relative grid grid-cols-12" role="tablist" aria-label={copy.selectMonth}>
+                {data.months.map((month) => {
+                  const hasData = month.observationCount > 0;
+                  const isSelected = month.month === selectedMonth;
+                  return (
+                    <button
+                      aria-controls={panelId}
+                      aria-selected={isSelected}
+                      className="group flex flex-col items-center gap-2 text-[10px] font-medium text-ink-subtle disabled:cursor-default"
+                      disabled={!hasData}
+                      id={`${panelId}-tab-${month.month}`}
+                      key={month.month}
+                      onClick={() => setSelectedMonth(month.month)}
+                      ref={isSelected ? selectedTileRef : undefined}
+                      role="tab"
+                      tabIndex={isSelected ? 0 : -1}
+                      type="button"
+                    >
+                      <span
+                        className={`relative z-10 block rounded-full border-2 border-surface transition ${
+                          isSelected
+                            ? "size-4 bg-accent ring-2 ring-accent/20"
+                            : hasData
+                              ? "mt-0.5 size-3 bg-accent"
+                              : "mt-0.5 size-3 bg-border-strong"
+                        }`}
+                      />
+                      <span className={isSelected ? "font-semibold text-ink" : ""}>
+                        {copy.monthsShort[month.month - 1]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <dl
+            aria-labelledby={`${panelId}-tab-${selectedMonth}`}
+            className="mt-5 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-border pt-4 sm:grid-cols-4"
+            id={panelId}
+            role="tabpanel"
+          >
+            {recentStats.map((stat) => (
+              <div key={stat.label}>
+                <dt className="text-[10px] text-ink-subtle">{stat.label}</dt>
+                <dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{stat.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <p className="mt-3 max-w-2xl text-xs leading-relaxed text-ink-muted">
+          {copy.disclaimer}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* The strip scrolls rather than shrinks on narrow screens: twelve tiles

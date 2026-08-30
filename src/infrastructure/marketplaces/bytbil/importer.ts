@@ -22,6 +22,26 @@ export type KnownBytbilPayloadLookup = (
 const detailConcurrency = 3;
 const detailAttempts = 3;
 
+/**
+ * Bytbil's search-results price lags its detail page, so a listing's real price
+ * can drift while the summary fingerprint holds steady — leaving the stored
+ * price frozen at first enrichment. Re-confirm every detail against its page at
+ * least this often regardless of the fingerprint.
+ */
+const staleDetailMs = 3 * 24 * 60 * 60 * 1000;
+
+/** One-off escape hatch: BYTBIL_FORCE_DETAIL_REFRESH=1 re-fetches every detail. */
+const forceDetailRefresh = process.env.BYTBIL_FORCE_DETAIL_REFRESH === "1";
+
+function cachedDetailFetchedAt(payload: unknown): number | undefined {
+  if (payload && typeof payload === "object" && "detailFetchedAt" in payload) {
+    const value = (payload as { detailFetchedAt?: unknown }).detailFetchedAt;
+    const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 function cachedDetail(payload: unknown): BytbilListingDetail | undefined {
   const value = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : undefined;
   const detail = value?.detail;
@@ -146,11 +166,14 @@ export class BytbilImporter implements MarketplaceImporter {
             )
           : new Map<string, unknown>();
         const needsDetail = page.documents.filter((document) => {
+          if (forceDetailRefresh) return true;
           const payload = cached.get(document.id);
-          return (
-            !cachedDetail(payload) ||
-            cachedFingerprint(payload) !== bytbilSummaryFingerprint(document)
-          );
+          if (!cachedDetail(payload)) return true;
+          if (cachedFingerprint(payload) !== bytbilSummaryFingerprint(document)) {
+            return true;
+          }
+          const fetchedAt = cachedDetailFetchedAt(payload);
+          return fetchedAt === undefined || Date.now() - fetchedAt > staleDetailMs;
         });
         const fetched = await this.details(needsDetail);
         const listings = page.documents.map((document) => {
@@ -160,13 +183,28 @@ export class BytbilImporter implements MarketplaceImporter {
             document,
             fetchedDetail ?? cachedDetail(payload),
             this.scope,
+            Boolean(fetchedDetail),
           );
+          const raw = normalized.rawPayload as
+            | { summaryFingerprint?: unknown; detailFetchedAt?: unknown }
+            | undefined;
+          if (raw) {
+            if (fetchedDetail) {
+              // A fresh, successful detail fetch — this is the moment the price
+              // is confirmed against the actual listing page.
+              raw.detailFetchedAt = new Date().toISOString();
+            } else {
+              const previous = cachedDetailFetchedAt(payload);
+              if (previous !== undefined) {
+                raw.detailFetchedAt = new Date(previous).toISOString();
+              }
+            }
+          }
           // A changed summary whose detail fetch failed still persists its safe
           // summary update, but must keep the stale fingerprint so the next run
           // retries enrichment rather than trusting the fallback.
-          if (fetched.has(document.id) && !fetchedDetail && normalized.rawPayload) {
-            (normalized.rawPayload as { summaryFingerprint?: unknown }).summaryFingerprint =
-              cachedFingerprint(payload);
+          if (fetched.has(document.id) && !fetchedDetail && raw) {
+            raw.summaryFingerprint = cachedFingerprint(payload);
           }
           return normalized;
         });

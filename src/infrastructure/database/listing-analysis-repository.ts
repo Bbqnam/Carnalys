@@ -1,13 +1,22 @@
 import { Prisma } from "@/generated/prisma/client";
-import {
-  minimumPlausibleAskingPrice,
-  plausibleAskingPriceSql,
-} from "@/domain/vehicle/pricing";
+import { plausibleAskingPriceSql } from "@/domain/vehicle/pricing";
 import { buildOwnershipCostItems } from "@/domain/vehicle/analysis/ownership-cost-items";
 import {
   buildBuyConfidenceFactors,
   buildDealScoreFactors,
 } from "@/domain/vehicle/analysis/score-factors";
+import {
+  computeBuyConfidence,
+  computeDealScore,
+  conditionScores,
+  priceValueScore,
+} from "@/domain/vehicle/analysis/deal-score";
+import {
+  valueVehicle,
+  type ValuationComparable,
+} from "@/domain/vehicle/analysis/comparable-valuation";
+import { assessAskingPrice } from "@/domain/vehicle/analysis/price-plausibility";
+import type { ServiceHistoryStatus } from "@/domain/vehicle";
 import { initializeDatabase, prisma } from "./prisma";
 
 interface AnalysisTarget {
@@ -16,6 +25,10 @@ interface AnalysisTarget {
   priceAmount: number;
   mileageKm: number;
   ownerCount: number | null;
+  serviceHistory: string | null;
+  monthlyCostAmount: number | null;
+  title: string | null;
+  description: string | null;
   synchronizedAt: Date;
   vehicle: {
     make: string;
@@ -44,131 +57,49 @@ interface SegmentComparableRow {
   vehicleId: string;
   make: string;
   modelYear: number;
+  mileageKm: number;
   priceAmount: number;
 }
 
-const methodologyVersion = "value-quality-composite-9.0";
+const methodologyVersion = "value-quality-composite-10.0";
 
-/**
- * The least a listing can ask, as a share of its own comparable market value,
- * before the price stops being credible as the price of that car.
- *
- * Deliberately generous: genuinely good deals, accident-damaged cars and
- * urgent private sales do reach 30-40% under market, and those must keep their
- * Deal Score. What this excludes is the 90%+ discount that only ever means the
- * advertised figure is a leasing rate, a deposit, or a placeholder.
- */
-const minimumCredibleMarketValueShare = 0.35;
+const SERVICE_HISTORY_VALUES: ReadonlySet<ServiceHistoryStatus> = new Set([
+  "complete",
+  "partial",
+  "missing",
+  "unknown",
+]);
 
-function clampScore(value: number) {
-  return Math.max(10, Math.min(95, Math.round(value)));
-}
-
-function interpolateScore(
-  value: number,
-  points: readonly (readonly [number, number])[],
-) {
-  if (value <= points[0][0]) return points[0][1];
-  for (let index = 1; index < points.length; index += 1) {
-    const [upperValue, upperScore] = points[index];
-    const [lowerValue, lowerScore] = points[index - 1];
-    if (value <= upperValue) {
-      const ratio = (value - lowerValue) / (upperValue - lowerValue);
-      return lowerScore + (upperScore - lowerScore) * ratio;
-    }
-  }
-  return points.at(-1)?.[1] ?? 10;
-}
-
-function vehicleQualityScores(target: AnalysisTarget, priceDelta: number, year: number) {
-  const age = Math.max(0, year - target.vehicle.modelYear);
-  const priceValueScore = clampScore(65 + priceDelta * 140);
-  const ageScore = interpolateScore(age, [
-    [0, 100], [1, 100], [3, 92], [5, 82], [8, 68],
-    [12, 50], [18, 30], [25, 15], [40, 10],
-  ]);
-  const mileageScore = interpolateScore(target.mileageKm, [
-    [0, 100], [30_000, 92], [60_000, 80], [100_000, 65],
-    [150_000, 45], [200_000, 28], [300_000, 10], [500_000, 10],
-  ]);
-  const affordabilityScore = interpolateScore(target.priceAmount, [
-    [0, 100], [75_000, 95], [150_000, 85], [250_000, 70],
-    [400_000, 50], [600_000, 32], [1_000_000, 15], [2_000_000, 10],
-  ]);
-  // Unknown owner count is treated as neutral (2 owners) rather than
-  // penalized, since it's genuinely absent for a lot of listings.
-  const ownerScore = interpolateScore(target.ownerCount ?? 2, [
-    [1, 100], [2, 80], [3, 60], [4, 45], [5, 30], [8, 15],
-  ]);
-  const dealScore = clampScore(
-    priceValueScore * 0.45 +
-      ageScore * 0.25 +
-      mileageScore * 0.2 +
-      affordabilityScore * 0.1,
-  );
-  // Deliberately independent of dealScore/price — Deal Score answers "is
-  // this priced well," Buy Confidence answers "is this a sound car to
-  // own," driven purely by condition (age/mileage) and ownership history.
-  const buyConfidenceScore = clampScore(
-    ageScore * 0.4 + mileageScore * 0.35 + ownerScore * 0.25,
-  );
-
-  return {
-    dealScore,
-    buyConfidenceScore,
-    age,
-    priceValueScore,
-    ageScore,
-    mileageScore,
-    affordabilityScore,
-    ownerScore,
-  };
-}
-
-/**
- * Comparables are pooled by make and model, then narrowed in memory — the
- * exact cohort adds gearbox and fuel, the wide tier drops them. Body style is
- * deliberately never part of it: it's only populated from detail data (see
- * importer.ts), so while most of the catalog is still un-enriched, matching on
- * it would isolate freshly-enriched listings from the (still-"other") bulk of
- * their own real comparables.
- */
-function modelKey({ make, model }: { make: string; model: string }) {
-  return JSON.stringify([make, model]);
-}
-
-function segmentKey({ make }: { make: string }) {
-  return make;
+function normalizeServiceHistory(value: string | null): ServiceHistoryStatus {
+  return value && SERVICE_HISTORY_VALUES.has(value as ServiceHistoryStatus)
+    ? (value as ServiceHistoryStatus)
+    : "unknown";
 }
 
 function roundedThousands(value: number) {
   return Math.max(1_000, Math.round(value / 1_000) * 1_000);
 }
 
-function percentile(sortedValues: readonly number[], fraction: number) {
-  const position = (sortedValues.length - 1) * fraction;
-  const lowerIndex = Math.floor(position);
-  const upperIndex = Math.ceil(position);
-  const lower = sortedValues[lowerIndex];
-  const upper = sortedValues[upperIndex];
-  return lower + (upper - lower) * (position - lowerIndex);
-}
-
 const comparableDisplaySampleSize = 40;
 
-// The median/percentile math uses every matching comparable — no cap, for
-// statistical accuracy. Storing (and rendering) all of them isn't
-// reasonable once a popular cohort has 1,000+ active listings, so the
-// *display* sample is a separate, bounded, evenly-spaced pick across the
-// sorted full set — this preserves the true shape of the distribution
-// (including its extremes) rather than just showing e.g. the cheapest N.
+// Even, order-preserving down-sample of the sorted comparable prices — keeps the
+// true shape of the distribution (including its tails) rather than just the
+// cheapest N, without serialising a thousand rows for a popular cohort.
 function evenlySampled(sortedValues: readonly number[], sampleSize: number) {
-  if (sortedValues.length <= sampleSize) return sortedValues;
+  if (sortedValues.length <= sampleSize) return [...sortedValues];
   const step = (sortedValues.length - 1) / (sampleSize - 1);
   return Array.from(
     { length: sampleSize },
     (_, index) => sortedValues[Math.round(index * step)],
   );
+}
+
+function modelKey({ make, model }: { make: string; model: string }) {
+  return JSON.stringify([make, model]);
+}
+
+function segmentKey({ make }: { make: string }) {
+  return make;
 }
 
 async function loadTargets(
@@ -193,6 +124,10 @@ async function loadTargets(
       priceAmount: true,
       mileageKm: true,
       ownerCount: true,
+      serviceHistory: true,
+      monthlyCostAmount: true,
+      title: true,
+      description: true,
       synchronizedAt: true,
       vehicle: {
         select: {
@@ -219,7 +154,7 @@ export async function refreshStoredListingAnalyses(
   if (targets.length === 0) return 0;
 
   // One year for the whole batch, so every plausibility check and age
-  // calculation in this run agrees even if it straddles midnight on New Year.
+  // calculation agrees even if the run straddles midnight on New Year.
   const analysisYear = new Date().getFullYear();
 
   const cohorts = [
@@ -259,9 +194,7 @@ export async function refreshStoredListingAnalyses(
         analysisYear,
       ),
     )}
-    -- One representative ad per exact physical-vehicle identity. This is the
-    -- SQL equivalent of selectRepresentativeListings: newest synchronized ad,
-    -- deterministic id tie-break. Source listings remain stored separately.
+    -- One representative ad per physical vehicle: newest synchronized, id tie-break.
     ORDER BY listing."vehicleId", listing."synchronizedAt" DESC, listing."id" ASC
   `);
   const comparablesByModel = new Map<string, MarketComparableRow[]>();
@@ -272,7 +205,17 @@ export async function refreshStoredListingAnalyses(
     comparablesByModel.set(key, rows);
   }
 
-  function tier1Prices(target: AnalysisTarget) {
+  const toComparable = (
+    row: { modelYear: number; mileageKm: number | bigint; priceAmount: number | bigint },
+  ): ValuationComparable => ({
+    priceAmount: Number(row.priceAmount),
+    ageYears: analysisYear - row.modelYear,
+    mileageKm: Number(row.mileageKm),
+  });
+
+  /** Exact cohort: same model, gearbox and fuel, within 3 model years and
+   *  120,000 km. */
+  function tier1Comparables(target: AnalysisTarget): ValuationComparable[] {
     return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
       .filter(
         (comparable) =>
@@ -281,30 +224,14 @@ export async function refreshStoredListingAnalyses(
           comparable.fuelType === target.vehicle.fuelType &&
           comparable.transmission === target.vehicle.transmission &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 3 &&
-          Math.abs(comparable.mileageKm - target.mileageKm) <= 120_000,
+          Math.abs(Number(comparable.mileageKm) - target.mileageKm) <= 120_000,
       )
-      .toSorted(
-        (left, right) =>
-          Math.abs(left.modelYear - target.vehicle.modelYear) * 60_000 +
-            Math.abs(left.mileageKm - target.mileageKm) -
-            (Math.abs(right.modelYear - target.vehicle.modelYear) * 60_000 +
-              Math.abs(right.mileageKm - target.mileageKm)),
-      )
-      .map(({ priceAmount }) => Number(priceAmount));
+      .map(toComparable);
   }
 
-  /**
-   * Same model, but ignoring gearbox and fuel and allowing a wider year band.
-   *
-   * Sits between the exact cohort and the same-make fallback because the jump
-   * between those two is enormous: a rare car with two exact matches drops
-   * straight to being compared against every other car the manufacturer makes.
-   * A 1990 Nissan 200SX has three listings in the whole country, and comparing
-   * it against 1990s Micras and Almeras is what made its valuation look wrong.
-   * Another 200SX of a different gearbox is a far better comparison, and this
-   * tier costs no extra query — the pool is already fetched by make and model.
-   */
-  function tier1WidePrices(target: AnalysisTarget) {
+  /** Same model, wider year band, gearbox and fuel ignored — a far better
+   *  comparison for a rare car than dropping straight to same-make. */
+  function tier1WideComparables(target: AnalysisTarget): ValuationComparable[] {
     return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
       .filter(
         (comparable) =>
@@ -312,19 +239,14 @@ export async function refreshStoredListingAnalyses(
           comparable.vehicleId !== target.vehicleId &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 8,
       )
-      .toSorted(
-        (left, right) =>
-          Math.abs(left.modelYear - target.vehicle.modelYear) -
-          Math.abs(right.modelYear - target.vehicle.modelYear),
-      )
-      .map(({ priceAmount }) => Number(priceAmount));
+      .map(toComparable);
   }
 
-  // Only vehicles with no usable same-model pool at all fall through to the
-  // same-make comparison.
+  // Only vehicles with no usable same-model pool fall through to same-make.
   const needsSegmentFallback = targets.filter(
     (target) =>
-      tier1Prices(target).length < 3 && tier1WidePrices(target).length < 3,
+      tier1Comparables(target).length < 3 &&
+      tier1WideComparables(target).length < 3,
   );
   const segmentMakes = [
     ...new Set(needsSegmentFallback.map(({ vehicle }) => vehicle.make)),
@@ -336,6 +258,7 @@ export async function refreshStoredListingAnalyses(
           listing."vehicleId" AS "vehicleId",
           vehicle."make" AS "make",
           vehicle."modelYear" AS "modelYear",
+          listing."mileageKm" AS "mileageKm",
           listing."priceAmount" AS "priceAmount"
         FROM "VehicleRecord" AS vehicle
         INNER JOIN "ListingRecord" AS listing
@@ -360,7 +283,7 @@ export async function refreshStoredListingAnalyses(
     comparablesBySegment.set(key, rows);
   }
 
-  function tier2Prices(target: AnalysisTarget) {
+  function tier2Comparables(target: AnalysisTarget): ValuationComparable[] {
     const minimumPrice = target.priceAmount * 0.6;
     const maximumPrice = target.priceAmount * 1.4;
     return (comparablesBySegment.get(segmentKey(target.vehicle)) ?? [])
@@ -369,122 +292,121 @@ export async function refreshStoredListingAnalyses(
           comparable.id !== target.id &&
           comparable.vehicleId !== target.vehicleId &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 5 &&
-          comparable.priceAmount >= minimumPrice &&
-          comparable.priceAmount <= maximumPrice,
+          Number(comparable.priceAmount) >= minimumPrice &&
+          Number(comparable.priceAmount) <= maximumPrice,
       )
-      .toSorted(
-        (left, right) =>
-          Math.abs(left.modelYear - target.vehicle.modelYear) -
-          Math.abs(right.modelYear - target.vehicle.modelYear),
-      )
-      .map(({ priceAmount }) => Number(priceAmount));
+      .map(toComparable);
   }
 
   const calculatedAt = new Date();
   await prisma.$transaction(
     targets.map((target) => {
-      const tier1 = tier1Prices(target);
-      const tier1Wide = tier1.length >= 3 ? [] : tier1WidePrices(target);
-      const selected =
+      const tier1 = tier1Comparables(target);
+      const usedFallbackTier = tier1.length < 3;
+      const cohort =
         tier1.length >= 3
           ? tier1
-          : tier1Wide.length >= 3
-            ? tier1Wide
-            : tier2Prices(target);
-      // Anything looser than an exact same-model, same-gearbox, same-fuel match
-      // is reported as low confidence, however many rows it found.
-      const usedFallbackTier = tier1.length < 3;
-      const prices = selected.toSorted((left, right) => left - right);
-      const hasEstimate = prices.length >= 3;
-      const marketValue = hasEstimate
-        ? roundedThousands(percentile(prices, 0.5))
-        : target.priceAmount;
-      // The listing's *own* price may be a leasing rate or a "call for price"
-      // placeholder rather than the price of the car. Comparing that against a
-      // real market value produced a perfect Deal Score for a 2026 BMW iX1
-      // advertised at 4,995 SEK — and 89% of everything scoring 90+ was this
-      // one bug. The market value stays (the comparables are sound); only the
-      // price comparison is withheld, because the asking price is unknown.
-      // Two tests, because neither alone is enough. The age-relative floor
-      // catches the 1 SEK placeholders, but not a 2026 Audi RS Q8 advertised
-      // at 32,995 SEK — that clears any floor low enough to keep genuine old
-      // bangers. The second test is relative to the car's own comparables: at
-      // 2% of a 1,507,000 SEK market value, that price cannot be what the car
-      // is being sold for. A real bargain is 20-30% under market, not 98%.
-      const askingPriceIsUsable =
-        target.priceAmount >=
-          minimumPlausibleAskingPrice(target.vehicle.modelYear, analysisYear) &&
-        (!hasEstimate ||
-          target.priceAmount >= marketValue * minimumCredibleMarketValueShare);
-      const comparablePriceDelta =
-        marketValue > 0 ? (marketValue - target.priceAmount) / marketValue : 0;
-      const priceDelta = askingPriceIsUsable ? comparablePriceDelta : 0;
-      const canComparePrice = hasEstimate && askingPriceIsUsable;
-      const confidence =
-        !canComparePrice || usedFallbackTier
-          ? "low"
-          : prices.length >= 15
-            ? "high"
-            : prices.length >= 8
-              ? "medium"
-              : "low";
-      const fuelMultiplier = target.vehicle.fuelType === "electric" ? 0.8 : 1;
-      const qualityScores = vehicleQualityScores(
-        target,
-        canComparePrice ? priceDelta : 0,
-        analysisYear,
+          : (() => {
+              const wide = tier1WideComparables(target);
+              if (wide.length >= 3) return wide;
+              const segment = tier2Comparables(target);
+              return segment.length >= 3 ? segment : [];
+            })();
+
+      const valuation = valueVehicle(
+        {
+          ageYears: analysisYear - target.vehicle.modelYear,
+          mileageKm: target.mileageKm,
+        },
+        cohort,
       );
-      /**
-       * A Deal Score is a statement about price, so a listing whose price we
-       * cannot read does not get one — it gets the neutral midpoint.
-       *
-       * Neutralising the price comparison alone was not enough: with the
-       * asking price withheld, a brand-new zero-mileage placeholder still
-       * scored 84 out of age, mileage and "affordability", the last of which
-       * was reading the 1,389 SEK placeholder as an extremely cheap car. The
-       * composite is built from four components and three of them were
-       * rewarding the very thing that makes the listing unusable.
-       *
-       * Buy Confidence is left alone: it describes the car's age, mileage and
-       * ownership history, which are still perfectly valid.
-       */
-      const dealScore = askingPriceIsUsable ? qualityScores.dealScore : 50;
+
+      const assessment = assessAskingPrice({
+        askingPrice: target.priceAmount,
+        modelYear: target.vehicle.modelYear,
+        currentYear: analysisYear,
+        marketValue: valuation.marketValue,
+        monthlyCost: target.monthlyCostAmount,
+        text: `${target.title ?? ""} ${target.description ?? ""}`,
+        comparableCount: valuation.comparableCount,
+      });
+
+      const canComparePrice =
+        valuation.marketValue !== null && assessment.usable;
+      const priceDelta = canComparePrice
+        ? (valuation.marketValue! - target.priceAmount) / valuation.marketValue!
+        : 0;
+
+      const dealResult = computeDealScore({
+        priceDelta,
+        canComparePrice,
+        comparableCount: valuation.comparableCount,
+      });
+
+      const condition = conditionScores({
+        ageYears: analysisYear - target.vehicle.modelYear,
+        mileageKm: target.mileageKm,
+        ownerCount: target.ownerCount,
+        serviceHistory: normalizeServiceHistory(target.serviceHistory),
+      });
+      const buyConfidenceScore = computeBuyConfidence({ ...condition });
+
+      // Data Confidence: how much the *valuation* can be trusted. Independent of
+      // whether the price was rated (that is carried by dealScore === null).
+      const confidence: "low" | "medium" | "high" =
+        valuation.marketValue === null
+          ? "low"
+          : assessment.cautious ||
+              usedFallbackTier ||
+              valuation.method === "raw_median"
+            ? "low"
+            : valuation.comparableCount >= 15
+              ? "high"
+              : valuation.comparableCount >= 8
+                ? "medium"
+                : "low";
+
       const factorInputs = {
         hasMarketEstimate: canComparePrice,
         priceDelta: canComparePrice ? priceDelta : 0,
-        priceValueScore: qualityScores.priceValueScore,
-        ageScore: qualityScores.ageScore,
-        mileageScore: qualityScores.mileageScore,
-        affordabilityScore: qualityScores.affordabilityScore,
-        dealScore,
-        ownerScore: qualityScores.ownerScore,
+        priceValueScore: priceValueScore(priceDelta),
+        priceReasonCode: assessment.reasonCode,
+        ageScore: condition.ageScore,
+        mileageScore: condition.mileageScore,
+        serviceHistoryScore: condition.serviceHistoryScore,
+        ownerScore: condition.ownerScore,
+        hasServiceHistory: condition.hasServiceHistory,
         ownerCount: target.ownerCount ?? undefined,
-        age: qualityScores.age,
+        age: Math.max(0, analysisYear - target.vehicle.modelYear),
         modelYear: target.vehicle.modelYear,
         mileageKm: target.mileageKm,
-        askingPrice: target.priceAmount,
       };
+
+      const fuelMultiplier =
+        target.vehicle.fuelType === "electric" ? 0.8 : 1;
       const annualOwnershipCost = Math.round(
         (34_000 + target.priceAmount * 0.065) * fuelMultiplier,
       );
+
+      const sampledPrices = evenlySampled(
+        cohort.map((c) => c.priceAmount).toSorted((a, b) => a - b),
+        comparableDisplaySampleSize,
+      );
+
       const values = {
-        marketValueAmount: marketValue,
-        marketValueMinimum: hasEstimate
-          ? roundedThousands(percentile(prices, 0.25))
-          : roundedThousands(target.priceAmount * 0.9),
-        marketValueMaximum: hasEstimate
-          ? roundedThousands(percentile(prices, 0.75))
-          : roundedThousands(target.priceAmount * 1.1),
-        // Reported so the UI can distinguish "we could not value this car"
-        // from "this car is a bargain".
-        comparableCount: prices.length,
-        comparablePrices: [...evenlySampled(prices, comparableDisplaySampleSize)],
+        marketValueAmount: valuation.marketValue ?? target.priceAmount,
+        marketValueMinimum:
+          valuation.rangeLow ?? roundedThousands(target.priceAmount * 0.9),
+        marketValueMaximum:
+          valuation.rangeHigh ?? roundedThousands(target.priceAmount * 1.1),
+        comparableCount: valuation.comparableCount,
+        comparablePrices: sampledPrices,
         confidence,
-        dealScore,
+        dealScore: dealResult.value,
         dealScoreFactors: buildDealScoreFactors(
           factorInputs,
         ) as unknown as Prisma.InputJsonValue,
-        buyConfidenceScore: qualityScores.buyConfidenceScore,
+        buyConfidenceScore,
         buyConfidenceFactors: buildBuyConfidenceFactors(
           factorInputs,
         ) as unknown as Prisma.InputJsonValue,
@@ -492,7 +414,7 @@ export async function refreshStoredListingAnalyses(
         ownershipCostItems: buildOwnershipCostItems({
           totalAnnualCost: annualOwnershipCost,
           askingPrice: target.priceAmount,
-          age: qualityScores.age,
+          age: Math.max(0, analysisYear - target.vehicle.modelYear),
         }) as unknown as Prisma.InputJsonValue,
         methodologyVersion,
         calculatedAt,
@@ -505,7 +427,7 @@ export async function refreshStoredListingAnalyses(
         update: values,
       });
     }),
-    { timeout: 30_000 },
+    { timeout: 60_000 },
   );
 
   return targets.length;
