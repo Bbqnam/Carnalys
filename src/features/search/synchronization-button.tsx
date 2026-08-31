@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   getSynchronizationProgress,
   synchronizeLatestListings,
@@ -48,7 +48,7 @@ export function SynchronizationButton({
   activeSynchronization,
   locale,
 }: SynchronizationButtonProps) {
-  const [state, action, pending] = useActionState(
+  const [state, formAction, pending] = useActionState(
     synchronizeLatestListings,
     initialState,
   );
@@ -64,29 +64,42 @@ export function SynchronizationButton({
         }
       : undefined,
   );
+  // The sweep runs after the response, so the button can't learn it finished
+  // from the action result — it polls the sync lock instead. `syncActive` keeps
+  // the button in its running state from the click until polling sees the lock
+  // clear (tolerating a few empty polls while the background job starts up).
+  const [syncActive, setSyncActive] = useState(Boolean(activeSynchronization));
+  const emptyPolls = useRef(0);
+
+  const action = () => {
+    setSyncActive(true);
+    emptyPolls.current = 0;
+    formAction();
+  };
 
   useEffect(() => {
-    if (state.outcome === "completed" || state.outcome === "warning") {
-      router.refresh();
-    }
-    if (state.outcome === "busy" || state.outcome === "completed" || pending) {
-      getSynchronizationProgress().then(setProgress);
-    }
-  }, [state, pending, router]);
-
-  useEffect(() => {
-    if (!progress) return;
+    if (!syncActive && !progress) return;
     const interval = setInterval(async () => {
       const next = await getSynchronizationProgress();
-      setProgress(next);
-      if (!next) router.refresh();
+      if (next) {
+        emptyPolls.current = 0;
+        setProgress(next);
+        return;
+      }
+      // The background sweep can take a few seconds to register its lock;
+      // only conclude it finished after several consecutive empty polls.
+      emptyPolls.current += 1;
+      if (emptyPolls.current >= 3) {
+        setSyncActive(false);
+        setProgress(undefined);
+        router.refresh();
+      }
     }, progressPollMilliseconds);
     return () => clearInterval(interval);
-  }, [progress, router]);
+  }, [syncActive, progress, router]);
 
   const english = locale === "en";
-  const initiallyBusy = Boolean(activeSynchronization);
-  const isBusy = initiallyBusy || Boolean(progress);
+  const isBusy = syncActive || Boolean(progress);
   const label = pending
     ? english
       ? "Updating…"
@@ -104,7 +117,11 @@ export function SynchronizationButton({
         : "Uppdatera annonser";
 
   const actionMessage =
-    state.outcome === "completed"
+    state.outcome === "started"
+      ? english
+        ? "Update started — the list refreshes when it finishes."
+        : "Uppdatering startad — listan uppdateras när den är klar."
+      : state.outcome === "completed"
       ? english
         ? `Done: ${state.createdCount ?? 0} new and ${state.updatedCount ?? 0} updated.`
         : `Klart: ${state.createdCount ?? 0} nya och ${state.updatedCount ?? 0} uppdaterade.`

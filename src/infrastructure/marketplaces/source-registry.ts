@@ -57,6 +57,20 @@ export const listingSources = {
     },
     requestPolicy: { minimumIntervalMs: 800, maximumAttempts: 5 },
   },
+  autohero: {
+    key: "autohero",
+    displayName: "Autohero",
+    type: "dealer",
+    logoKey: "autohero",
+    capabilities: {
+      discovery: "offset",
+      details: true,
+      equipment: true,
+      images: true,
+      removalDetection: true,
+    },
+    requestPolicy: { minimumIntervalMs: 600, maximumAttempts: 5 },
+  },
 } as const satisfies Record<string, MarketplaceSourceDefinition>;
 
 export type ListingSourceKey = keyof typeof listingSources;

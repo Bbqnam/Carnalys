@@ -15,6 +15,7 @@ import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket
 import { WaykeImporter } from "@/infrastructure/marketplaces/wayke/importer";
 import { BytbilImporter } from "@/infrastructure/marketplaces/bytbil/importer";
 import { HedinImporter } from "@/infrastructure/marketplaces/hedin/importer";
+import { AutoheroImporter } from "@/infrastructure/marketplaces/autohero/importer";
 
 function environmentInteger(name: string, fallback: number) {
   const parsed = Number.parseInt(process.env[name] ?? "", 10);
@@ -24,8 +25,16 @@ function environmentInteger(name: string, fallback: number) {
 const command = process.argv[2] ?? "incremental";
 const sourceArgument = process.argv.find((argument) => argument.startsWith("--source="));
 const source = sourceArgument?.split("=", 2)[1] ?? "blocket";
-if (source !== "blocket" && source !== "wayke" && source !== "bytbil" && source !== "hedin") {
-  throw new Error(`Okänd källa: ${source}. Välj blocket, wayke, bytbil eller hedin.`);
+if (
+  source !== "blocket" &&
+  source !== "wayke" &&
+  source !== "bytbil" &&
+  source !== "hedin" &&
+  source !== "autohero"
+) {
+  throw new Error(
+    `Okänd källa: ${source}. Välj blocket, wayke, bytbil, hedin eller autohero.`,
+  );
 }
 const watch = command === "watch" || process.argv.includes("--watch");
 if (watch && source !== "blocket") {
@@ -61,7 +70,9 @@ async function runOnce() {
         ? new BytbilImporter(undefined, existingListingPayloads)
         : source === "hedin"
           ? new HedinImporter(undefined, existingListingPayloads)
-          : new BlocketUnofficialImporter(undefined, existingListingDetailPayloads);
+          : source === "autohero"
+            ? new AutoheroImporter(undefined, existingListingPayloads)
+            : new BlocketUnofficialImporter(undefined, existingListingDetailPayloads);
   const envPrefix =
     source === "wayke"
       ? "WAYKE"
@@ -69,7 +80,9 @@ async function runOnce() {
         ? "BYTBIL"
         : source === "hedin"
           ? "HEDIN"
-          : "BLOCKET";
+          : source === "autohero"
+            ? "AUTOHERO"
+            : "BLOCKET";
   const maxPagesEnv = `${envPrefix}_INCREMENTAL_MAX_PAGES`;
   const knownPagesEnv = `${envPrefix}_INCREMENTAL_KNOWN_PAGES`;
   const result = await synchronizeMarketplace(importer, {

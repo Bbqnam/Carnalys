@@ -6,6 +6,7 @@ import {
   assertManualSynchronizationNotThrottled,
   SynchronizationAlreadyRunningError,
 } from "@/infrastructure/database/synchronization-state-repository";
+import { AutoheroImporter } from "@/infrastructure/marketplaces/autohero/importer";
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
 import { BytbilImporter } from "@/infrastructure/marketplaces/bytbil/importer";
 import { HedinImporter } from "@/infrastructure/marketplaces/hedin/importer";
@@ -51,6 +52,7 @@ function buildImporters(providers?: readonly string[]): MarketplaceImporter[] {
     new WaykeImporter(undefined, existingListingPayloads),
     new BytbilImporter(undefined, existingListingPayloads),
     new HedinImporter(undefined, existingListingPayloads),
+    new AutoheroImporter(undefined, existingListingPayloads),
   ];
   if (!providers) return all;
   const wanted = new Set(providers);
