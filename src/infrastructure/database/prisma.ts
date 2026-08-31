@@ -1,11 +1,14 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { enforceVerifiedPostgresSsl } from "./connection-string";
 
-const databaseUrl = process.env.DATABASE_URL;
+const configuredDatabaseUrl = process.env.DATABASE_URL;
 
-if (!databaseUrl) {
+if (!configuredDatabaseUrl) {
   throw new Error("DATABASE_URL is not set.");
 }
+
+const databaseUrl = enforceVerifiedPostgresSsl(configuredDatabaseUrl);
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;

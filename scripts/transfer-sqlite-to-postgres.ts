@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { Pool } from "pg";
 
 import { refreshCatalogFacets } from "@/infrastructure/database/catalog-facet-repository";
+import { enforceVerifiedPostgresSsl } from "@/infrastructure/database/connection-string";
 
 type Mode = "slim" | "full";
 
@@ -584,7 +585,7 @@ async function main() {
   }
 
   const sqlite = new Database(options.sqlitePath, { readonly: true, fileMustExist: true });
-  const pg = new Pool({ connectionString: directUrl });
+  const pg = new Pool({ connectionString: enforceVerifiedPostgresSsl(directUrl) });
 
   const finishOnly = process.argv.includes("--finish-only");
 
