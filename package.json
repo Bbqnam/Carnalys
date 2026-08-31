@@ -32,6 +32,10 @@
     "data:sync:hedin:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin",
     "data:sync:hedin:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=hedin",
     "data:sync:hedin:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=hedin",
+    "data:sync:autohero:sample": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=autohero --sample",
+    "data:sync:autohero:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=autohero",
+    "data:sync:autohero:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=autohero",
+    "data:sync:autohero:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=autohero",
     "data:analyze": "tsx src/scripts/analyze-vehicle-listings.ts"
   },
   "dependencies": {

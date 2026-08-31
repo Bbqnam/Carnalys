@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
   try {
     const result = await synchronizeAllSourcesIncrementally({
-      providers: ["wayke", "bytbil", "hedin"],
+      providers: ["wayke", "bytbil", "hedin", "autohero"],
       maximumPagesPerSource: environmentInteger("SECONDARY_INCREMENTAL_MAX_PAGES", 8),
       lookbackHours: environmentInteger("SECONDARY_INCREMENTAL_LOOKBACK_HOURS", 72),
       knownPageThreshold: environmentInteger("SECONDARY_INCREMENTAL_KNOWN_PAGES", 2),
