@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { themeInitScript } from "@/features/search/theme";
+import { AccountProvider } from "@/features/auth/account-provider";
+import { getAccountBootstrap } from "@/features/auth/session";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,7 +16,8 @@ export const metadata: Metadata = {
     "Compare used cars in Sweden by market value, Deal Score, buy confidence and estimated ownership cost.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const account = await getAccountBootstrap();
   return (
     <html
       lang="en"
@@ -26,7 +29,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             of the wrong theme; can't wait for a hydrated component. */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <AccountProvider
+          initialFavoriteIds={account.favoriteIds}
+          initialUser={account.user}
+          key={account.user?.id ?? "guest"}
+        >
+          {children}
+        </AccountProvider>
+      </body>
     </html>
   );
 }

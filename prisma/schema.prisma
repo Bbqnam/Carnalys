@@ -109,6 +109,7 @@ model ListingRecord {
   images                     ListingImageRecord[]
   equipment                  ListingEquipmentRecord[]
   analysis                   ListingAnalysisRecord?
+  savedBy                    UserFavorite[]
 
   @@unique([provider, externalId])
   @@index([provider, sourceScope, status])
@@ -120,6 +121,59 @@ model ListingRecord {
   @@index([provider, sourceScope, status, lastSeenAt])
   @@index([mileageKm])
   @@index([lastSeenAt])
+}
+
+/// Lightweight first-party accounts. Usernames are displayed as entered while
+/// usernameNormalized is the case-insensitive identity used at sign-in.
+model User {
+  id                 String        @id @default(uuid())
+  username           String
+  usernameNormalized String        @unique
+  passwordHash       String
+  locale             String        @default("en")
+  theme              String        @default("light")
+  viewMode           String        @default("grid")
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  sessions           UserSession[]
+  favorites          UserFavorite[]
+  savedSearches      SavedSearch[]
+}
+
+/// Session cookies contain an opaque random token; only its SHA-256 digest is
+/// persisted, so a database read cannot be turned directly into a login.
+model UserSession {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model UserFavorite {
+  userId    String
+  listingId String
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([listingId])
+}
+
+model SavedSearch {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
 }
 
 /// Append-only log of everything we have ever observed about a listing's

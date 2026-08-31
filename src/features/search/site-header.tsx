@@ -10,8 +10,11 @@ import {
   MarketAnalysisIcon,
   MenuIcon,
   SearchIcon,
+  SettingsIcon,
   UserIcon,
 } from "./icons";
+import { signOutAction } from "@/features/auth/actions";
+import { useAccount } from "@/features/auth/account-provider";
 import { ThemeToggle } from "./theme-toggle";
 import { uiCopy, type Locale } from "./copy";
 
@@ -26,8 +29,6 @@ interface SiteHeaderProps {
   logoHref?: string;
   locationStatus?: LocationStatus;
   onRequestLocation?: () => void;
-  /** Visual-only for now: opens the account menu's sign-in affordance. */
-  onSignIn?: () => void;
 }
 
 export function SiteHeader({
@@ -39,8 +40,8 @@ export function SiteHeader({
   logoHref = "/",
   locationStatus,
   onRequestLocation,
-  onSignIn,
 }: SiteHeaderProps) {
+  const { user } = useAccount();
   const copy = uiCopy[locale];
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -96,12 +97,6 @@ export function SiteHeader({
     count,
     isActive: activePage === page,
   }));
-
-  function handleSignIn() {
-    setAccountOpen(false);
-    setMenuOpen(false);
-    onSignIn?.();
-  }
 
   return (
     <header className="relative z-30 border-b border-border bg-surface">
@@ -192,8 +187,6 @@ export function SiteHeader({
             />
           </div>
 
-          {/* Account — visual only. Opens a small menu whose one action is a
-              sign-in stub; real auth is a later project. */}
           <div className="relative hidden lg:block" ref={accountRef}>
             <button
               aria-controls={accountOpen ? accountId : undefined}
@@ -208,24 +201,58 @@ export function SiteHeader({
               onClick={() => setAccountOpen((open) => !open)}
               type="button"
             >
-              <UserIcon className="size-[18px]" />
+              {user ? (
+                <span className="text-xs font-bold uppercase">{user.username.slice(0, 2)}</span>
+              ) : (
+                <UserIcon className="size-[18px]" />
+              )}
             </button>
 
             {accountOpen ? (
               <div
-                className="absolute right-0 top-[calc(100%+0.6rem)] z-50 w-48 overflow-hidden rounded-2xl border border-border bg-surface p-1.5 shadow-[0_18px_48px_rgba(26,35,29,0.16)]"
+                className="absolute right-0 top-[calc(100%+0.6rem)] z-50 w-56 overflow-hidden rounded-2xl border border-border bg-surface p-1.5 shadow-[0_18px_48px_rgba(26,35,29,0.16)]"
                 id={accountId}
                 role="menu"
               >
-                <button
-                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
-                  onClick={handleSignIn}
-                  role="menuitem"
-                  type="button"
-                >
-                  <UserIcon className="size-[18px] shrink-0" />
-                  {copy.nav.signIn}
-                </button>
+                {user ? (
+                  <>
+                    <div className="border-b border-border px-3 py-2.5">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-subtle">
+                        {copy.nav.account}
+                      </p>
+                      <p className="mt-0.5 truncate text-sm font-semibold text-ink">{user.username}</p>
+                    </div>
+                    <Link
+                      className="mt-1 flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
+                      href="/settings"
+                      onClick={() => setAccountOpen(false)}
+                      role="menuitem"
+                    >
+                      <SettingsIcon className="size-[18px] shrink-0" />
+                      {copy.nav.settings}
+                    </Link>
+                    <form action={signOutAction}>
+                      <button
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-muted transition hover:bg-surface-muted hover:text-ink"
+                        role="menuitem"
+                        type="submit"
+                      >
+                        <UserIcon className="size-[18px] shrink-0" />
+                        {copy.nav.signOut}
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <Link
+                    className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
+                    href="/login"
+                    onClick={() => setAccountOpen(false)}
+                    role="menuitem"
+                  >
+                    <UserIcon className="size-[18px] shrink-0" />
+                    {copy.nav.signIn}
+                  </Link>
+                )}
               </div>
             ) : null}
           </div>
@@ -298,15 +325,40 @@ export function SiteHeader({
                       ) : null}
                     </Link>
                   ))}
-                  <button
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
-                    onClick={handleSignIn}
-                    role="menuitem"
-                    type="button"
-                  >
-                    <UserIcon className="size-[18px] shrink-0" />
-                    <span className="flex-1 text-left">{copy.nav.signIn}</span>
-                  </button>
+                  {user ? (
+                    <>
+                      <Link
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
+                        href="/settings"
+                        onClick={() => setMenuOpen(false)}
+                        role="menuitem"
+                      >
+                        <SettingsIcon className="size-[18px] shrink-0" />
+                        <span className="flex-1">{copy.nav.settings}</span>
+                        <span className="max-w-24 truncate text-xs text-ink-subtle">{user.username}</span>
+                      </Link>
+                      <form action={signOutAction}>
+                        <button
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
+                          role="menuitem"
+                          type="submit"
+                        >
+                          <UserIcon className="size-[18px] shrink-0" />
+                          <span className="flex-1 text-left">{copy.nav.signOut}</span>
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <Link
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-muted"
+                      href="/login"
+                      onClick={() => setMenuOpen(false)}
+                      role="menuitem"
+                    >
+                      <UserIcon className="size-[18px] shrink-0" />
+                      <span className="flex-1 text-left">{copy.nav.signIn}</span>
+                    </Link>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-3">

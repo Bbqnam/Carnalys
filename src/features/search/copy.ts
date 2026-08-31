@@ -213,6 +213,9 @@ export const uiCopy = {
       compareCars: (count: number) => `${count} cars in comparison`,
       menu: "Menu",
       signIn: "Sign in",
+      signOut: "Sign out",
+      settings: "Settings",
+      savedSearches: "Saved searches",
       account: "Account",
     },
     hero: {
@@ -549,6 +552,9 @@ export const uiCopy = {
       compareCars: (count: number) => `${count} bilar att jämföra`,
       menu: "Meny",
       signIn: "Logga in",
+      signOut: "Logga ut",
+      settings: "Inställningar",
+      savedSearches: "Sparade sökningar",
       account: "Konto",
     },
     hero: {
