@@ -166,6 +166,12 @@ export function SearchExperience({
   const copy = uiCopy[locale];
   const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
   const showHero = pagination.page <= 1;
+  // A neutral fallback analysis means this server payload was produced before
+  // the background analysis row existed. It is different from a deliberately
+  // unrated Deal Score, whose current methodology version is still present.
+  const hasPendingAnalyses = listings.some(
+    (result) => result.analysis.methodologyVersion === "stored-neutral-1.0",
+  );
 
   if (renderedSearchState !== incomingSearchState) {
     setRenderedSearchState(incomingSearchState);
@@ -337,6 +343,26 @@ export function SearchExperience({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!hasPendingAnalyses) return;
+
+    // The catalogue can stay mounted in the browser while a synchronization
+    // finishes and writes its analyses. Refresh the server payload briefly so
+    // cards pick up those stored scores without requiring a hard reload or a
+    // visit to the detail page. Stop after two minutes to avoid polling forever
+    // if analysis is unavailable; genuinely unrated cars never enter this path.
+    let refreshCount = 0;
+    const refreshPendingAnalyses = () => {
+      if (document.visibilityState !== "visible" || refreshCount >= 8) return;
+      refreshCount += 1;
+      router.refresh();
+    };
+
+    refreshPendingAnalyses();
+    const interval = window.setInterval(refreshPendingAnalyses, 15_000);
+    return () => window.clearInterval(interval);
+  }, [hasPendingAnalyses, router]);
 
   useEffect(() => {
     const currentUrl = `${window.location.pathname}${window.location.search}#cars`;
