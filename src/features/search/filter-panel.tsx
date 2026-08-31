@@ -283,10 +283,6 @@ export function FilterPanel({
   onReset,
 }: FilterPanelProps) {
   const copy = uiCopy[locale].filters;
-  const resultsCopy = uiCopy[locale].results;
-  const postedValues = Object.keys(
-    resultsCopy.postedOptions,
-  ) as SearchFilters["postedWithin"][];
   const advancedFilterCount = [
     filters.fuelType,
     filters.transmission,
@@ -486,21 +482,6 @@ export function FilterPanel({
             values={filters.models}
           />
         </div>
-
-        <FilterGroup className="order-1" label={resultsCopy.postedLabel}>
-          <div className="grid grid-cols-2 gap-1.5">
-            {postedValues.map((value) => (
-              <button
-                className={`flex h-9 items-center justify-center rounded-xl border text-xs font-semibold transition ${isSelected(filters.postedWithin === value)}`}
-                key={value || "any"}
-                onClick={() => onChange({ ...filters, postedWithin: value })}
-                type="button"
-              >
-                {resultsCopy.postedOptions[value]}
-              </button>
-            ))}
-          </div>
-        </FilterGroup>
 
         <FilterGroup className="order-1" label={copy.seller}>
           <div className="grid grid-cols-3 gap-1.5">

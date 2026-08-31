@@ -8,6 +8,7 @@ import { uiCopy, type Locale } from "./copy";
 import { CompareMobileBar, CompareTrayPanel } from "./compare-tray";
 import { FilterPanel } from "./filter-panel";
 import {
+  CalendarIcon,
   CloseIcon,
   GridIcon,
   ListIcon,
@@ -222,7 +223,8 @@ export function SearchExperience({
       filters.minMileageMil,
       filters.maxMileageMil,
       filters.bodyStyle,
-      filters.postedWithin,
+      // `postedWithin` is its own toolbar control now, not part of the
+      // Filters panel — so it doesn't add to that button's badge.
     ].filter((value) => value !== "" && value !== null).length;
   const firstListingNumber =
     pagination.totalListings === 0
@@ -749,6 +751,12 @@ export function SearchExperience({
         onRequestLocation={requestCurrentLocation}
         savedCount={favorites.size}
         compareCount={compared.length}
+        syncSlot={
+          <SynchronizationButton
+            activeSynchronization={activeSynchronization}
+            locale={locale}
+          />
+        }
       />
 
       {showHero ? (
@@ -839,9 +847,18 @@ export function SearchExperience({
                   </span>
                 ) : null}
               </button>
-              <SynchronizationButton
-                activeSynchronization={activeSynchronization}
-                locale={locale}
+              <SingleChoiceDropdown
+                ariaLabel={copy.results.postedLabel}
+                compact
+                icon={<CalendarIcon className="size-4" />}
+                onChange={(postedWithin) => changeFilters({ ...filters, postedWithin })}
+                options={(
+                  Object.keys(copy.results.postedOptions) as SearchFilters["postedWithin"][]
+                ).map((postedValue) => ({
+                  value: postedValue,
+                  label: copy.results.postedOptions[postedValue],
+                }))}
+                value={filters.postedWithin}
               />
               <SingleChoiceDropdown
                 ariaLabel={copy.results.sortAria}

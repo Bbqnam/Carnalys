@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { CarnalysMark } from "./carnalys-mark";
 import {
   CompareIcon,
@@ -29,6 +29,10 @@ interface SiteHeaderProps {
   logoHref?: string;
   locationStatus?: LocationStatus;
   onRequestLocation?: () => void;
+  /** Page-specific control shown at the start of the header's right cluster,
+   *  beside the location button (the results page passes its "Update listings"
+   *  button here). */
+  syncSlot?: ReactNode;
 }
 
 export function SiteHeader({
@@ -40,6 +44,7 @@ export function SiteHeader({
   logoHref = "/",
   locationStatus,
   onRequestLocation,
+  syncSlot,
 }: SiteHeaderProps) {
   const { user } = useAccount();
   const copy = uiCopy[locale];
@@ -141,10 +146,13 @@ export function SiteHeader({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {syncSlot ? <div className="hidden lg:flex">{syncSlot}</div> : null}
+
           {onRequestLocation ? (
             <button
+              aria-label={locationLabel}
               aria-live="polite"
-              className={`hidden items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold shadow-sm transition lg:inline-flex ${
+              className={`hidden size-10 place-items-center rounded-full border shadow-sm transition lg:grid ${
                 locationStatus === "ready"
                   ? "border-accent/40 bg-accent-soft text-accent-strong"
                   : "border-border bg-surface text-ink hover:border-border-strong hover:shadow-md"
@@ -153,8 +161,7 @@ export function SiteHeader({
               onClick={onRequestLocation}
               type="button"
             >
-              <MapPinIcon className="size-4" />
-              {locationLabel}
+              <MapPinIcon className="size-[18px]" />
             </button>
           ) : null}
 
@@ -257,8 +264,10 @@ export function SiteHeader({
             ) : null}
           </div>
 
-          {/* Below lg: at most two controls — the contextual location action,
+          {/* Below lg: the page's sync action, the contextual location action,
               and one menu holding everything else. */}
+          {syncSlot ? <div className="lg:hidden">{syncSlot}</div> : null}
+
           {onRequestLocation ? (
             <button
               aria-label={locationLabel}

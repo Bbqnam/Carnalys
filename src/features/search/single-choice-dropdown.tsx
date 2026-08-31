@@ -2,6 +2,7 @@
 
 import {
   type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useId,
   useLayoutEffect,
@@ -26,6 +27,13 @@ interface SingleChoiceDropdownProps<T extends string> {
   inlineLabelClassName?: string;
   disabled?: boolean;
   className?: string;
+  /** Leading glyph in the trigger. Pairs with `compact` for an icon-first
+   *  control that only spells out its value once one is chosen. */
+  icon?: ReactNode;
+  /** Shrink the trigger to its contents and drop the value label while the
+   *  first option (the neutral default) is selected — the trigger then reads
+   *  as a plain icon button and takes on the accent once a value is picked. */
+  compact?: boolean;
 }
 
 interface MenuPosition {
@@ -46,6 +54,8 @@ export function SingleChoiceDropdown<T extends string>({
   inlineLabelClassName = "hidden text-xs font-medium text-ink-subtle sm:inline",
   disabled = false,
   className = "",
+  icon,
+  compact = false,
 }: SingleChoiceDropdownProps<T>) {
   const listboxId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -140,6 +150,8 @@ export function SingleChoiceDropdown<T extends string>({
     }
   };
 
+  const isNeutral = compact && options.length > 0 && value === options[0].value;
+
   return (
     <div className={`relative ${className}`}>
       <button
@@ -147,7 +159,15 @@ export function SingleChoiceDropdown<T extends string>({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className="relative flex h-11 w-full items-center gap-2 rounded-xl border border-border bg-surface pl-3.5 pr-3 text-left shadow-sm transition hover:border-border-strong hover:shadow-md focus-within:border-accent/50 focus-within:ring-4 focus-within:ring-accent/10 disabled:cursor-not-allowed disabled:opacity-45"
+        className={`relative flex h-11 items-center rounded-xl border text-left shadow-sm transition hover:shadow-md focus-within:ring-4 focus-within:ring-accent/10 disabled:cursor-not-allowed disabled:opacity-45 ${
+          compact
+            ? `w-auto shrink-0 gap-1.5 pl-3 pr-2.5 ${
+                isNeutral
+                  ? "border-border bg-surface hover:border-border-strong focus-within:border-accent/50"
+                  : "border-accent/40 bg-accent-soft focus-within:border-accent"
+              }`
+            : "w-full gap-2 border-border bg-surface pl-3.5 pr-3 hover:border-border-strong focus-within:border-accent/50"
+        }`}
         disabled={disabled}
         onClick={() => (open ? closeMenu() : openMenu())}
         onKeyDown={(event) => {
@@ -163,12 +183,30 @@ export function SingleChoiceDropdown<T extends string>({
         ref={triggerRef}
         type="button"
       >
+        {icon ? (
+          <span
+            aria-hidden="true"
+            className={`grid size-4 shrink-0 place-items-center ${
+              compact && !isNeutral ? "text-accent-strong" : "text-ink-subtle"
+            }`}
+          >
+            {icon}
+          </span>
+        ) : null}
         {inlineLabel ? <span className={`shrink-0 ${inlineLabelClassName}`}>{inlineLabel}:</span> : null}
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
-          {selectedLabel}
-        </span>
+        {compact && isNeutral ? null : (
+          <span
+            className={`min-w-0 truncate text-sm font-semibold ${
+              compact ? "text-accent-strong" : "flex-1 text-ink"
+            }`}
+          >
+            {selectedLabel}
+          </span>
+        )}
         <ChevronDownIcon
-          className={`pointer-events-none size-4 shrink-0 text-ink-subtle transition-transform ${open ? "rotate-180" : ""}`}
+          className={`pointer-events-none size-4 shrink-0 transition-transform ${
+            compact && !isNeutral ? "text-accent-strong/70" : "text-ink-subtle"
+          } ${open ? "rotate-180" : ""}`}
         />
       </button>
 
