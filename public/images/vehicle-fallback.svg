@@ -1,17 +1,89 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Fordonsbild saknas">
   <defs>
-    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#e8e9e4"/>
-      <stop offset="1" stop-color="#dfe3dd"/>
+    <linearGradient id="studio" x1="90" y1="40" x2="1090" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f4f5f0"/>
+      <stop offset=".52" stop-color="#e9eee9"/>
+      <stop offset="1" stop-color="#dce5df"/>
     </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(603 321) rotate(90) scale(430 590)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity=".9"/>
+      <stop offset=".58" stop-color="#fff" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="paint" x1="337" y1="330" x2="823" y2="626" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#385b49"/>
+      <stop offset=".5" stop-color="#254634"/>
+      <stop offset="1" stop-color="#172f23"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="485" y1="338" x2="632" y2="455" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#dce7e1"/>
+      <stop offset="1" stop-color="#91a99c"/>
+    </linearGradient>
+    <linearGradient id="tyre" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#172019"/>
+      <stop offset="1" stop-color="#344139"/>
+    </linearGradient>
+    <filter id="car-shadow" x="160" y="285" width="890" height="380" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#183126" flood-opacity=".2"/>
+    </filter>
+    <filter id="floor-blur" x="186" y="551" width="828" height="102" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="17"/>
+    </filter>
+    <pattern id="grain" width="54" height="54" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="7" r="1" fill="#173b2a" opacity=".035"/>
+      <circle cx="34" cy="31" r=".8" fill="#173b2a" opacity=".025"/>
+    </pattern>
   </defs>
-  <rect width="1200" height="800" fill="url(#background)"/>
-  <g fill="none" stroke="#7d8981" stroke-linecap="round" stroke-linejoin="round" stroke-width="18" opacity=".72">
-    <path d="M290 495h620l-42-116c-13-36-47-60-85-60H443c-35 0-67 20-82 52l-71 124Z"/>
-    <path d="M340 495v73M860 495v73M414 319l-55 176M786 319l55 176"/>
-    <circle cx="405" cy="550" r="57" fill="#e5e7e2"/>
-    <circle cx="795" cy="550" r="57" fill="#e5e7e2"/>
-    <path d="M293 495h-35M942 495h-35"/>
+
+  <rect width="1200" height="800" fill="url(#studio)"/>
+  <rect width="1200" height="800" fill="url(#light)"/>
+  <rect width="1200" height="800" fill="url(#grain)"/>
+
+  <g fill="none" stroke="#476c59" stroke-width="1.5" opacity=".1">
+    <path d="M-80 248C157 97 409 79 624 160s395 76 656-92"/>
+    <path d="M-87 282C154 131 405 113 620 194s396 75 658-93"/>
+    <path d="M-91 316C149 166 399 148 616 228s397 75 661-94"/>
   </g>
-  <text x="600" y="685" fill="#68746d" font-family="Arial, sans-serif" font-size="28" text-anchor="middle">Fordonsbild saknas</text>
+
+  <ellipse cx="600" cy="602" rx="380" ry="34" fill="#173126" opacity=".16" filter="url(#floor-blur)"/>
+
+  <g filter="url(#car-shadow)">
+    <path
+      d="M205 512c8-34 31-57 70-69l80-24 79-82c23-24 55-37 89-37h145c45 0 82 14 116 44l82 73 76 20c42 11 68 35 76 72l7 37c2 12-7 23-19 23h-60c1-6 2-12 2-18 0-61-49-110-110-110s-110 49-110 110c0 6 1 12 2 18H464c1-6 2-12 2-18 0-61-49-110-110-110s-110 49-110 110c0 6 1 12 2 18h-34c-19 0-33-18-28-36l19-39Z"
+      fill="url(#paint)"
+    />
+
+    <path d="M448 360c18-19 42-29 69-29h37v103H377l71-74Z" fill="url(#glass)"/>
+    <path d="M582 331h79c32 0 59 10 84 31l78 72H582V331Z" fill="url(#glass)"/>
+    <path d="M569 330v105M758 375l-29 59" fill="none" stroke="#173126" stroke-width="11"/>
+    <path d="M403 434h420" fill="none" stroke="#789786" stroke-width="3" opacity=".55"/>
+
+    <path d="M201 512c65-7 111-31 148-71M1017 509c-77 4-132-23-174-86" fill="none" stroke="#76917f" stroke-width="4" opacity=".55"/>
+    <path d="M487 469h50M674 469h50" fill="none" stroke="#b6c8bd" stroke-linecap="round" stroke-width="7" opacity=".65"/>
+    <path d="M213 507h50" fill="none" stroke="#e0b976" stroke-linecap="round" stroke-width="11"/>
+    <path d="M960 466l39 16" fill="none" stroke="#f5e6c5" stroke-linecap="round" stroke-width="13"/>
+    <path d="M196 548h806" fill="none" stroke="#10271c" stroke-width="8" opacity=".75"/>
+
+    <g>
+      <circle cx="356" cy="550" r="78" fill="url(#tyre)"/>
+      <circle cx="356" cy="550" r="50" fill="#d7ded9"/>
+      <circle cx="356" cy="550" r="37" fill="#87978e"/>
+      <circle cx="356" cy="550" r="14" fill="#eaf0eb"/>
+      <path d="M356 513v23M356 564v23M319 550h23M370 550h23M330 524l16 16M366 560l16 16M382 524l-16 16M346 560l-16 16" stroke="#eaf0eb" stroke-linecap="round" stroke-width="7"/>
+    </g>
+    <g>
+      <circle cx="838" cy="550" r="78" fill="url(#tyre)"/>
+      <circle cx="838" cy="550" r="50" fill="#d7ded9"/>
+      <circle cx="838" cy="550" r="37" fill="#87978e"/>
+      <circle cx="838" cy="550" r="14" fill="#eaf0eb"/>
+      <path d="M838 513v23M838 564v23M801 550h23M852 550h23M812 524l16 16M848 560l16 16M864 524l-16 16M828 560l-16 16" stroke="#eaf0eb" stroke-linecap="round" stroke-width="7"/>
+    </g>
+
+    <path d="M401 322c57-36 254-39 339 5" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="5" opacity=".48"/>
+  </g>
+
+  <g text-anchor="middle" font-family="Arial, Helvetica, sans-serif">
+    <text x="600" y="700" fill="#274838" font-size="22" font-weight="700" letter-spacing="4">FORDONSBILD SAKNAS</text>
+    <text x="600" y="733" fill="#62756b" font-size="15" letter-spacing=".5">Annonsen har ännu ingen tillgänglig bild</text>
+  </g>
 </svg>

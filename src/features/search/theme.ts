@@ -43,11 +43,11 @@ export function readStoredTheme(): Theme | undefined {
     rather than waiting on a hydrated React tree. */
 export const themeInitScript = `
 (function () {
+  var theme = "light";
   try {
     var stored = window.localStorage.getItem(${JSON.stringify(themeStorageKey)});
-    if (stored === "light" || stored === "dark") {
-      document.documentElement.setAttribute("data-theme", stored);
-    }
+    if (stored === "dark") theme = "dark";
   } catch (error) {}
+  document.documentElement.setAttribute("data-theme", theme);
 })();
 `;

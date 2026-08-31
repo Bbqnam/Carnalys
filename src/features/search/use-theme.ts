@@ -10,13 +10,8 @@ function subscribeToTheme(listener: () => void) {
   return () => themeListeners.delete(listener);
 }
 
-function getSystemTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
 function getThemeSnapshot(): Theme {
-  return readStoredTheme() ?? getSystemTheme();
+  return readStoredTheme() ?? "light";
 }
 
 function getServerThemeSnapshot(): Theme {

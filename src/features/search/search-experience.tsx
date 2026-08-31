@@ -19,6 +19,7 @@ import { QuickFilters } from "./quick-filters";
 import { SearchHero } from "./search-hero";
 import { SingleChoiceDropdown } from "./single-choice-dropdown";
 import { SiteHeader } from "./site-header";
+import { SaveSearchButton } from "./save-search-button";
 import { SynchronizationButton } from "./synchronization-button";
 import { defaultSearchFilters, vehicleSearchUrl } from "./search-state";
 import { setLocaleCookie } from "./locale";
@@ -172,6 +173,15 @@ export function SearchExperience({
   const hasPendingAnalyses = listings.some(
     (result) => result.analysis.methodologyVersion === "stored-neutral-1.0",
   );
+  const savedSearchUrl = vehicleSearchUrl({
+    filters,
+    sort,
+    page: 1,
+    pageSize: pagination.pageSize,
+  }).replace(/#.*$/, "");
+  const savedSearchName = filters.query.trim()
+    || [...filters.brands, ...filters.models].slice(0, 2).join(" ")
+    || (locale === "en" ? "My car search" : "Min bilsökning");
 
   if (renderedSearchState !== incomingSearchState) {
     setRenderedSearchState(incomingSearchState);
@@ -808,6 +818,12 @@ export function SearchExperience({
             </div>
 
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <SaveSearchButton
+                key={savedSearchUrl}
+                locale={locale}
+                nameSuggestion={savedSearchName}
+                url={savedSearchUrl}
+              />
               <button
                 aria-controls="filters-drawer"
                 aria-expanded={showFilters}
