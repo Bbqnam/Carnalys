@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
+import { after } from "next/server";
 import { synchronizeAllSourcesIncrementally } from "@/application/ingestion/incremental-all-sources";
 import { getActiveSynchronization } from "@/infrastructure/database/synchronization-state-repository";
 import { marketAnalysisCacheTag } from "@/infrastructure/database/market-analysis-repository";
@@ -10,7 +11,7 @@ import {
 } from "@/infrastructure/database/vehicle-listing-repository";
 
 export interface ManualSynchronizationState {
-  outcome: "idle" | "completed" | "warning" | "busy" | "failed";
+  outcome: "idle" | "started" | "completed" | "warning" | "busy" | "failed";
   createdCount?: number;
   updatedCount?: number;
   unchangedCount?: number;
@@ -24,44 +25,35 @@ export async function synchronizeLatestListings(
 ): Promise<ManualSynchronizationState> {
   void _previousState;
 
-  // One click refreshes the newest ads from *every* registered source, not
-  // just Blocket — otherwise the other sources only ever moved on the local
-  // CLI and their listings looked frozen in the results. Each source is
-  // incremental and stops as soon as it reaches a page that is both fully
-  // known and older than the short lookback window, so a quiet source costs
-  // roughly one page; detail fetches are skipped for already-enriched ads.
-  const result = await synchronizeAllSourcesIncrementally({
-    maximumPagesPerSource: 4,
-    lookbackHours: 3,
-    knownPageThreshold: 1,
-    throttle: true,
-  });
-
-  revalidatePath("/");
-  // The Analysis page's aggregates are cached for a window that outlives a
-  // manual sync, so they have to be dropped explicitly or a freshly synced
-  // catalog would show stale market figures.
-  revalidateTag(marketAnalysisCacheTag, "max");
-
-  const ranSomewhere = result.perSource.some(
-    (source) => source.outcome === "completed" || source.outcome === "warning",
-  );
-  if (!ranSomewhere) {
-    const allBusy = result.perSource.every((source) => source.outcome === "busy");
-    return allBusy ? { outcome: "busy" } : { outcome: "failed" };
+  // A manual sync walks four sources and then rebuilds analyses, facets and the
+  // whole-catalogue representative flags. Awaiting all of that inside the action
+  // meant the button sat spinning for a minute or more and, if the function
+  // timed out first, the client never got a result to refresh on — so the page
+  // "stuck" until a manual reload. The work now runs *after* the response via
+  // `after()`: the click returns immediately, and the button polls the sync
+  // lock for progress and refreshes when it clears.
+  if (await getActiveSynchronization("blocket_unofficial")) {
+    return { outcome: "busy" };
   }
 
-  const anyFailure = result.perSource.some(
-    (source) => source.outcome === "warning" || source.outcome === "failed",
-  );
-  return {
-    outcome: anyFailure ? "warning" : "completed",
-    createdCount: result.createdCount,
-    updatedCount: result.updatedCount,
-    unchangedCount: result.unchangedCount,
-    failedCount: result.failedCount,
-    completedAt: result.completedAt?.toISOString(),
-  };
+  after(async () => {
+    try {
+      await synchronizeAllSourcesIncrementally({
+        maximumPagesPerSource: 4,
+        lookbackHours: 3,
+        knownPageThreshold: 1,
+        throttle: true,
+      });
+    } catch (error) {
+      console.error("Bakgrundssynkronisering misslyckades.", error);
+    }
+    // A freshly synced catalog leaves both the page's RSC cache and the
+    // Analysis page's aggregates stale.
+    revalidatePath("/");
+    revalidateTag(marketAnalysisCacheTag, "max");
+  });
+
+  return { outcome: "started" };
 }
 
 export async function getSavedListings(listingIds: readonly string[]) {
