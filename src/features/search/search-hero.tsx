@@ -92,6 +92,17 @@ export function SearchHero({
           </form>
 
           {children ? <div className="mt-5">{children}</div> : null}
+
+          {/* On mobile the photo can't bleed behind the copy without hurting
+              legibility, so it rides along as its own framed band under the
+              search field. CSS background (not <Image>) for the same reason as
+              the desktop bleed: a missing file degrades to nothing, not a
+              broken-image box. */}
+          <div
+            aria-hidden="true"
+            className="mt-6 h-40 rounded-2xl border border-border bg-cover bg-[position:70%_center] bg-no-repeat sm:hidden"
+            style={{ backgroundImage: "url(/images/hero.png)" }}
+          />
         </div>
       </div>
     </section>
