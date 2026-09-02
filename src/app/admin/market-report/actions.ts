@@ -6,7 +6,10 @@ import { sendDailyMarketEmail } from "@/application/reporting/daily-market-email
 
 export type ResendReportState = { success?: boolean; error?: string };
 
-export async function resendDailyReportAction(): Promise<ResendReportState> {
+export async function resendDailyReportAction(
+  _state: ResendReportState,
+  _formData: FormData,
+): Promise<ResendReportState> {
   try {
     await requireAdmin();
     const report = await buildDailyMarketReport();
