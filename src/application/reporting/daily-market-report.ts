@@ -85,6 +85,19 @@ type DisappearanceMethodRow = {
 };
 type ReconciliationRow = { lastCleanupAt: Date | null };
 type DatasetAgeRow = { firstSeenAt: Date | null };
+type DayCountRow = { day: Date | string; count: bigint | number };
+type HistogramRow = { bucket: bigint | number; count: bigint | number };
+type RemovedToDateRow = { total: bigint | number; blocket: bigint | number };
+
+export type DayCount = { date: string; count: number };
+export type HistogramBucket = { bucket: number; count: number };
+
+// Below this direct-check coverage the day's disappearance count is a
+// backlog being cleared by the first sweeps, not a daily turnover rate.
+const COVERAGE_FOR_DAILY_RATE = 60;
+// Roughly how many listings the nightly removal poll clears per run — used
+// only to phrase "≈ N days to full coverage".
+const POLL_LISTINGS_PER_NIGHT = 12_000;
 
 export type VerificationStatus =
   | "deactivated_sold" // Blocket page said "sold or removed from the market"
@@ -144,6 +157,22 @@ export type DailyMarketReport = {
   };
   lastReconciliationCleanupAt: Date | null;
   disappearanceMethod: { directCheck: number; deactivatedSold: number; reconciliation: number };
+  /** Detected disappearances per day, oldest → newest, last 21 days. */
+  removalsByDay: DayCount[];
+  /** New listings per day, oldest → newest, last 21 days. */
+  newListingsByDay: DayCount[];
+  /** Cumulative listings marked removed, all-time. */
+  removedToDate: { total: number; blocket: number };
+  /** Asking-price moves in the window, bucketed by delta (centre = no change). */
+  priceChangeHistogram: HistogramBucket[];
+  /** Drivetrain mix among the window's disappearances. */
+  removalDrivetrainMix: Ranked[];
+  /**
+   * Cold-start guard: while direct-check coverage is thin the day's
+   * disappearance figure is a backlog being cleared, not a daily rate. The
+   * page must not present it as "per day" when `active` is true.
+   */
+  backlog: { active: boolean; neverCheckedShare: number; daysToFullCoverage: number | null };
   warnings: string[];
   observations: string[];
 };
@@ -320,6 +349,11 @@ export async function buildDailyMarketReport(
     disappearanceMethodRows,
     reconciliationRows,
     datasetAgeRows,
+    removalsByDayRows,
+    newListingsByDayRows,
+    removedToDateRows,
+    priceHistogramRows,
+    removalDrivetrainRows,
   ] = await Promise.all([
     db.$queryRawUnsafe<CountRow[]>(
       `SELECT COUNT(*)::bigint AS count FROM "ListingRecord" WHERE status = 'active'`,
@@ -456,6 +490,47 @@ export async function buildDailyMarketReport(
       `SELECT MIN("firstSeenAt") AS "firstSeenAt" FROM "ListingRecord"
        WHERE provider = 'blocket_unofficial' AND status = 'active'`,
     ),
+    db.$queryRawUnsafe<DayCountRow[]>(
+      `SELECT date_trunc('day', o."observedAt") AS day, COUNT(DISTINCT o."listingId")::bigint AS count
+       FROM "ListingObservation" o
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1
+       GROUP BY 1 ORDER BY 1 ASC`,
+      new Date(end.getTime() - 21 * 24 * 60 * 60_000),
+    ),
+    db.$queryRawUnsafe<DayCountRow[]>(
+      `SELECT date_trunc('day', "firstSeenAt") AS day, COUNT(*)::bigint AS count
+       FROM "ListingRecord"
+       WHERE "firstSeenAt" >= $1
+       GROUP BY 1 ORDER BY 1 ASC`,
+      new Date(end.getTime() - 21 * 24 * 60 * 60_000),
+    ),
+    db.$queryRawUnsafe<RemovedToDateRow[]>(
+      `SELECT COUNT(*)::bigint AS total,
+         COUNT(*) FILTER (WHERE provider = 'blocket_unofficial')::bigint AS blocket
+       FROM "ListingRecord" WHERE status = 'removed'`,
+    ),
+    db.$queryRawUnsafe<HistogramRow[]>(
+      // 11 buckets across ±110k: bucket 0 = below −100k, 11 = above +100k,
+      // bucket 6 straddles zero (no meaningful change).
+      `SELECT width_bucket("priceAmount" - "previousPriceAmount", -110000, 110000, 11) AS bucket,
+         COUNT(*)::bigint AS count
+       FROM "ListingObservation"
+       WHERE kind = 'price_change' AND "observedAt" >= $1 AND "observedAt" < $2
+         AND "previousPriceAmount" IS NOT NULL
+       GROUP BY 1 ORDER BY 1 ASC`,
+      start,
+      end,
+    ),
+    db.$queryRawUnsafe<RankedRow[]>(
+      `SELECT COALESCE(NULLIF(TRIM(v.drivetrain), ''), 'Unknown') AS name,
+         COUNT(DISTINCT o."listingId")::bigint AS count,
+         AVG(o."priceAmount") FILTER (WHERE ${plausibleObs}) AS "averagePrice"
+       FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
+       GROUP BY name ORDER BY count DESC, name ASC LIMIT 6`,
+      start,
+      end,
+    ),
   ]);
 
   const priceChanges = priceChangeRows[0];
@@ -505,6 +580,43 @@ export async function buildDailyMarketReport(
     .sort((left, right) => right.disappearedAt.getTime() - left.disappearedAt.getTime());
   const topLikelySoldModels = ranked(modelRows);
   const topLikelySoldSellers = ranked(sellerRows);
+
+  // A rolling 21-day trailing window ending on the actual current UTC day,
+  // aligned to Postgres `date_trunc('day', …)` (also UTC). Filled so a quiet
+  // day is a zero bar, not a gap.
+  const dayKey = (date: Date) => date.toISOString().slice(0, 10);
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const densifyDays = (rows: DayCountRow[]): DayCount[] => {
+    const byDay = new Map(rows.map((row) => [dayKey(new Date(row.day)), number(row.count)]));
+    const out: DayCount[] = [];
+    for (let i = 20; i >= 0; i -= 1) {
+      const date = dayKey(new Date(todayUtc - i * 86_400_000));
+      out.push({ date, count: byDay.get(date) ?? 0 });
+    }
+    return out;
+  };
+  const removalsByDay = densifyDays(removalsByDayRows);
+  const newListingsByDay = densifyDays(newListingsByDayRows);
+  const removedToDate = {
+    total: number(removedToDateRows[0]?.total),
+    blocket: number(removedToDateRows[0]?.blocket),
+  };
+  const priceChangeHistogram: HistogramBucket[] = Array.from({ length: 13 }, (_, bucket) => ({
+    bucket,
+    count: number(priceHistogramRows.find((row) => number(row.bucket) === bucket)?.count),
+  }));
+  const removalDrivetrainMix = ranked(removalDrivetrainRows);
+
+  const neverCheckedShare = verificationHealth.activeTotal
+    ? verificationHealth.neverChecked / verificationHealth.activeTotal
+    : 1;
+  const backlog = {
+    active: verificationHealth.coveragePercent < COVERAGE_FOR_DAILY_RATE,
+    neverCheckedShare,
+    daysToFullCoverage: verificationHealth.neverChecked
+      ? Math.ceil(verificationHealth.neverChecked / POLL_LISTINGS_PER_NIGHT)
+      : 0,
+  };
 
   const integer = new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 0 });
   const warnings: string[] = [];
@@ -596,6 +708,12 @@ export async function buildDailyMarketReport(
     verificationHealth,
     lastReconciliationCleanupAt,
     disappearanceMethod,
+    removalsByDay,
+    newListingsByDay,
+    removedToDate,
+    priceChangeHistogram,
+    removalDrivetrainMix,
+    backlog,
     warnings,
     observations,
   };
