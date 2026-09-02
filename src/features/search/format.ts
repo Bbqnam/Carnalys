@@ -35,15 +35,50 @@ export function distanceBetweenKm(
   return 6_371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
+/**
+ * Month abbreviations we control, so a timestamp renders identically on the
+ * server and in the browser. `Intl` with `month: "short"` is not safe for that:
+ * Node's bundled ICU still says "Sep" for English while current Chrome CLDR says
+ * "Sept", which trips React hydration. Only the numeric parts of `Intl` output
+ * are stable across ICU versions, so we take those and supply the month name.
+ */
+const MONTH_ABBREVIATIONS: Record<Locale, readonly string[]> = {
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  sv: ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
+};
+
+const stockholmNumericParts = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Europe/Stockholm",
+});
+
+function stockholmWallClock(value: string) {
+  const parts = stockholmNumericParts.formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+
+  return {
+    day: part("day"),
+    monthIndex: Number(part("month")) - 1,
+    year: part("year"),
+    hour: part("hour"),
+    minute: part("minute"),
+  };
+}
+
+export function formatSynchronizedAt(value: string, locale: Locale) {
+  const { day, monthIndex, hour, minute } = stockholmWallClock(value);
+  return `${day} ${MONTH_ABBREVIATIONS[locale][monthIndex]} ${hour}:${minute}`;
+}
+
 export function formatExactListingDate(value: string, locale: Locale) {
-  return new Intl.DateTimeFormat(intlLocale(locale), {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Stockholm",
-  }).format(new Date(value));
+  const { day, monthIndex, year, hour, minute } = stockholmWallClock(value);
+  return `${day} ${MONTH_ABBREVIATIONS[locale][monthIndex]} ${year} ${hour}:${minute}`;
 }
 
 export function formatRelativeListingDate(value: string, locale: Locale) {

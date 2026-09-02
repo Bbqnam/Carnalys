@@ -46,11 +46,26 @@ export function formatSignedMoney(value: number, locale: Locale) {
   return `${sign}${Math.abs(Math.round(value)).toLocaleString(intlLocale(locale))} kr`;
 }
 
+/**
+ * Month abbreviations we control. `Intl` with `month: "short"` renders "Sep" on
+ * Node's bundled ICU but "Sept" in current Chrome, which trips React hydration;
+ * only the numeric parts of `Intl` output are stable across ICU versions.
+ */
+const MONTH_ABBREVIATIONS: Record<Locale, readonly string[]> = {
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  sv: ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
+};
+
+const stockholmNumericParts = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "numeric",
+  year: "numeric",
+  timeZone: "Europe/Stockholm",
+});
+
 export function formatMonthYear(iso: string, locale: Locale) {
-  return new Intl.DateTimeFormat(intlLocale(locale), {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Europe/Stockholm",
-  }).format(new Date(iso));
+  const parts = stockholmNumericParts.formatToParts(new Date(iso));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("day")} ${MONTH_ABBREVIATIONS[locale][Number(part("month")) - 1]} ${part("year")}`;
 }

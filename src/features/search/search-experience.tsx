@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { uiCopy, type Locale } from "./copy";
 import { CompareMobileBar, CompareTrayPanel } from "./compare-tray";
 import { FilterPanel } from "./filter-panel";
+import { formatSynchronizedAt } from "./format";
 import {
   CalendarIcon,
   CloseIcon,
@@ -107,22 +108,6 @@ function paginationItems(currentPage: number, totalPages: number): PaginationIte
   });
 
   return items;
-}
-
-function formatSynchronizedAt(value: string, locale: Locale) {
-  const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
-  const parts = new Intl.DateTimeFormat(formatLocale, {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-    timeZone: "Europe/Stockholm",
-  }).formatToParts(new Date(value));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? "";
-
-  return `${part("day")} ${part("month")} ${part("hour")}:${part("minute")}`;
 }
 
 export function SearchExperience({
