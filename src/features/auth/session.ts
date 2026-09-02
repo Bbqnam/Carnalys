@@ -16,6 +16,7 @@ export interface AccountUser {
   username: string;
   locale: "en" | "sv";
   theme: "light" | "dark";
+  isAdmin: boolean;
   viewMode: "grid" | "list";
 }
 
@@ -24,6 +25,7 @@ function accountUser(user: {
   username: string;
   locale: string;
   theme: string;
+  isAdmin: boolean;
   viewMode: string;
 }): AccountUser {
   return {
@@ -31,6 +33,7 @@ function accountUser(user: {
     username: user.username,
     locale: user.locale === "sv" ? "sv" : "en",
     theme: user.theme === "dark" ? "dark" : "light",
+    isAdmin: user.isAdmin,
     viewMode: user.viewMode === "list" ? "list" : "grid",
   };
 }
@@ -92,4 +95,10 @@ export async function getAccountBootstrap() {
     orderBy: { createdAt: "desc" },
   });
   return { user, favoriteIds: favorites.map((favorite) => favorite.listingId) };
+}
+
+export async function requireAdmin() {
+  const user = await requireCurrentUser();
+  if (!user.isAdmin) throw new Error("ADMIN_REQUIRED");
+  return user;
 }

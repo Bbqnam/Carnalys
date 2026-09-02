@@ -84,6 +84,11 @@ export function SettingsContent({
           <p className="mt-2 text-sm text-ink-muted">
             {en ? `Signed in as ${account.username}` : `Inloggad som ${account.username}`}
           </p>
+          {account.isAdmin ? (
+            <Link className="mt-4 inline-flex rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-surface transition hover:opacity-90" href="/admin/market-report">
+              {en ? "Open market control" : "Öppna marknadskontroll"}
+            </Link>
+          ) : null}
         </header>
 
         <section className="mt-7 grid gap-4 sm:grid-cols-3">
