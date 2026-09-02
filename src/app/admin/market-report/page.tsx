@@ -18,7 +18,25 @@ export default async function AdminMarketReportPage() {
   } catch {
     redirect("/login?redirectTo=/admin/market-report");
   }
-  const report = await buildDailyMarketReport(new Date(), 0);
+  const reportResult = await buildDailyMarketReport(new Date(), 0)
+    .then((report) => ({ report, error: null }))
+    .catch((error: unknown) => ({
+      report: null,
+      error: error instanceof Error ? error.message : "Unknown report error",
+    }));
+  if (!reportResult.report) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-background px-5">
+        <section className="w-full max-w-2xl rounded-[1.5rem] border border-border bg-surface p-7 shadow-[0_12px_40px_rgba(26,35,29,0.08)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.13em] text-negative">Administrator report diagnostic</p>
+          <h1 className="mt-2 text-2xl font-semibold text-ink">The market report query failed</h1>
+          <p className="mt-4 rounded-xl bg-surface-subtle p-4 font-mono text-sm leading-6 text-ink-muted">{reportResult.error}</p>
+          <Link className="mt-5 inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-ink" href="/settings">Return to settings</Link>
+        </section>
+      </main>
+    );
+  }
+  const report = reportResult.report;
   const metrics = [
     ["New listings", integer.format(report.newListings.count), `${report.recentDailyAverageNew} recent daily average`],
     ["Likely sold", integer.format(report.likelySold.count), `${report.recentDailyAverageLikelySold} recent daily average`],
