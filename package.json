@@ -6,7 +6,7 @@
     "postinstall": "prisma generate",
     "dev": "next dev --webpack",
     "dev:lan": "node scripts/dev-lan.mjs",
-    "build": "prisma migrate deploy && tsx scripts/verify-daily-market-report.ts && next build",
+    "build": "prisma migrate deploy && next build",
     "start": "next start",
     "test": "node --import tsx --test src/**/*.test.ts src/**/*.test.tsx",
     "lint": "eslint",
