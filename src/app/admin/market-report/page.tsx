@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { buildDailyMarketReport } from "@/application/reporting/daily-market-report";
 import { requireAdmin } from "@/features/auth/session";
-import { SiteHeader } from "@/features/search/site-header";
+import { CarnalysMark } from "@/features/search/carnalys-mark";
 import { ResendReportButton } from "./resend-report-button";
 
 export const metadata = { title: "Daily market report · Carnalys Admin" };
@@ -26,7 +27,15 @@ export default async function AdminMarketReportPage() {
 
   return (
     <div>
-      <SiteHeader compareCount={0} locale="en" savedCount={0} />
+      <header className="border-b border-border bg-surface">
+        <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
+          <Link className="flex items-center gap-2.5" href="/">
+            <CarnalysMark className="size-8 text-ink" />
+            <span className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Carnalys Admin</span>
+          </Link>
+          <Link className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted" href="/settings">Settings</Link>
+        </div>
+      </header>
       <main className="mx-auto max-w-[1440px] px-5 pb-20 pt-8 sm:px-8 lg:px-12">
         <header className="flex flex-wrap items-end justify-between gap-5">
           <div>
