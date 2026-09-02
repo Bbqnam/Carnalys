@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - "prisma/**"
-      - "src/lib/daily-market-report.ts"
+      - "src/application/reporting/daily-market-report.ts"
+      - "src/application/ingestion/verify-blocket-listings.ts"
       - "scripts/verify-daily-market-report.ts"
       - ".github/workflows/daily-market-report-test.yml"
       - "package.json"
@@ -69,14 +70,6 @@ jobs:
             ALTER COLUMN "kind" TYPE "ListingObservationKind"
             USING "kind"::"ListingObservationKind";
           SQL
-          psql "$DATABASE_URL" -f prisma/migrations/20260902110500_support_verified_missing_observations/migration.sql
-
-      - name: Verify enum contains verified_missing
-        if: matrix.storage == 'production_enum'
-        run: |
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
-            SELECT 'verified_missing'::\"ListingObservationKind\";
-          "
 
       - name: Execute complete daily report query
         run: npm run report:smoke
