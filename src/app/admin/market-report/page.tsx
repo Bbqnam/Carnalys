@@ -35,8 +35,10 @@ function mil(mileageKm: number) {
 }
 
 function verificationLabel(status: VehicleRegisterRow["verificationStatus"]) {
-  if (status === "direct_check_missing") return "Direct check: missing";
-  if (status === "reconciliation") return "Left during reconciliation";
+  if (status === "deactivated_sold") return "Seller marked sold / removed";
+  if (status === "purged") return "Ad page gone (404)";
+  if (status === "direct_check_missing") return "Direct check: gone";
+  if (status === "reconciliation") return "Not re-seen (unconfirmed)";
   return "Unverified";
 }
 
@@ -277,8 +279,10 @@ export default async function AdminMarketReportPage() {
                   : "none on record"}
               </p>
               <p>
-                Today&apos;s disappearances by method: {integer.format(report.disappearanceMethod.directCheck)}{" "}
-                direct check · {integer.format(report.disappearanceMethod.reconciliation)} reconciliation
+                Today&apos;s disappearances by method:{" "}
+                {integer.format(report.disappearanceMethod.directCheck)} direct check (of which{" "}
+                {integer.format(report.disappearanceMethod.deactivatedSold)} the seller marked sold/removed) ·{" "}
+                {integer.format(report.disappearanceMethod.reconciliation)} not re-seen
               </p>
             </div>
             <div className="overflow-x-auto">

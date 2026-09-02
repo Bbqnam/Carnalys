@@ -14,6 +14,70 @@
 
 export type BlocketAvailability = "active" | "missing" | "inconclusive";
 
+/**
+ * How a listing was found to be gone. `deactivated` is the strongest signal
+ * Blocket gives short of official transfer data — the ad page still loads but
+ * its body is replaced with "Den här annonsen är inte längre tillgänglig.
+ * Varan har sålts eller tagits bort från marknaden." `purged` is the later
+ * hard 404. `unknown` covers the unofficial proxy's 404 error body, which does
+ * not say which of the two it is.
+ */
+export type BlocketMissingKind = "deactivated" | "purged" | "unknown";
+
+export interface BlocketListingPageVerdict {
+  availability: BlocketAvailability;
+  missingKind: BlocketMissingKind | null;
+  reason: string;
+}
+
+// Blocket's deactivated-ad notice. Distinctive to a `variant="negative"` alert
+// on the ad page — not the stray "såld" / "410" strings that also appear in
+// nav, "recently sold" rails and analytics on perfectly live pages.
+const PAGE_DEACTIVATED =
+  /annonsen är inte längre tillgänglig|varan har sålts eller tagits bort|har sålts eller tagits bort från marknaden/i;
+const PAGE_NOT_FOUND = /sidan (?:kunde inte hittas|hittades inte|kunde inte hämtas)|hittade inte sidan/i;
+
+/**
+ * Classifies the REAL Blocket ad page (blocket.se/mobility/item/<id>), which
+ * the unofficial proxy cannot see: the proxy keeps serving cached car data for
+ * a deactivated ad. `html` is the raw markup; `status` its HTTP status.
+ */
+export function classifyBlocketListingPage(
+  status: number | null,
+  html: string | null,
+  transportFailed = false,
+): BlocketListingPageVerdict {
+  if (transportFailed) {
+    return { availability: "inconclusive", missingKind: null, reason: "The ad page request failed before a response." };
+  }
+  if (status == null) {
+    return { availability: "inconclusive", missingKind: null, reason: "No response from the ad page." };
+  }
+  if (status === 404 || status === 410) {
+    return { availability: "missing", missingKind: "purged", reason: `The ad page returned HTTP ${status}.` };
+  }
+  if (status === 429 || status === 408 || status >= 500) {
+    return { availability: "inconclusive", missingKind: null, reason: `The ad page returned HTTP ${status}.` };
+  }
+  if (status < 200 || status >= 300) {
+    return { availability: "inconclusive", missingKind: null, reason: `The ad page returned HTTP ${status}.` };
+  }
+  if (!html || html.length < 200) {
+    return { availability: "inconclusive", missingKind: null, reason: "The ad page body was empty or truncated." };
+  }
+  if (PAGE_DEACTIVATED.test(html)) {
+    return {
+      availability: "missing",
+      missingKind: "deactivated",
+      reason: 'The ad page shows "annonsen är inte längre tillgänglig — varan har sålts eller tagits bort".',
+    };
+  }
+  if (PAGE_NOT_FOUND.test(html)) {
+    return { availability: "missing", missingKind: "purged", reason: "The ad page rendered a not-found page." };
+  }
+  return { availability: "active", missingKind: null, reason: "The ad page still renders a live listing." };
+}
+
 export interface BlocketAvailabilityInput {
   /** The listing id we asked about. */
   requestedId: string;

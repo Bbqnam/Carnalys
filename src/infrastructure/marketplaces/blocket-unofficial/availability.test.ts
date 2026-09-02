@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyBlocketAvailability } from "./availability";
+import { classifyBlocketAvailability, classifyBlocketListingPage } from "./availability";
 import { BlocketUnofficialClient } from "./client";
 
 const activeBody = JSON.stringify({
@@ -123,4 +123,31 @@ test("client: a thrown fetch (timeout) is inconclusive", async () => {
     throw new DOMException("The operation timed out.", "TimeoutError");
   });
   assert.equal(await client.checkCarAvailability("25527952"), "inconclusive");
+});
+
+// --- real Blocket ad-page classifier ---
+
+test("page: HTTP 404 is a purged listing", () => {
+  const v = classifyBlocketListingPage(404, "Sidan hittades inte");
+  assert.equal(v.availability, "missing");
+  assert.equal(v.missingKind, "purged");
+});
+
+test("page: the deactivated notice is a sold/removed listing", () => {
+  const html = `<html><body>${"x".repeat(400)}<h3 class="t4">Den här annonsen är inte längre tillgänglig Varan har sålts eller tagits bort från marknaden av säljaren.</h3></body></html>`;
+  const v = classifyBlocketListingPage(200, html);
+  assert.equal(v.availability, "missing");
+  assert.equal(v.missingKind, "deactivated");
+});
+
+test("page: a normal live listing is active", () => {
+  const html = `<html><head><title>Begagnad bil till salu: Volvo V60 | BLOCKET</title></head><body>${"live listing markup ".repeat(60)}</body></html>`;
+  const v = classifyBlocketListingPage(200, html);
+  assert.equal(v.availability, "active");
+});
+
+test("page: 5xx / 429 / transport failure are inconclusive, never missing", () => {
+  assert.equal(classifyBlocketListingPage(503, "x".repeat(300)).availability, "inconclusive");
+  assert.equal(classifyBlocketListingPage(429, "x".repeat(300)).availability, "inconclusive");
+  assert.equal(classifyBlocketListingPage(null, null, true).availability, "inconclusive");
 });

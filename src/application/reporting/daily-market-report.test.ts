@@ -63,7 +63,7 @@ function makeDatabase(options: FakeOptions = {}) {
             newestCheckAt: daysAgo(1),
           },
         ];
-      } else if (has('"directCheck"')) rows = [{ directCheck: 4, reconciliation: 0 }];
+      } else if (has('"directCheck"')) rows = [{ directCheck: 4, deactivatedSold: 3, reconciliation: 0 }];
       else if (has('MAX("cleanupAppliedAt")')) rows = [{ lastCleanupAt: null }];
       else if (has('MIN("firstSeenAt") AS "firstSeenAt" FROM "ListingRecord"'))
         rows = [{ firstSeenAt: options.datasetFirstSeen === undefined ? daysAgo(13) : options.datasetFirstSeen }];
@@ -112,6 +112,7 @@ test("the report counts the day's disappearances and lists the vehicle in the re
   assert.equal(first.daysAdvertised, 11);
   assert.equal(report.likelySoldVehicles[1].verificationStatus, "reconciliation");
   assert.equal(report.disappearanceMethod.directCheck, 4);
+  assert.equal(report.disappearanceMethod.deactivatedSold, 3);
 });
 
 test("every kind literal in the report SQL is a known observation kind", async () => {

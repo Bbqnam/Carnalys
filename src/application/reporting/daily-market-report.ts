@@ -76,11 +76,20 @@ type VerificationHealthRow = {
   oldestCheckAt: Date | null;
   newestCheckAt: Date | null;
 };
-type DisappearanceMethodRow = { directCheck: bigint | number; reconciliation: bigint | number };
+type DisappearanceMethodRow = {
+  directCheck: bigint | number;
+  deactivatedSold: bigint | number;
+  reconciliation: bigint | number;
+};
 type ReconciliationRow = { lastCleanupAt: Date | null };
 type DatasetAgeRow = { firstSeenAt: Date | null };
 
-export type VerificationStatus = "direct_check_missing" | "reconciliation" | "unknown";
+export type VerificationStatus =
+  | "deactivated_sold" // Blocket page said "sold or removed from the market"
+  | "purged" // hard 404 on the ad page / proxy
+  | "direct_check_missing" // direct check confirmed gone, kind not distinguished
+  | "reconciliation" // never directly checked — inferred from not being re-seen
+  | "unknown";
 
 export type VehicleRegisterRow = VehicleRow & {
   verificationStatus: VerificationStatus;
@@ -132,7 +141,7 @@ export type DailyMarketReport = {
     newestCheckAt: Date | null;
   };
   lastReconciliationCleanupAt: Date | null;
-  disappearanceMethod: { directCheck: number; reconciliation: number };
+  disappearanceMethod: { directCheck: number; deactivatedSold: number; reconciliation: number };
   warnings: string[];
   observations: string[];
 };
@@ -242,9 +251,15 @@ function toDate(value: Date | string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+// `availabilityCheckStatus` is written as `active` / `inconclusive` / `missing`,
+// or `missing:deactivated` / `missing:purged` / `missing:unknown` when the poll
+// distinguished how the ad was gone.
 function verificationStatusOf(status: string | null): VerificationStatus {
-  if (status === "missing") return "direct_check_missing";
-  if (status === "active" || status === "inconclusive" || status == null) return "reconciliation";
+  if (!status) return "reconciliation";
+  if (status.startsWith("missing:deactivated")) return "deactivated_sold";
+  if (status.startsWith("missing:purged")) return "purged";
+  if (status === "missing" || status.startsWith("missing")) return "direct_check_missing";
+  if (status === "active" || status === "inconclusive") return "reconciliation";
   return "unknown";
 }
 
@@ -404,8 +419,9 @@ export async function buildDailyMarketReport(
     ),
     db.$queryRawUnsafe<DisappearanceMethodRow[]>(
       `SELECT
-        COUNT(*) FILTER (WHERE l."availabilityCheckStatus" = 'missing')::bigint AS "directCheck",
-        COUNT(*) FILTER (WHERE l."availabilityCheckStatus" IS DISTINCT FROM 'missing')::bigint AS "reconciliation"
+        COUNT(*) FILTER (WHERE l."availabilityCheckStatus" LIKE 'missing%')::bigint AS "directCheck",
+        COUNT(*) FILTER (WHERE l."availabilityCheckStatus" LIKE 'missing:deactivated%')::bigint AS "deactivatedSold",
+        COUNT(*) FILTER (WHERE l."availabilityCheckStatus" IS NULL OR l."availabilityCheckStatus" NOT LIKE 'missing%')::bigint AS "reconciliation"
        FROM (
          SELECT DISTINCT o."listingId" FROM "ListingObservation" o
          WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
@@ -456,6 +472,7 @@ export async function buildDailyMarketReport(
 
   const disappearanceMethod = {
     directCheck: number(disappearanceMethodRows[0]?.directCheck),
+    deactivatedSold: number(disappearanceMethodRows[0]?.deactivatedSold),
     reconciliation: number(disappearanceMethodRows[0]?.reconciliation),
   };
   const lastReconciliationCleanupAt = toDate(reconciliationRows[0]?.lastCleanupAt);
