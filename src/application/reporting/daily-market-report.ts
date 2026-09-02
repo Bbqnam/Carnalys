@@ -221,7 +221,7 @@ export async function buildDailyMarketReport(now = new Date(), daysBack = 1): Pr
     ),
     prisma.$queryRawUnsafe<PriceSummaryRow[]>(
       `SELECT COUNT(DISTINCT "listingId")::bigint AS count, AVG("priceAmount") AS "averagePrice", MIN("priceAmount") AS "minimumPrice", MAX("priceAmount") AS "maximumPrice"
-       FROM "ListingObservation" WHERE kind IN ('disappeared', 'verified_missing') AND "observedAt" >= $1 AND "observedAt" < $2`,
+       FROM "ListingObservation" WHERE kind = 'disappeared' AND "observedAt" >= $1 AND "observedAt" < $2`,
       start,
       end,
     ),
@@ -231,14 +231,14 @@ export async function buildDailyMarketReport(now = new Date(), daysBack = 1): Pr
       start,
     ),
     prisma.$queryRawUnsafe<AverageRow[]>(
-      `SELECT COUNT(DISTINCT "listingId")::numeric / 7 AS average FROM "ListingObservation" WHERE kind IN ('disappeared', 'verified_missing') AND "observedAt" >= $1 AND "observedAt" < $2`,
+      `SELECT COUNT(DISTINCT "listingId")::numeric / 7 AS average FROM "ListingObservation" WHERE kind = 'disappeared' AND "observedAt" >= $1 AND "observedAt" < $2`,
       baselineStart,
       start,
     ),
     prisma.$queryRawUnsafe<VehicleRow[]>(
       `SELECT l.id AS "listingId", v.make, v.model, v.variant, v."modelYear", v.drivetrain, v.transmission, v.horsepower, l."mileageKm", o."priceAmount", l."sellerName", o.provider, o."observedAt" AS "disappearedAt"
        FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
-       WHERE o.kind IN ('disappeared', 'verified_missing') AND o."observedAt" >= $1 AND o."observedAt" < $2
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
        ORDER BY o."priceAmount" ASC LIMIT 1`,
       start,
       end,
@@ -246,7 +246,7 @@ export async function buildDailyMarketReport(now = new Date(), daysBack = 1): Pr
     prisma.$queryRawUnsafe<VehicleRow[]>(
       `SELECT l.id AS "listingId", v.make, v.model, v.variant, v."modelYear", v.drivetrain, v.transmission, v.horsepower, l."mileageKm", o."priceAmount", l."sellerName", o.provider, o."observedAt" AS "disappearedAt"
        FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
-       WHERE o.kind IN ('disappeared', 'verified_missing') AND o."observedAt" >= $1 AND o."observedAt" < $2
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
        ORDER BY o."priceAmount" DESC LIMIT 1`,
       start,
       end,
@@ -254,7 +254,7 @@ export async function buildDailyMarketReport(now = new Date(), daysBack = 1): Pr
     prisma.$queryRawUnsafe<VehicleRow[]>(
       `SELECT DISTINCT ON (o."listingId") l.id AS "listingId", v.make, v.model, v.variant, v."modelYear", v.drivetrain, v.transmission, v.horsepower, l."mileageKm", o."priceAmount", l."sellerName", o.provider, o."observedAt" AS "disappearedAt"
        FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
-       WHERE o.kind IN ('disappeared', 'verified_missing') AND o."observedAt" >= $1 AND o."observedAt" < $2
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
        ORDER BY o."listingId", o."observedAt" DESC LIMIT 500`,
       start,
       end,
@@ -262,7 +262,7 @@ export async function buildDailyMarketReport(now = new Date(), daysBack = 1): Pr
     prisma.$queryRawUnsafe<RankedRow[]>(
       `SELECT CONCAT(v.make, ' ', v.model) AS name, COUNT(DISTINCT o."listingId")::bigint AS count, AVG(o."priceAmount") AS "averagePrice"
        FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
-       WHERE o.kind IN ('disappeared', 'verified_missing') AND o."observedAt" >= $1 AND o."observedAt" < $2
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
        GROUP BY v.make, v.model ORDER BY count DESC, name ASC LIMIT 8`,
       start,
       end,
@@ -270,7 +270,7 @@ export async function buildDailyMarketReport(now = new Date(), daysBack = 1): Pr
     prisma.$queryRawUnsafe<RankedRow[]>(
       `SELECT COALESCE(NULLIF(TRIM(l."sellerName"), ''), 'Unknown seller') AS name, COUNT(DISTINCT o."listingId")::bigint AS count, AVG(o."priceAmount") AS "averagePrice"
        FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId"
-       WHERE o.kind IN ('disappeared', 'verified_missing') AND o."observedAt" >= $1 AND o."observedAt" < $2
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
        GROUP BY name ORDER BY count DESC, name ASC LIMIT 8`,
       start,
       end,
