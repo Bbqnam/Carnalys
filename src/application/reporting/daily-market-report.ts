@@ -179,6 +179,17 @@ function ranked(rows: RankedRow[]): Ranked[] {
   }));
 }
 
+function normalizeVehicle(row: VehicleRow | undefined) {
+  if (!row) return null;
+  const disappearedAt = row.disappearedAt instanceof Date
+    ? row.disappearedAt
+    : new Date(String(row.disappearedAt));
+  return {
+    ...row,
+    disappearedAt: Number.isNaN(disappearedAt.getTime()) ? new Date(0) : disappearedAt,
+  };
+}
+
 export async function buildDailyMarketReport(now = new Date(), daysBack = 1): Promise<DailyMarketReport> {
   const { reportDate, start, end } = stockholmDay(now, daysBack);
   const baselineStart = new Date(start.getTime() - 7 * 24 * 60 * 60_000);
@@ -306,9 +317,9 @@ export async function buildDailyMarketReport(now = new Date(), daysBack = 1): Pr
     likelySold: priceSummary(soldRows[0]),
     recentDailyAverageNew: Math.round(number(baselineNewRows[0]?.average)),
     recentDailyAverageLikelySold: Math.round(number(baselineSoldRows[0]?.average)),
-    cheapestLikelySold: cheapestRows[0] ?? null,
-    mostExpensiveLikelySold: expensiveRows[0] ?? null,
-    likelySoldVehicles: soldVehicleRows.sort(
+    cheapestLikelySold: normalizeVehicle(cheapestRows[0]),
+    mostExpensiveLikelySold: normalizeVehicle(expensiveRows[0]),
+    likelySoldVehicles: soldVehicleRows.map((row) => normalizeVehicle(row)!).sort(
       (left, right) => right.disappearedAt.getTime() - left.disappearedAt.getTime(),
     ),
     topLikelySoldModels: ranked(modelRows),
