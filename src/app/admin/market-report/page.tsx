@@ -4,6 +4,7 @@ import { buildDailyMarketReport } from "@/application/reporting/daily-market-rep
 import { requireAdmin } from "@/features/auth/session";
 import { CarnalysMark } from "@/features/search/carnalys-mark";
 import { ResendReportButton } from "./resend-report-button";
+import { VerifyBlocketButton } from "./verify-blocket-button";
 
 export const metadata = { title: "Daily market report · Carnalys Admin" };
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export default async function AdminMarketReportPage() {
   } catch {
     redirect("/login?redirectTo=/admin/market-report");
   }
-  const report = await buildDailyMarketReport();
+  const report = await buildDailyMarketReport(new Date(), 0);
   const metrics = [
     ["New listings", integer.format(report.newListings.count), `${report.recentDailyAverageNew} recent daily average`],
     ["Likely sold", integer.format(report.likelySold.count), `${report.recentDailyAverageLikelySold} recent daily average`],
@@ -41,9 +42,12 @@ export default async function AdminMarketReportPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.13em] text-accent-strong">Private administrator view</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-ink">Daily market control</h1>
-            <p className="mt-2 text-sm text-ink-muted">Swedish used car activity for {report.reportDate}</p>
+            <p className="mt-2 text-sm text-ink-muted">Swedish used car activity today, {report.reportDate}</p>
           </div>
-          <ResendReportButton />
+          <div className="flex flex-col items-end gap-3">
+            <ResendReportButton />
+            <VerifyBlocketButton />
+          </div>
         </header>
 
         <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
