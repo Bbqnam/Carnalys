@@ -75,7 +75,7 @@ export async function verifyBlocketListingSample(requestedLimit = 300) {
             listingId: candidate.id,
             provider,
             observedAt: checkedAt,
-            kind: "verified_missing",
+            kind: "disappeared",
             priceAmount: candidate.priceAmount,
             previousPriceAmount: candidate.previousPriceAmount,
             mileageKm: candidate.mileageKm,

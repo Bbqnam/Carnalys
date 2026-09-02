@@ -1,0 +1,75 @@
+name: Daily market report database test
+
+on:
+  pull_request:
+    paths:
+      - "prisma/**"
+      - "src/application/reporting/daily-market-report.ts"
+      - "src/application/ingestion/verify-blocket-listings.ts"
+      - "scripts/verify-daily-market-report.ts"
+      - ".github/workflows/daily-market-report-test.yml"
+      - "package.json"
+  workflow_dispatch:
+
+jobs:
+  report:
+    name: Report query with ${{ matrix.storage }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        storage:
+          - text
+          - production_enum
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: carnalys
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d carnalys"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/carnalys
+      DIRECT_URL: postgresql://test:test@localhost:5432/carnalys
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply repository migrations
+        run: npx prisma migrate deploy
+
+      - name: Reproduce production enum storage
+        if: matrix.storage == 'production_enum'
+        run: |
+          psql "$DATABASE_URL" <<'SQL'
+          CREATE TYPE "ListingObservationKind" AS ENUM (
+            'first_seen',
+            'price_change',
+            'mileage_change',
+            'status_change',
+            'disappeared',
+            'relisted'
+          );
+          ALTER TABLE "ListingObservation"
+            ALTER COLUMN "kind" TYPE "ListingObservationKind"
+            USING "kind"::"ListingObservationKind";
+          SQL
+
+      - name: Execute complete daily report query
+        run: npm run report:smoke

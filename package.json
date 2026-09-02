@@ -6,7 +6,7 @@
     "postinstall": "prisma generate",
     "dev": "next dev --webpack",
     "dev:lan": "node scripts/dev-lan.mjs",
-    "build": "prisma migrate deploy && next build",
+    "build": "node scripts/recover-failed-report-migrations.mjs && prisma migrate deploy && next build",
     "start": "next start",
     "test": "node --import tsx --test src/**/*.test.ts src/**/*.test.tsx",
     "lint": "eslint",
@@ -37,7 +37,8 @@
     "data:sync:autohero:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=autohero",
     "data:sync:autohero:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=autohero",
     "data:analyze": "tsx src/scripts/analyze-vehicle-listings.ts",
-    "admin:create": "tsx scripts/create-admin.ts"
+    "admin:create": "tsx scripts/create-admin.ts",
+    "report:smoke": "tsx scripts/verify-daily-market-report.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
