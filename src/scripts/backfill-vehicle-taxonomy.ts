@@ -200,9 +200,18 @@ async function main() {
     }
 
     if (!DRY_RUN && updates.length > 0) {
-      await prisma.$transaction(
-        updates.map(({ id, data }) => prisma.vehicleRecord.update({ where: { id }, data })),
-      );
+      // Independent autonomous updates (no wrapping transaction): each row is a
+      // self-contained write, and `normalizationVersion` is the restart cursor,
+      // so a partial batch just resumes on the next run. A small pool keeps the
+      // DB busy without exhausting the connection pool.
+      let u = 0;
+      const worker = async () => {
+        while (u < updates.length) {
+          const { id, data } = updates[u++];
+          await prisma.vehicleRecord.update({ where: { id }, data });
+        }
+      };
+      await Promise.all(Array.from({ length: 8 }, worker));
     }
 
     process.stdout.write(
