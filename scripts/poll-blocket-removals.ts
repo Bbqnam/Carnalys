@@ -1,10 +1,7 @@
 import "dotenv/config";
 import { prisma, initializeDatabase } from "../src/infrastructure/database/prisma";
 import { BlocketUnofficialClient } from "../src/infrastructure/marketplaces/blocket-unofficial/client";
-import {
-  classifyBlocketListingPage,
-  type BlocketMissingKind,
-} from "../src/infrastructure/marketplaces/blocket-unofficial/availability";
+import type { BlocketMissingKind } from "../src/infrastructure/marketplaces/blocket-unofficial/availability";
 
 // Layered removal poll:
 //   1. cheap unofficial-API check  -> catches hard 404s (proxy "purged"/unknown)
@@ -50,39 +47,21 @@ type Outcome =
   | { kind: "inconclusive"; reason: string }
   | { kind: "missing"; missingKind: BlocketMissingKind; reason: string; via: "api" | "page" };
 
-async function fetchListingPage(url: string): Promise<{ status: number | null; html: string | null; failed: boolean }> {
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        Accept: "text/html",
-      },
-      redirect: "manual",
-      signal: AbortSignal.timeout(20_000),
-    });
-    const html = res.status < 400 ? await res.text() : "";
-    return { status: res.status, html, failed: false };
-  } catch {
-    return { status: null, html: null, failed: true };
-  }
-}
-
 async function check(client: BlocketUnofficialClient, row: Row): Promise<Outcome> {
-  const api = await client.inspectCarAvailability(row.externalId);
-  if (api.availability === "missing") {
-    return { kind: "missing", missingKind: "unknown", reason: api.reason, via: "api" };
-  }
-  // API says active or inconclusive — the authoritative check is the real page,
-  // because the proxy keeps serving cached data for a deactivated ad.
-  const page = await fetchListingPage(row.listingUrl);
-  const verdict = classifyBlocketListingPage(page.status, page.html, page.failed);
+  const verdict = await client.checkListingAvailability({
+    externalId: row.externalId,
+    listingUrl: row.listingUrl,
+  });
   if (verdict.availability === "missing") {
-    return { kind: "missing", missingKind: verdict.missingKind ?? "unknown", reason: verdict.reason, via: "page" };
+    return {
+      kind: "missing",
+      missingKind: verdict.missingKind ?? "unknown",
+      reason: verdict.reason,
+      via: verdict.via,
+    };
   }
   if (verdict.availability === "active") return { kind: "active" };
-  // page inconclusive: fall back to the API's opinion
-  if (api.availability === "active") return { kind: "active" };
-  return { kind: "inconclusive", reason: `${api.reason} / ${verdict.reason}` };
+  return { kind: "inconclusive", reason: verdict.reason };
 }
 
 async function recordMissing(row: Row, outcome: Extract<Outcome, { kind: "missing" }>, checkedAt: Date) {

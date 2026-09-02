@@ -16,6 +16,14 @@ async function main() {
      WHERE provider = 'blocket_unofficial' AND status = 'active'
      ORDER BY "lastSeenAt" DESC LIMIT 1`,
   );
+  // A listing a previous poll already proved gone — the unofficial proxy still
+  // serves cached data for it, so this is the case the layered check must catch.
+  const [goneRow] = await prisma.$queryRawUnsafe<{ externalId: string; listingUrl: string; availabilityCheckStatus: string }[]>(
+    `SELECT "externalId", "listingUrl", "availabilityCheckStatus" FROM "ListingRecord"
+     WHERE provider = 'blocket_unofficial' AND status = 'removed'
+       AND "availabilityCheckStatus" LIKE 'missing:%'
+     ORDER BY "removedAt" DESC LIMIT 1`,
+  );
 
   const timeoutClient = new BlocketUnofficialClient("https://blocket-api.se", async () => {
     throw new DOMException("The operation timed out.", "TimeoutError");
@@ -25,10 +33,30 @@ async function main() {
     async () => new Response("Service Unavailable", { status: 503 }),
   );
 
-  const cases: Array<{ label: string; run: () => Promise<{ availability: string; reason: string; status: number | null }> }> = [
+  type Verdict = { availability: string; reason: string; status?: number | null; via?: string };
+  const cases: Array<{ label: string; run: () => Promise<Verdict> }> = [
     {
-      label: `active advert (live id ${activeRow?.externalId ?? "n/a"})`,
+      label: `active advert — proxy only (live id ${activeRow?.externalId ?? "n/a"})`,
       run: () => live.inspectCarAvailability(activeRow?.externalId ?? "0"),
+    },
+    {
+      label: `active advert — layered (live id ${activeRow?.externalId ?? "n/a"})`,
+      run: () =>
+        live.checkListingAvailability({
+          externalId: activeRow?.externalId ?? "0",
+          listingUrl: activeRow?.listingUrl ?? "https://www.blocket.se/",
+        }),
+    },
+    {
+      label: `known-gone advert — layered (id ${goneRow?.externalId ?? "n/a"}, db ${goneRow?.availabilityCheckStatus ?? "n/a"})`,
+      run: () =>
+        goneRow
+          ? live.checkListingAvailability({ externalId: goneRow.externalId, listingUrl: goneRow.listingUrl })
+          : Promise.resolve({ availability: "skipped", reason: "no removed listing on record" }),
+    },
+    {
+      label: `known-gone advert — proxy only (id ${goneRow?.externalId ?? "n/a"})`,
+      run: () => live.inspectCarAvailability(goneRow?.externalId ?? "0"),
     },
     { label: "definitely nonexistent advert (id 1)", run: () => live.inspectCarAvailability("1") },
     { label: "definitely nonexistent advert (id 999999999999)", run: () => live.inspectCarAvailability("999999999999") },
@@ -41,9 +69,8 @@ async function main() {
   for (const testCase of cases) {
     try {
       const verdict = await testCase.run();
-      console.log(
-        `• ${testCase.label}\n    -> ${verdict.availability.toUpperCase()} (upstream HTTP ${verdict.status ?? "none"})\n       ${verdict.reason}\n`,
-      );
+      const detail = verdict.via ? `via ${verdict.via}` : `upstream HTTP ${verdict.status ?? "none"}`;
+      console.log(`• ${testCase.label}\n    -> ${verdict.availability.toUpperCase()} (${detail})\n       ${verdict.reason}\n`);
     } catch (error) {
       console.log(`• ${testCase.label}\n    -> ERROR ${error instanceof Error ? error.message : String(error)}\n`);
     }

@@ -1,10 +1,25 @@
 import {
   classifyBlocketAvailability,
+  classifyBlocketListingPage,
   type BlocketAvailability,
   type BlocketAvailabilityVerdict,
+  type BlocketMissingKind,
 } from "./availability";
 
-export type { BlocketAvailability, BlocketAvailabilityVerdict } from "./availability";
+export type {
+  BlocketAvailability,
+  BlocketAvailabilityVerdict,
+  BlocketMissingKind,
+} from "./availability";
+
+export interface BlocketListingAvailability {
+  availability: BlocketAvailability;
+  /** Set only when `availability` is "missing". */
+  missingKind: BlocketMissingKind | null;
+  reason: string;
+  /** Which check produced the verdict: the unofficial proxy or the real ad page. */
+  via: "api" | "page";
+}
 
 const defaultBaseUrl = "https://blocket-api.se";
 
@@ -142,6 +157,82 @@ export class BlocketUnofficialClient {
     }
     return { ...classifyBlocketAvailability({ requestedId: id, status, bodyText }), status };
   }
+
+  /**
+   * The authoritative "is this advert still live" check, layered:
+   *
+   *   1. the cheap unofficial-proxy check — catches hard 404/410s fast;
+   *   2. for anything the proxy still calls active/inconclusive, the REAL
+   *      Blocket ad page — the only place the "annonsen är inte längre
+   *      tillgänglig — varan har sålts eller tagits bort" (seller marked
+   *      sold/removed) state is visible. The proxy keeps serving cached car
+   *      data for a deactivated ad, so a proxy "active" alone is NOT enough.
+   *
+   * A page result that is itself inconclusive (5xx, throttling, transport
+   * failure) falls back to the proxy's opinion — never invents "missing".
+   */
+  async checkListingAvailability(input: {
+    externalId: string;
+    listingUrl: string;
+  }): Promise<BlocketListingAvailability> {
+    const api = await this.inspectCarAvailability(input.externalId);
+    if (api.availability === "missing") {
+      // A real 404/410 (status or upstream-in-body) is a hard purge; explicit
+      // "removed/withdrawn" wording without a code stays "unknown".
+      const hard404 =
+        api.status === 404 ||
+        api.status === 410 ||
+        /\b(?:404|410)\b|not\s+found|\bgone\b/i.test(api.reason);
+      const missingKind: BlocketMissingKind = hard404 ? "purged" : "unknown";
+      return { availability: "missing", missingKind, reason: api.reason, via: "api" };
+    }
+
+    const page = await this.fetchListingPage(input.listingUrl);
+    const verdict = classifyBlocketListingPage(page.status, page.html, page.transportFailed);
+    if (verdict.availability === "missing") {
+      return {
+        availability: "missing",
+        missingKind: verdict.missingKind ?? "unknown",
+        reason: verdict.reason,
+        via: "page",
+      };
+    }
+    if (verdict.availability === "active") {
+      return { availability: "active", missingKind: null, reason: verdict.reason, via: "page" };
+    }
+    // Page inconclusive — defer to the proxy.
+    if (api.availability === "active") {
+      return { availability: "active", missingKind: null, reason: api.reason, via: "api" };
+    }
+    return {
+      availability: "inconclusive",
+      missingKind: null,
+      reason: `${api.reason} / ${verdict.reason}`,
+      via: "page",
+    };
+  }
+
+  /** Fetches the real ad page without throwing on a 4xx/5xx or a transport error. */
+  private async fetchListingPage(
+    url: string,
+  ): Promise<{ status: number | null; html: string | null; transportFailed: boolean }> {
+    try {
+      const response = await this.fetchImpl(url, {
+        headers: {
+          Accept: "text/html",
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        },
+        redirect: "manual",
+        signal: AbortSignal.timeout(20_000),
+      });
+      const html = response.status < 400 ? await response.text() : "";
+      return { status: response.status, html, transportFailed: false };
+    } catch {
+      return { status: null, html: null, transportFailed: true };
+    }
+  }
+
   async getListingPageHtml(url: string) {
     const response = await fetch(url, {
       headers: {

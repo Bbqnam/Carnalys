@@ -125,6 +125,105 @@ test("client: a thrown fetch (timeout) is inconclusive", async () => {
   assert.equal(await client.checkCarAvailability("25527952"), "inconclusive");
 });
 
+// --- layered checkListingAvailability: proxy first, then the real ad page ---
+
+const LISTING_URL = "https://www.blocket.se/annons/stockholm/volvo_v90/25527952";
+const DEACTIVATED_PAGE = `<html><body>${"x".repeat(400)}<h3 class="t4">Den här annonsen är inte längre tillgänglig Varan har sålts eller tagits bort från marknaden av säljaren.</h3></body></html>`;
+const LIVE_PAGE = `<html><head><title>Volvo V90 | BLOCKET</title></head><body>${"live listing markup ".repeat(60)}</body></html>`;
+
+/** Injected fetch that answers the proxy id endpoint and the ad page separately. */
+function routedFetch(handlers: {
+  api: () => Response | Promise<Response> | never;
+  page: () => Response | Promise<Response> | never;
+}): typeof fetch {
+  return (async (input: Parameters<typeof fetch>[0]) => {
+    const url = typeof input === "string" ? input : input.toString();
+    return url.includes("/v1/ad/car") ? handlers.api() : handlers.page();
+  }) as typeof fetch;
+}
+
+test("layered: proxy serves cached advert but the ad page says sold/removed -> missing/deactivated", async () => {
+  const client = new BlocketUnofficialClient(
+    "https://blocket-api.se",
+    routedFetch({ api: () => response(200, activeBody), page: () => new Response(DEACTIVATED_PAGE, { status: 200 }) }),
+  );
+  const v = await client.checkListingAvailability({ externalId: "25527952", listingUrl: LISTING_URL });
+  assert.equal(v.availability, "missing");
+  assert.equal(v.missingKind, "deactivated");
+  assert.equal(v.via, "page");
+});
+
+test("layered: proxy advert + a live ad page -> active", async () => {
+  const client = new BlocketUnofficialClient(
+    "https://blocket-api.se",
+    routedFetch({ api: () => response(200, activeBody), page: () => new Response(LIVE_PAGE, { status: 200 }) }),
+  );
+  const v = await client.checkListingAvailability({ externalId: "25527952", listingUrl: LISTING_URL });
+  assert.equal(v.availability, "active");
+});
+
+test("layered: proxy 200 body proving an upstream 404 -> missing/purged without fetching the page", async () => {
+  let pageFetched = false;
+  const client = new BlocketUnofficialClient(
+    "https://blocket-api.se",
+    routedFetch({
+      api: () => response(200, JSON.stringify({ error: "Client error '404 Not Found' for url 'https://www.blocket.se/mobility/item/1'" })),
+      page: () => {
+        pageFetched = true;
+        return new Response(LIVE_PAGE, { status: 200 });
+      },
+    }),
+  );
+  const v = await client.checkListingAvailability({ externalId: "1", listingUrl: LISTING_URL });
+  assert.equal(v.availability, "missing");
+  assert.equal(v.missingKind, "purged");
+  assert.equal(v.via, "api");
+  assert.equal(pageFetched, false);
+});
+
+test("layered: proxy advert + ad page HTTP 404 -> missing/purged via page", async () => {
+  const client = new BlocketUnofficialClient(
+    "https://blocket-api.se",
+    routedFetch({ api: () => response(200, activeBody), page: () => new Response("Sidan hittades inte", { status: 404 }) }),
+  );
+  const v = await client.checkListingAvailability({ externalId: "25527952", listingUrl: LISTING_URL });
+  assert.equal(v.availability, "missing");
+  assert.equal(v.missingKind, "purged");
+  assert.equal(v.via, "page");
+});
+
+test("layered: proxy advert + ad page HTTP 503 -> active (page inconclusive, proxy wins)", async () => {
+  const client = new BlocketUnofficialClient(
+    "https://blocket-api.se",
+    routedFetch({ api: () => response(200, activeBody), page: () => new Response("upstream", { status: 503 }) }),
+  );
+  const v = await client.checkListingAvailability({ externalId: "25527952", listingUrl: LISTING_URL });
+  assert.equal(v.availability, "active");
+});
+
+test("layered: proxy advert + ad page fetch throws (timeout) -> active", async () => {
+  const client = new BlocketUnofficialClient(
+    "https://blocket-api.se",
+    routedFetch({
+      api: () => response(200, activeBody),
+      page: () => {
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      },
+    }),
+  );
+  const v = await client.checkListingAvailability({ externalId: "25527952", listingUrl: LISTING_URL });
+  assert.equal(v.availability, "active");
+});
+
+test("layered: proxy inconclusive + ad page inconclusive -> inconclusive", async () => {
+  const client = new BlocketUnofficialClient(
+    "https://blocket-api.se",
+    routedFetch({ api: () => response(503, "unavailable"), page: () => new Response("upstream", { status: 503 }) }),
+  );
+  const v = await client.checkListingAvailability({ externalId: "25527952", listingUrl: LISTING_URL });
+  assert.equal(v.availability, "inconclusive");
+});
+
 // --- real Blocket ad-page classifier ---
 
 test("page: HTTP 404 is a purged listing", () => {

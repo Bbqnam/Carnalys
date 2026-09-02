@@ -4,28 +4,12 @@
   ],
   "crons": [
     {
-      "path": "/api/sync",
-      "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/sync-secondary",
-      "schedule": "15 3 * * *"
-    },
-    {
-      "path": "/api/sync-full",
-      "schedule": "30 3 * * *"
-    },
-    {
       "path": "/api/reports/daily",
       "schedule": "0 6 * * *"
     },
     {
       "path": "/api/reports/daily",
       "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/verify-blocket",
-      "schedule": "0 20 * * *"
     }
   ]
 }
