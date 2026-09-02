@@ -36,6 +36,7 @@ interface AnalysisTarget {
     fuelType: string;
     transmission: string;
     bodyStyle: string;
+    performanceVariant: string | null;
     modelYear: number;
   };
 }
@@ -47,6 +48,8 @@ interface MarketComparableRow {
   model: string;
   fuelType: string;
   transmission: string;
+  bodyStyle: string;
+  performanceVariant: string | null;
   modelYear: number;
   mileageKm: number;
   priceAmount: number;
@@ -61,7 +64,12 @@ interface SegmentComparableRow {
   priceAmount: number;
 }
 
-const methodologyVersion = "value-quality-composite-10.0";
+// 11.0: canonical taxonomy — cohorts key on the canonical model *family* and
+// gate on bodyStyle (when known) + fuelType (now also in the wide tier) +
+// performanceVariant (when the target has one), with a new same-fuel family
+// tier before the same-make segment fallback. Bumping this re-analyses every
+// stored listing on the next sweep.
+const methodologyVersion = "canonical-taxonomy-cohorts-11.0";
 
 const SERVICE_HISTORY_VALUES: ReadonlySet<ServiceHistoryStatus> = new Set([
   "complete",
@@ -136,6 +144,7 @@ async function loadTargets(
           fuelType: true,
           transmission: true,
           bodyStyle: true,
+          performanceVariant: true,
           modelYear: true,
         },
       },
@@ -177,6 +186,8 @@ export async function refreshStoredListingAnalyses(
       vehicle."model" AS "model",
       vehicle."fuelType" AS "fuelType",
       vehicle."transmission" AS "transmission",
+      vehicle."bodyStyle" AS "bodyStyle",
+      vehicle."performanceVariant" AS "performanceVariant",
       vehicle."modelYear" AS "modelYear",
       listing."mileageKm" AS "mileageKm",
       listing."priceAmount" AS "priceAmount"
@@ -213,7 +224,17 @@ export async function refreshStoredListingAnalyses(
     mileageKm: Number(row.mileageKm),
   });
 
-  /** Exact cohort: same model, gearbox and fuel, within 3 model years and
+  // Body style is only a gate when both sides actually know it — 66% of Blocket
+  // vehicles carry `bodyStyle = 'other'`, and excluding them would starve most
+  // cohorts. A performance variant (GTI, GT3, T8…) is only a gate when the
+  // *target* has one, so a base car is never excluded for lacking it.
+  const bodyMatches = (a: string, b: string) =>
+    a === "other" || b === "other" || a === b;
+  const performanceMatches = (target: string | null, comparable: string | null) =>
+    !target || comparable === target;
+
+  /** Exact cohort: same model family, body (when known), gearbox, fuel and
+   *  performance variant (when the target has one), within 3 model years and
    *  120,000 km. */
   function tier1Comparables(target: AnalysisTarget): ValuationComparable[] {
     return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
@@ -223,30 +244,51 @@ export async function refreshStoredListingAnalyses(
           comparable.vehicleId !== target.vehicleId &&
           comparable.fuelType === target.vehicle.fuelType &&
           comparable.transmission === target.vehicle.transmission &&
+          bodyMatches(comparable.bodyStyle, target.vehicle.bodyStyle) &&
+          performanceMatches(target.vehicle.performanceVariant, comparable.performanceVariant) &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 3 &&
           Math.abs(Number(comparable.mileageKm) - target.mileageKm) <= 120_000,
       )
       .map(toComparable);
   }
 
-  /** Same model, wider year band, gearbox and fuel ignored — a far better
-   *  comparison for a rare car than dropping straight to same-make. */
+  /** Same model family and fuel, wider year band, gearbox ignored — a rare car
+   *  still valued against its own powertrain, never against a different one. */
   function tier1WideComparables(target: AnalysisTarget): ValuationComparable[] {
     return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
       .filter(
         (comparable) =>
           comparable.id !== target.id &&
           comparable.vehicleId !== target.vehicleId &&
+          comparable.fuelType === target.vehicle.fuelType &&
+          bodyMatches(comparable.bodyStyle, target.vehicle.bodyStyle) &&
+          performanceMatches(target.vehicle.performanceVariant, comparable.performanceVariant) &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 8,
       )
       .map(toComparable);
   }
 
-  // Only vehicles with no usable same-model pool fall through to same-make.
+  /** Same model family and fuel only — body, gearbox and performance ignored.
+   *  Catches family-PHEV cars (e.g. a Ceed SW plug-in hybrid) that used to
+   *  starve every tighter tier and fall straight to the whole-make segment. */
+  function tier1FuelComparables(target: AnalysisTarget): ValuationComparable[] {
+    return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
+      .filter(
+        (comparable) =>
+          comparable.id !== target.id &&
+          comparable.vehicleId !== target.vehicleId &&
+          comparable.fuelType === target.vehicle.fuelType &&
+          Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 8,
+      )
+      .map(toComparable);
+  }
+
+  // Only vehicles with no usable same-family pool fall through to same-make.
   const needsSegmentFallback = targets.filter(
     (target) =>
       tier1Comparables(target).length < 3 &&
-      tier1WideComparables(target).length < 3,
+      tier1WideComparables(target).length < 3 &&
+      tier1FuelComparables(target).length < 3,
   );
   const segmentMakes = [
     ...new Set(needsSegmentFallback.map(({ vehicle }) => vehicle.make)),
@@ -309,6 +351,8 @@ export async function refreshStoredListingAnalyses(
           : (() => {
               const wide = tier1WideComparables(target);
               if (wide.length >= 3) return wide;
+              const sameFuel = tier1FuelComparables(target);
+              if (sameFuel.length >= 3) return sameFuel;
               const segment = tier2Comparables(target);
               return segment.length >= 3 ? segment : [];
             })();
