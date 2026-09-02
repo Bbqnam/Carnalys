@@ -25,12 +25,24 @@ model VehicleRecord {
   engineDisplacement Int?
   fuelConsumption    String?
   firstRegistration  DateTime?
+  /// Canonical taxonomy (see src/domain/vehicle/taxonomy). `make`/`model`/
+  /// `bodyStyle`/`fuelType` above hold the *canonical* values; the source
+  /// strings are kept below for provenance. `generation`/`trim`/
+  /// `performanceVariant` are null unless confidently inferred.
+  rawMake              String?
+  rawModel             String?
+  generation           String?
+  trim                 String?
+  performanceVariant   String?
+  normalizationVersion Int             @default(0)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   listings           ListingRecord[]
 
   @@index([make, model])
+  @@index([make, model, bodyStyle, fuelType])
   @@index([modelYear])
+  @@index([normalizationVersion])
 }
 
 /// Extensible listing-source registry. `key` is deliberately a String rather

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application/ingestion/types";
 import { exactVehicleMatchEvidence } from "@/application/ingestion/vehicle-match-policy";
+import { canonicalizeVehicle } from "@/domain/vehicle/taxonomy";
 import { Prisma } from "@/generated/prisma/client";
 import { listingImageWritePolicy } from "./listing-image-write-policy";
 import { initializeDatabase, prisma } from "./prisma";
@@ -319,16 +320,30 @@ async function writeListing(
   const listing = normalized.listing;
   const match = exactVehicleMatchEvidence(vehicle);
 
-  const vehicleFields = {
-    vin: vehicle.vin,
-    registrationNumber: vehicle.registrationNumber,
+  // One canonical taxonomy pass for every source: collapse marketplace naming
+  // into a consistent make / model family + body / powertrain, deriving
+  // generation / trim / performanceVariant only when confident, and keeping the
+  // raw source strings for provenance. See src/domain/vehicle/taxonomy.
+  const canonical = canonicalizeVehicle({
     make: vehicle.make,
     model: vehicle.model,
     variant: vehicle.variant,
-    modelYear: vehicle.modelYear,
-    registrationYear: vehicle.registrationYear,
+    title: listing.title,
     bodyStyle: vehicle.bodyStyle,
     fuelType: vehicle.fuelType,
+    modelYear: vehicle.modelYear,
+  });
+
+  const vehicleFields = {
+    vin: vehicle.vin,
+    registrationNumber: vehicle.registrationNumber,
+    make: canonical.make,
+    model: canonical.model,
+    variant: canonical.variant,
+    modelYear: vehicle.modelYear,
+    registrationYear: vehicle.registrationYear,
+    bodyStyle: canonical.bodyStyle,
+    fuelType: canonical.fuelType,
     transmission: vehicle.transmission,
     drivetrain: vehicle.drivetrain,
     horsepower: vehicle.horsepower,
@@ -336,6 +351,12 @@ async function writeListing(
     engineDisplacement: vehicle.engineDisplacementCc,
     fuelConsumption: vehicle.fuelConsumption,
     firstRegistration: vehicle.firstRegistration,
+    rawMake: canonical.rawMake,
+    rawModel: canonical.rawModel,
+    generation: canonical.generation,
+    trim: canonical.trim,
+    performanceVariant: canonical.performanceVariant,
+    normalizationVersion: canonical.normalizationVersion,
   };
 
   // Kept beside the fields it is derived from, so a change to the vehicle's
@@ -343,9 +364,12 @@ async function writeListing(
   // at write time so the query can use LIKE against the trigram index without
   // ILIKE's case folding.
   const searchText = [
-    vehicle.make,
-    vehicle.model,
-    vehicle.variant,
+    canonical.make,
+    canonical.model,
+    canonical.variant,
+    // Keep the raw source model too, so a search for "Golf VII" or "Ceed SW"
+    // still hits after canonicalization folds them into the family.
+    canonical.rawModel !== canonical.model ? canonical.rawModel : null,
     listing.sellerName,
     listing.title,
   ]
