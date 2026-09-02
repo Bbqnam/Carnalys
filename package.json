@@ -39,7 +39,10 @@
     "data:analyze": "tsx src/scripts/analyze-vehicle-listings.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "report:smoke": "tsx scripts/verify-daily-market-report.ts",
-    "blocket:probe": "tsx scripts/probe-blocket-availability.ts"
+    "blocket:probe": "tsx scripts/probe-blocket-availability.ts",
+    "data:poll": "tsx scripts/poll-blocket-removals.ts --write",
+    "data:poll:dry": "tsx scripts/poll-blocket-removals.ts",
+    "data:sync:all:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental && tsx src/scripts/sync-vehicle-listings.ts incremental --source=wayke && tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil && tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin && tsx src/scripts/sync-vehicle-listings.ts incremental --source=autohero"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

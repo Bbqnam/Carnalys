@@ -21,9 +21,13 @@ const args = new Map(
     return [k, v ?? "true"] as const;
   }),
 );
-const LIMIT = Number(args.get("limit") ?? 3000);
-const WRITE = args.get("write") === "true";
-const CONCURRENCY = Number(args.get("concurrency") ?? 12);
+const envInt = (name: string, fallback: number) => {
+  const n = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+};
+const LIMIT = Number(args.get("limit") ?? envInt("BLOCKET_POLL_LIMIT", 3000));
+const WRITE = args.get("write") === "true" || process.env.BLOCKET_POLL_WRITE === "1";
+const CONCURRENCY = Number(args.get("concurrency") ?? envInt("BLOCKET_POLL_CONCURRENCY", 12));
 const PROVIDER = "blocket_unofficial";
 const DAY = 86_400_000;
 

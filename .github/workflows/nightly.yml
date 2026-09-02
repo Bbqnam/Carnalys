@@ -1,0 +1,81 @@
+name: Nightly market sync
+
+# Keeps the database honest off the request path: Vercel's free plan kills
+# functions at 60s, which is enough to pull new listings but never enough to
+# finish a removal sweep. This job has no such limit.
+#
+# Runs ~03:00–04:00 Europe/Stockholm (before the 06:00/07:00 UTC report cron).
+# Also runnable by hand from the Actions tab.
+#
+# Required repository secrets:
+#   DATABASE_URL   pooled Postgres connection string (Neon)
+#   DIRECT_URL     direct (unpooled) Postgres connection string
+# Optional:
+#   BLOCKET_UNOFFICIAL_API_URL   defaults to https://blocket-api.se
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      poll_limit:
+        description: "How many listings the Blocket removal poll checks this run"
+        default: "12000"
+        required: false
+
+concurrency:
+  group: nightly-market-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      BLOCKET_UNOFFICIAL_API_URL: ${{ secrets.BLOCKET_UNOFFICIAL_API_URL || 'https://blocket-api.se' }}
+      BLOCKET_POLL_LIMIT: ${{ github.event.inputs.poll_limit || '12000' }}
+      BLOCKET_POLL_CONCURRENCY: "15"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+
+      # --- additions: newest-first incremental refresh, one step per source so
+      #     one source being down does not block the others or the removal poll.
+      - name: Sync Blocket (incremental)
+        continue-on-error: true
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental
+      - name: Sync Wayke (incremental)
+        continue-on-error: true
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=wayke
+      - name: Sync Bytbil (incremental)
+        continue-on-error: true
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil
+      - name: Sync Hedin (incremental)
+        continue-on-error: true
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin
+      - name: Sync Autohero (incremental)
+        continue-on-error: true
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=autohero
+
+      # --- removals: the layered availability poll (API 404 + real ad page
+      #     "sold or removed" notice). Rotates oldest-checked-first, so ~2 weeks
+      #     of nightly runs at this limit cover the whole active Blocket set.
+      - name: Poll Blocket for removals
+        run: npm run data:poll
+
+      # --- sanity: the report query still runs against the live schema.
+      - name: Daily report smoke test
+        run: npm run report:smoke
+
+      # TODO (phase 2): full reconciliation for Wayke/Bytbil/Hedin/Autohero to
+      # detect their removals too — their :full runs go through the same
+      # markMissingListingsRemovedSafely path. Add once the Blocket poll is
+      # proven, likely as a separate weekly workflow (heavier, resumable).
