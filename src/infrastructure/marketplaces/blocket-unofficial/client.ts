@@ -1,3 +1,11 @@
+import {
+  classifyBlocketAvailability,
+  type BlocketAvailability,
+  type BlocketAvailabilityVerdict,
+} from "./availability";
+
+export type { BlocketAvailability, BlocketAvailabilityVerdict } from "./availability";
+
 const defaultBaseUrl = "https://blocket-api.se";
 
 export type BlocketSortOrder =
@@ -29,10 +37,19 @@ export class BlocketRequestError extends Error {
 }
 
 export class BlocketUnofficialClient {
-  constructor(private readonly baseUrl = process.env.BLOCKET_UNOFFICIAL_API_URL ?? defaultBaseUrl) {}
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly baseUrl = process.env.BLOCKET_UNOFFICIAL_API_URL ?? defaultBaseUrl,
+    fetchImpl?: typeof fetch,
+  ) {
+    // Bound so a bare global `fetch` keeps its receiver, and so tests can
+    // inject a stub for timeout / rate-limit / server-failure cases.
+    this.fetchImpl = fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
+  }
 
   private async fetchJson(path: string) {
-    const response = await fetch(new URL(path, this.baseUrl), {
+    const response = await this.fetchImpl(new URL(path, this.baseUrl), {
       headers: {
         Accept: "application/json",
         "User-Agent": "CarnalysDevelopmentImporter/1.0",
@@ -87,9 +104,24 @@ export class BlocketUnofficialClient {
   // (horsepower, engine, drivetrain, etc.) for most listings even though
   // Blocket's own listing page always shows it — fetched directly as a
   // fallback when that happens. See listing-page-parser.ts for the scrape.
-  async checkCarAvailability(id: string): Promise<"active" | "missing" | "inconclusive"> {
+  async checkCarAvailability(id: string): Promise<BlocketAvailability> {
+    return (await this.inspectCarAvailability(id)).availability;
+  }
+
+  /**
+   * Fetches the advert once and classifies it from the HTTP status *and* the
+   * response body. A 2xx is never enough on its own — the unofficial proxy
+   * returns HTTP 200 with `{"error":"Client error '404 Not Found' ..."}` for
+   * deleted adverts — so only a body carrying advert data for this id counts
+   * as "active". Anything ambiguous is "inconclusive", never "active".
+   */
+  async inspectCarAvailability(
+    id: string,
+  ): Promise<BlocketAvailabilityVerdict & { status: number | null }> {
+    let status: number | null = null;
+    let bodyText: string | null = null;
     try {
-      const response = await fetch(
+      const response = await this.fetchImpl(
         new URL(`/v1/ad/car?id=${encodeURIComponent(id)}`, this.baseUrl),
         {
           headers: {
@@ -99,12 +131,16 @@ export class BlocketUnofficialClient {
           signal: AbortSignal.timeout(15_000),
         },
       );
-      if (response.ok) return "active";
-      if (response.status === 404 || response.status === 410) return "missing";
-      return "inconclusive";
+      status = response.status;
+      try {
+        bodyText = await response.text();
+      } catch {
+        bodyText = null;
+      }
     } catch {
-      return "inconclusive";
+      return { ...classifyBlocketAvailability({ requestedId: id, status: null, bodyText: null, transportFailed: true }), status: null };
     }
+    return { ...classifyBlocketAvailability({ requestedId: id, status, bodyText }), status };
   }
   async getListingPageHtml(url: string) {
     const response = await fetch(url, {

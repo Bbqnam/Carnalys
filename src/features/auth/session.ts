@@ -3,6 +3,9 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/infrastructure/database/prisma";
+import { assertAdmin } from "./admin-guard";
+
+export { assertAdmin } from "./admin-guard";
 
 export const sessionCookieName = "carnalys-session";
 const sessionLifetimeSeconds = 60 * 60 * 24 * 30;
@@ -98,7 +101,5 @@ export async function getAccountBootstrap() {
 }
 
 export async function requireAdmin() {
-  const user = await requireCurrentUser();
-  if (!user.isAdmin) throw new Error("ADMIN_REQUIRED");
-  return user;
+  return assertAdmin(await getCurrentUser());
 }

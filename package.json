@@ -38,7 +38,8 @@
     "data:sync:autohero:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=autohero",
     "data:analyze": "tsx src/scripts/analyze-vehicle-listings.ts",
     "admin:create": "tsx scripts/create-admin.ts",
-    "report:smoke": "tsx scripts/verify-daily-market-report.ts"
+    "report:smoke": "tsx scripts/verify-daily-market-report.ts",
+    "blocket:probe": "tsx scripts/probe-blocket-availability.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

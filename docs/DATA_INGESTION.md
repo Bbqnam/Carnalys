@@ -138,6 +138,53 @@ Changed ads receive a safe neutral stored value transactionally. A bounded
 number are recomputed after each sync. Run `npm run data:analyze` to process
 the remaining background backlog in batches.
 
+## Blocket availability sampling
+
+Full reconciliation is the only sweep that flips missing ads to `removed`, and
+it only does so after two complete passes miss an ad. On the current schedule
+that sweep rarely completes, so a direct availability check gives a faster,
+independent removal signal.
+
+`BlocketUnofficialClient.inspectCarAvailability(id)` calls
+`GET /v1/ad/car?id=<id>` on `blocket-api.se` once and classifies the result
+from **both** the HTTP status and the body:
+
+- **missing** — the service returns HTTP 404/410; or a 2xx JSON body proves the
+  underlying Blocket advert returned 404/410 (`"Client error '404 Not Found'…"`,
+  `"410 Gone"`); or the body states the advert was removed.
+- **active** — a 2xx JSON body carries advert data (`url`/`title`/`price`/
+  `ad_id`) for the requested id and no error marker.
+- **inconclusive** — timeout, transport error, HTTP 408/425/429, HTTP ≥ 500,
+  HTTP 422 (malformed id), empty body, unparseable body, an unrecognised error,
+  or a 2xx body without enough evidence either way.
+
+A 2xx status is **never** enough on its own — the proxy returns HTTP 200 with
+`{"error":"Client error '404 Not Found' …"}` for deleted adverts. The pure
+classifier lives in `blocket-unofficial/availability.ts` and is covered by
+`availability.test.ts`.
+
+`verifyBlocketListingSample()` selects up to `BLOCKET_VERIFICATION_SAMPLE_SIZE`
+active Blocket listings, ordered by: never directly checked first, then oldest
+`availabilityCheckedAt`, then highest `missingReconciliationCount` (the
+reconciler already failed to re-find it), then oldest `lastSeenAt`. A listing
+checked in one run sorts to the back of the queue for the next, so older
+unchecked inventory is never starved.
+
+Each result stamps `availabilityCheckStatus` (`active` / `inconclusive` /
+`missing`) and `availabilityCheckedAt`. A **missing** verdict, in one
+transaction: sets `status = removed`, records `removedAt`, and appends one
+`disappeared` `ListingObservation` (the existing enum value — never a new
+`verified_missing` kind) carrying the final observed asking price, mileage and
+seller type. A second check of an already-removed listing writes no duplicate
+observation. The run returns sample telemetry (checked/active/missing/
+inconclusive, never-checked count, listing-age spread, dealer/private split,
+completion time) and a `sampleTooRecent` flag with warnings when the sample is
+too fresh to estimate daily removals.
+
+Entry points: the admin "Check Blocket listings now" button, the
+`/api/verify-blocket` cron (CRON_SECRET, 20:00 UTC), and the read-only
+`npm run blocket:probe` integration probe.
+
 ## Commands
 
 ```bash
