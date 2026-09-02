@@ -9,14 +9,16 @@ import { requireAdmin } from "@/features/auth/session";
 import { CarnalysMark } from "@/features/search/carnalys-mark";
 import { ResendReportButton } from "./resend-report-button";
 import { VerifyBlocketButton } from "./verify-blocket-button";
+import { CoverageBar, DayBars, DivergingHistogram, RankedBars, Sparkline } from "./charts";
 
 export const metadata = { title: "Daily market report · Carnalys Admin" };
 export const dynamic = "force-dynamic";
 
-const integer = new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 0 });
-const currency = new Intl.NumberFormat("sv-SE", {
+const integer = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "SEK",
+  currencyDisplay: "narrowSymbol",
   maximumFractionDigits: 0,
 });
 const dateTime = new Intl.DateTimeFormat("sv-SE", {
@@ -34,65 +36,71 @@ function mil(mileageKm: number) {
   return `${integer.format(Math.round(mileageKm / 10))} mil`;
 }
 
+function signedPercent(current: number, baseline: number) {
+  if (!baseline) return null;
+  const pct = Math.round(((current - baseline) / baseline) * 100);
+  return `${pct >= 0 ? "+" : "−"}${Math.abs(pct)}% vs 7-day avg`;
+}
+
 function verificationLabel(status: VehicleRegisterRow["verificationStatus"]) {
-  if (status === "deactivated_sold") return "Seller marked sold / removed";
-  if (status === "purged") return "Ad page gone (404)";
+  if (status === "deactivated_sold") return "Seller marked sold";
+  if (status === "purged") return "Ad page gone";
   if (status === "direct_check_missing") return "Direct check: gone";
-  if (status === "reconciliation") return "Not re-seen (unconfirmed)";
+  if (status === "reconciliation") return "Not re-seen";
   return "Unverified";
 }
 
-function RankedList({
-  title,
-  rows,
-  emptyLabel,
+/** A compact vehicle reference — the "which cars" answer, not a table row. */
+function CarChip({ label, vehicle }: { label: string; vehicle: VehicleRegisterRow | null }) {
+  if (!vehicle) {
+    return (
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{label}</p>
+        <p className="mt-1 text-sm text-ink-subtle">No activity</p>
+      </div>
+    );
+  }
+  return (
+    <Link className="group min-w-0" href={`/vehicle/${vehicle.vehicleId}`}>
+      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{label}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-ink group-hover:underline">
+        {vehicle.make} {vehicle.model}
+      </p>
+      <p className="mt-0.5 text-[13px] tabular-nums text-ink-muted">
+        {currency.format(vehicle.priceAmount)} · {vehicle.modelYear} · {mil(vehicle.mileageKm)}
+      </p>
+    </Link>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  meta,
+  chart,
 }: {
-  title: string;
-  rows: DailyMarketReport["topLikelySoldModels"];
-  emptyLabel: string;
+  label: string;
+  value: string;
+  meta?: string | null;
+  chart?: React.ReactNode;
 }) {
   return (
-    <div>
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
-      {rows.length ? (
-        <ul className="mt-2.5 divide-y divide-border">
-          {rows.map((row) => (
-            <li className="flex items-baseline justify-between gap-4 py-2 text-sm" key={row.name}>
-              <span className="min-w-0 truncate text-ink-muted">{row.name}</span>
-              <span className="shrink-0 tabular-nums text-ink">
-                <span className="font-semibold">{integer.format(row.count)}</span>
-                {row.averagePrice > 0 ? (
-                  <span className="text-ink-subtle"> · {currency.format(row.averagePrice)}</span>
-                ) : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-2.5 text-sm text-ink-subtle">{emptyLabel}</p>
-      )}
+    <div className="min-w-0">
+      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{label}</p>
+      <p className="mt-1.5 text-[1.55rem] font-semibold leading-none tracking-[-0.035em] tabular-nums text-ink">
+        {value}
+      </p>
+      {chart}
+      {meta ? <p className="mt-1.5 text-[10px] tabular-nums text-ink-subtle">{meta}</p> : null}
     </div>
   );
 }
 
-function Extreme({ label, vehicle }: { label: string; vehicle: VehicleRegisterRow | null }) {
+function Note({ children }: { children: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-xs text-ink-subtle">{label}</p>
-      {vehicle ? (
-        <>
-          <p className="mt-1 text-sm font-semibold text-ink">
-            {vehicle.make} {vehicle.model}
-            {vehicle.variant ? <span className="font-normal text-ink-muted"> {vehicle.variant}</span> : null}
-          </p>
-          <p className="mt-0.5 text-sm text-ink-muted">
-            {currency.format(vehicle.priceAmount)} · {vehicle.modelYear} · {mil(vehicle.mileageKm)}
-          </p>
-        </>
-      ) : (
-        <p className="mt-1 text-sm text-ink-subtle">No activity</p>
-      )}
-    </div>
+    <p className="rounded-lg border border-[#ead59e] bg-[#fff8e5] px-3 py-2 text-[13px] leading-5 text-[#6f5520]">
+      {children}
+    </p>
   );
 }
 
@@ -134,12 +142,24 @@ export default async function AdminMarketReportPage() {
 
   const report = reportResult.report;
   const vh = report.verificationHealth;
-  const metrics: Array<[string, string, string]> = [
-    ["New listings today", integer.format(report.newListings.count), `${integer.format(report.recentDailyAverageNew)} recent daily average`],
-    ["Likely sold / disappeared", integer.format(report.likelySold.count), `${integer.format(report.recentDailyAverageLikelySold)} recent daily average`],
-    ["Average final asking price", report.likelySold.count ? currency.format(report.likelySold.averagePrice) : "–", "Final observed asking price, not a sale price"],
-    ["Active inventory", integer.format(report.activeListings), report.datasetAgeDays != null ? `Blocket data ${report.datasetAgeDays} days old` : "Across all sources"],
-  ];
+  const backlog = report.backlog;
+
+  // The window's disappearances, framed for the current data maturity.
+  const removalHeadline = backlog.active ? "Removals detected" : "Likely sold / disappeared";
+  const removalTrend = backlog.active
+    ? "first full availability sweep — a backlog clearing, not one day's turnover"
+    : signedPercent(report.likelySold.count, report.recentDailyAverageLikelySold);
+
+  const newestGone = [...report.likelySoldVehicles].sort((a, b) => b.modelYear - a.modelYear)[0] ?? null;
+
+  const method = report.disappearanceMethod;
+  const methodRows = [
+    { name: "Seller marked sold / removed", count: method.deactivatedSold },
+    { name: "Direct check: gone (kind unknown)", count: Math.max(0, method.directCheck - method.deactivatedSold) },
+    { name: "Not re-seen by an import", count: method.reconciliation },
+  ].filter((row) => row.count > 0);
+
+  const priceMoves = report.priceChanges;
 
   return (
     <div>
@@ -158,263 +178,228 @@ export default async function AdminMarketReportPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1440px] px-5 pb-20 pt-8 sm:px-8 lg:px-12">
-        <header className="flex flex-wrap items-end justify-between gap-5">
+      <main className="mx-auto max-w-[1180px] px-5 pb-24 pt-9 sm:px-8 lg:px-12">
+        <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.13em] text-accent-strong">
               Private administrator view
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-ink">Daily market control</h1>
             <p className="mt-2 text-sm text-ink-muted">
-              Swedish used car activity for {report.reportDate} · generated {dateTime.format(report.generatedAt)}
+              Swedish used-car activity · {report.reportDate} · generated {dateTime.format(report.generatedAt)}
             </p>
           </div>
-          <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <div className="flex flex-wrap items-start gap-2">
             <ResendReportButton />
             <VerifyBlocketButton />
           </div>
-        </header>
-
-        <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map(([label, value, detail]) => (
-            <article
-              className="rounded-2xl border border-border bg-surface p-5 shadow-[0_8px_30px_rgba(26,35,29,0.04)]"
-              key={label}
-            >
-              <p className="text-xs text-ink-subtle">{label}</p>
-              <p className="mt-3 text-2xl font-semibold text-ink">{value}</p>
-              <p className="mt-1 text-xs text-ink-muted">{detail}</p>
-            </article>
-          ))}
-        </section>
-
-        <div className="mt-5 rounded-xl border border-[#ead59e] bg-[#fff8e5] px-4 py-3 text-sm leading-6 text-[#6f5520]">
-          <strong>Confidence notice:</strong> a missing listing is not a confirmed sale. “Likely sold /
-          disappeared” means the advert left the marketplace during reconciliation or a direct availability
-          check. Every price shown is the <em>final observed asking price</em>, not a verified sale price.
-          Figures depend on how completely and recently the listing checks have run — see coverage below.
         </div>
 
-        {report.warnings.length ? (
-          <section className="mt-4 rounded-xl border border-[#ead59e] bg-[#fff8e5] px-4 py-3 text-sm leading-6 text-[#6f5520]">
-            <p className="font-semibold">Data coverage warnings</p>
-            <ul className="mt-1 list-disc space-y-1 pl-5">
-              {report.warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {report.observations.length ? (
-          <section className="mt-4 rounded-xl border border-border bg-surface-subtle px-4 py-3 text-sm leading-6 text-ink-muted">
-            <p className="font-semibold text-ink">Worth investigating</p>
-            <ul className="mt-1 list-disc space-y-1 pl-5">
-              {report.observations.map((observation) => (
-                <li key={observation}>{observation}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        <section className="mt-8 grid gap-x-10 gap-y-8 sm:grid-cols-2">
-          <RankedList
-            title="Most popular makes & models among disappeared listings"
-            rows={report.topLikelySoldModels}
-            emptyLabel="No disappearances recorded for this period."
-          />
-          <RankedList
-            title="Sellers with the most disappeared listings"
-            rows={report.topLikelySoldSellers}
-            emptyLabel="No disappearances recorded for this period."
-          />
-          <div className="grid grid-cols-2 gap-6 sm:col-span-2">
-            <Extreme label="Cheapest likely sold" vehicle={report.cheapestLikelySold} />
-            <Extreme label="Most expensive likely sold" vehicle={report.mostExpensiveLikelySold} />
-          </div>
-          <RankedList
-            title="New listing supply by source (today)"
-            rows={report.newListingsByProvider}
-            emptyLabel="No new listings recorded for this period."
-          />
-          <RankedList
-            title="Active inventory by source"
-            rows={report.activeListingsByProvider}
-            emptyLabel="No active inventory."
-          />
-          <div className="sm:col-span-2">
-            <h3 className="text-sm font-semibold text-ink">Price movement today</h3>
-            <p className="mt-2 text-sm text-ink-muted">
-              {integer.format(report.priceChanges.count)} changes ·{" "}
-              {integer.format(report.priceChanges.reductions)} reductions ·{" "}
-              {integer.format(report.priceChanges.increases)} increases · average{" "}
-              {currency.format(report.priceChanges.averageChange)}
+        {/* 1 — Removals: the answer to "what left the market, and which cars". */}
+        <section className="mt-10 grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">
+              {removalHeadline} · {report.reportDate}
             </p>
+            <p className="mt-2 text-[3rem] font-semibold leading-none tracking-[-0.045em] tabular-nums text-ink">
+              {integer.format(report.likelySold.count)}
+            </p>
+            <p className="mt-2 max-w-md text-[13px] leading-5 text-ink-muted">{removalTrend}</p>
+            <p className="mt-1 text-[13px] tabular-nums text-ink-subtle">
+              {integer.format(report.removedToDate.blocket)} removed to date ·{" "}
+              {report.likelySold.count ? currency.format(report.likelySold.averagePrice) : "–"} avg final asking
+            </p>
+            <p className="mt-3 max-w-md text-[12px] italic leading-5 text-ink-subtle">
+              A missing ad is not a confirmed sale; every price shown is the last observed asking price.
+            </p>
+            {backlog.active ? (
+              <div className="mt-3 max-w-md">
+                <Note>
+                  Only {vh.coveragePercent}% of active Blocket inventory has ever been directly checked, so this
+                  figure is a two-week backlog being cleared over the first sweeps — not a daily rate. It settles
+                  in ≈ {backlog.daysToFullCoverage} nights.
+                </Note>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-6 gap-y-6 self-start sm:grid-cols-3">
+            <CarChip label="Cheapest gone" vehicle={report.cheapestLikelySold} />
+            <CarChip label="Priciest gone" vehicle={report.mostExpensiveLikelySold} />
+            <CarChip label="Newest gone" vehicle={newestGone} />
           </div>
         </section>
 
-        <section className="mt-8 border-t border-border pt-6">
-          <h2 className="text-lg font-semibold text-ink">Import &amp; verification health</h2>
-          <div className="mt-3 grid gap-x-10 gap-y-4 text-sm sm:grid-cols-2">
-            <div className="space-y-1.5 text-ink-muted">
-              <p>
-                Direct availability coverage:{" "}
-                <span className="font-semibold text-ink">{vh.coveragePercent}%</span> of{" "}
-                {integer.format(vh.activeTotal)} active Blocket listings ·{" "}
-                {integer.format(vh.neverChecked)} never checked
+        {/* 2 — Removal shape over time and by cause. */}
+        <section className="mt-12 border-t border-border pt-8">
+          <div className="grid gap-x-10 gap-y-8 lg:grid-cols-2">
+            <div>
+              <h2 className="text-sm font-semibold text-ink">Removals detected · last 21 days</h2>
+              <DayBars series={report.removalsByDay} />
+              <p className="mt-1.5 text-[10px] tabular-nums text-ink-subtle">
+                newest day accented · outlier days clipped
               </p>
-              <p>
-                Last sample outcome: {integer.format(vh.lastMissing)} missing ·{" "}
-                {integer.format(vh.lastActive)} active · {integer.format(vh.lastInconclusive)} inconclusive
-              </p>
-              <p>
-                Last direct check:{" "}
-                {vh.newestCheckAt ? dateTime.format(vh.newestCheckAt) : "never"} · oldest still-standing check:{" "}
-                {vh.oldestCheckAt ? dateTime.format(vh.oldestCheckAt) : "never"}
-              </p>
-              <p>
-                Last full reconciliation sweep:{" "}
-                {report.lastReconciliationCleanupAt
-                  ? dateTime.format(report.lastReconciliationCleanupAt)
-                  : "none on record"}
-              </p>
-              <p>
-                Today&apos;s disappearances by method:{" "}
-                {integer.format(report.disappearanceMethod.directCheck)} direct check (of which{" "}
-                {integer.format(report.disappearanceMethod.deactivatedSold)} the seller marked sold/removed) ·{" "}
-                {integer.format(report.disappearanceMethod.reconciliation)} not re-seen
-              </p>
+              {methodRows.length ? (
+                <dl className="mt-5 space-y-1.5">
+                  {methodRows.map((row) => (
+                    <div className="flex items-baseline justify-between gap-3 text-[13px]" key={row.name}>
+                      <dt className="text-ink-muted">{row.name}</dt>
+                      <dd className="shrink-0 font-semibold tabular-nums text-ink">{integer.format(row.count)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[380px] border-collapse text-left text-sm">
-                <thead className="text-[11px] uppercase tracking-[0.08em] text-ink-subtle">
+
+            <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+              <div>
+                <h2 className="text-sm font-semibold text-ink">Top makes &amp; models</h2>
+                <RankedBars rows={report.topLikelySoldModels.slice(0, 6)} total={report.likelySold.count} />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-ink">Top sellers</h2>
+                <RankedBars rows={report.topLikelySoldSellers.slice(0, 6)} total={report.likelySold.count} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 3 — Market context. */}
+        <section className="mt-12 border-t border-border pt-8">
+          <h2 className="text-sm font-semibold text-ink">Market context</h2>
+          <div className="mt-4 grid grid-cols-2 gap-x-10 gap-y-7 sm:grid-cols-4">
+            <Stat
+              label="New listings today"
+              value={integer.format(report.newListings.count)}
+              meta={signedPercent(report.newListings.count, report.recentDailyAverageNew)}
+              chart={<Sparkline series={report.newListingsByDay} />}
+            />
+            <Stat
+              label="Active inventory"
+              value={integer.format(report.activeListings)}
+              meta={report.datasetAgeDays != null ? `Blocket data ${report.datasetAgeDays} d old` : "All sources"}
+            />
+            <Stat
+              label="Price moves today"
+              value={integer.format(priceMoves.count)}
+              meta={`${integer.format(priceMoves.reductions)} cuts · ${integer.format(priceMoves.increases)} rises`}
+              chart={<DivergingHistogram buckets={report.priceChangeHistogram} />}
+            />
+            <Stat
+              label="Avg listing price"
+              value={report.newListings.averagePrice ? currency.format(report.newListings.averagePrice) : "–"}
+              meta="New listings, plausible asking prices only"
+            />
+          </div>
+        </section>
+
+        {/* 4 — Data trust (replaces the prose). */}
+        <section className="mt-12 border-t border-border pt-8">
+          <h2 className="text-sm font-semibold text-ink">Data trust</h2>
+          <div className="mt-4 grid gap-x-10 gap-y-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <CoverageBar
+              percent={vh.coveragePercent}
+              checked={vh.activeTotal - vh.neverChecked}
+              total={vh.activeTotal}
+              daysToFull={backlog.daysToFullCoverage}
+            />
+            <dl className="space-y-1.5 text-[13px]">
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-muted">Last sweep outcome</dt>
+                <dd className="tabular-nums text-ink">
+                  {integer.format(vh.lastMissing)} gone · {integer.format(vh.lastActive)} live ·{" "}
+                  {integer.format(vh.lastInconclusive)} unclear
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-muted">Last direct check</dt>
+                <dd className="tabular-nums text-ink">
+                  {vh.newestCheckAt ? dateTime.format(vh.newestCheckAt) : "never"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-muted">Last reconciliation sweep</dt>
+                <dd className="tabular-nums text-ink">
+                  {report.lastReconciliationCleanupAt
+                    ? dateTime.format(report.lastReconciliationCleanupAt)
+                    : "none on record"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+          {vh.lastInconclusive > 20 && vh.lastInconclusive >= vh.lastMissing ? (
+            <div className="mt-4 max-w-xl">
+              <Note>
+                The last availability sweep returned {integer.format(vh.lastInconclusive)} inconclusive results —
+                the checker service may be rate-limiting or degraded.
+              </Note>
+            </div>
+          ) : null}
+        </section>
+
+        {/* 5 — The register, collapsed. */}
+        <section className="mt-12 border-t border-border pt-8">
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink">
+              <span className="text-ink-subtle transition group-open:rotate-90">▸</span>
+              Detected disappearances · {integer.format(report.likelySold.count)} vehicles
+              <span className="font-normal text-ink-subtle">— show register</span>
+            </summary>
+            <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[820px] border-collapse text-left">
+                <thead className="bg-surface-subtle text-[10px] uppercase tracking-[0.08em] text-ink-subtle">
                   <tr>
-                    {["Source", "Runs", "New", "Updated", "Removed", "Failed"].map((h) => (
-                      <th className="py-1.5 pr-4 font-semibold" key={h}>
+                    {["Car", "Year", "Mileage", "Final price", "Seller", "Gone", "Verification"].map((h) => (
+                      <th className="px-3 py-2.5 font-semibold" key={h}>
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border text-ink-muted">
-                  {report.importHealth.length ? (
-                    report.importHealth.map((row) => (
-                      <tr key={row.provider}>
-                        <td className="py-1.5 pr-4 capitalize text-ink">{row.provider}</td>
-                        <td className="py-1.5 pr-4 tabular-nums">{integer.format(row.runs)}</td>
-                        <td className="py-1.5 pr-4 tabular-nums">{integer.format(row.createdCount)}</td>
-                        <td className="py-1.5 pr-4 tabular-nums">{integer.format(row.updatedCount)}</td>
-                        <td className="py-1.5 pr-4 tabular-nums">{integer.format(row.removedCount)}</td>
-                        <td
-                          className={`py-1.5 pr-4 tabular-nums ${
-                            row.failedRuns ? "font-semibold text-negative" : ""
-                          }`}
-                        >
-                          {integer.format(row.failedRuns)}
+                <tbody className="divide-y divide-border">
+                  {report.likelySoldVehicles.length ? (
+                    report.likelySoldVehicles.map((vehicle) => (
+                      <tr className="transition hover:bg-surface-subtle" key={vehicle.listingId}>
+                        <td className="px-3 py-2">
+                          <Link
+                            className="text-[13px] font-semibold text-ink underline-offset-2 hover:underline"
+                            href={`/vehicle/${vehicle.vehicleId}`}
+                          >
+                            {vehicle.make} {vehicle.model}
+                          </Link>
+                          {vehicle.variant ? (
+                            <span className="mt-0.5 block max-w-[240px] truncate text-[11px] text-ink-subtle">
+                              {vehicle.variant}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-[13px] tabular-nums text-ink-muted">{vehicle.modelYear}</td>
+                        <td className="px-3 py-2 text-[13px] tabular-nums text-ink-muted">{mil(vehicle.mileageKm)}</td>
+                        <td className="px-3 py-2 text-[13px] font-semibold tabular-nums text-ink">
+                          {currency.format(vehicle.priceAmount)}
+                        </td>
+                        <td className="max-w-[200px] truncate px-3 py-2 text-[13px] text-ink-muted">
+                          {vehicle.sellerName || "Unknown"}
+                        </td>
+                        <td className="px-3 py-2 text-[13px] tabular-nums text-ink-muted">
+                          {clock.format(vehicle.disappearedAt)}
+                        </td>
+                        <td className="px-3 py-2 text-[11px] text-ink-muted">
+                          {verificationLabel(vehicle.verificationStatus)}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td className="py-1.5 text-ink-subtle" colSpan={6}>
-                        No import runs recorded for this period.
+                      <td className="px-3 py-8 text-center text-sm text-ink-subtle" colSpan={7}>
+                        No listings were classified as likely sold or disappeared for {report.reportDate}.
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-          </div>
-        </section>
-
-        <section className="mt-8 overflow-hidden rounded-[1.5rem] border border-border bg-surface shadow-[0_12px_40px_rgba(26,35,29,0.045)]">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-5 py-5 sm:px-6">
-            <div>
-              <h2 className="text-lg font-semibold text-ink">Likely sold / disappeared vehicle register</h2>
-              <p className="mt-1 text-sm text-ink-muted">
-                {integer.format(report.likelySoldVehicles.length)} detailed record
-                {report.likelySoldVehicles.length === 1 ? "" : "s"} for {report.reportDate}
-              </p>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1240px] border-collapse text-left">
-              <thead className="bg-surface-subtle text-[11px] uppercase tracking-[0.08em] text-ink-subtle">
-                <tr>
-                  {[
-                    "Car",
-                    "Drivetrain",
-                    "Transmission",
-                    "Power",
-                    "Year",
-                    "Mileage",
-                    "Final asking price",
-                    "Seller",
-                    "Source",
-                    "Advertised",
-                    "Gone at",
-                    "Verification",
-                  ].map((heading) => (
-                    <th className="px-4 py-3 font-semibold" key={heading}>
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {report.likelySoldVehicles.length ? (
-                  report.likelySoldVehicles.map((vehicle) => (
-                    <tr className="transition hover:bg-surface-subtle" key={vehicle.listingId}>
-                      <td className="px-4 py-3">
-                        <Link
-                          className="block text-sm font-semibold text-ink underline-offset-2 hover:underline"
-                          href={`/vehicle/${vehicle.vehicleId}`}
-                        >
-                          {vehicle.make} {vehicle.model}
-                        </Link>
-                        {vehicle.variant ? (
-                          <span className="mt-0.5 block max-w-[260px] truncate text-xs text-ink-subtle">
-                            {vehicle.variant}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">{vehicle.drivetrain || "Unknown"}</td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">{vehicle.transmission}</td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">
-                        {vehicle.horsepower ? `${vehicle.horsepower} hp` : "Unknown"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">{vehicle.modelYear}</td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">{mil(vehicle.mileageKm)}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-ink">
-                        {currency.format(vehicle.priceAmount)}
-                      </td>
-                      <td className="max-w-[220px] truncate px-4 py-3 text-sm text-ink-muted">
-                        {vehicle.sellerName || "Unknown"}
-                      </td>
-                      <td className="px-4 py-3 text-sm capitalize text-ink-muted">{vehicle.provider}</td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">
-                        {vehicle.daysAdvertised != null ? `${integer.format(vehicle.daysAdvertised)} d` : "–"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-ink-muted">
-                        {clock.format(vehicle.disappearedAt)}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-ink-muted">
-                        {verificationLabel(vehicle.verificationStatus)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="px-4 py-8 text-center text-sm text-ink-subtle" colSpan={12}>
-                      No listings were classified as likely sold or disappeared for {report.reportDate}. If
-                      the availability sample and reconciliation have run, this is a real zero — check the
-                      coverage warnings and verification health above.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          </details>
         </section>
       </main>
     </div>

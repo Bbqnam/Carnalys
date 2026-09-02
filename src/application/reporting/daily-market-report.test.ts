@@ -48,7 +48,21 @@ function makeDatabase(options: FakeOptions = {}) {
       queries.push(sql);
       const has = (needle: string) => sql.includes(needle);
       let rows: unknown[] = [];
-      if (has("DISTINCT ON (o.\"listingId\")")) rows = soldVehicles;
+      if (has("width_bucket")) rows = [{ bucket: 3, count: 5 }, { bucket: 6, count: 40 }, { bucket: 9, count: 2 }];
+      else if (has('date_trunc(\'day\', o."observedAt")'))
+        rows = [
+          { day: new Date("2026-09-01T00:00:00Z"), count: 7 },
+          { day: new Date("2026-09-02T00:00:00Z"), count: 12 },
+        ];
+      else if (has('date_trunc(\'day\', "firstSeenAt")'))
+        rows = [{ day: new Date("2026-09-02T00:00:00Z"), count: 30 }];
+      else if (has("NULLIF(TRIM(v.drivetrain)"))
+        rows = [
+          { name: "all_wheel_drive", count: 5, averagePrice: 200_000 },
+          { name: "Unknown", count: 3, averagePrice: 150_000 },
+        ];
+      else if (has("status = 'removed'")) rows = [{ total: 500, blocket: 480 }];
+      else if (has("DISTINCT ON (o.\"listingId\")")) rows = soldVehicles;
       else if (has('ORDER BY o."priceAmount" ASC')) rows = [soldVehicles[0]].filter(Boolean);
       else if (has('ORDER BY o."priceAmount" DESC')) rows = [soldVehicles[soldVehicles.length - 1]].filter(Boolean);
       else if (has('"activeTotal"')) {
@@ -152,6 +166,57 @@ test("coverage and confidence warnings are derived, not hard-coded", async () =>
   assert.ok(report.warnings.some((w) => w.includes("% of active Blocket inventory")));
   assert.ok(report.warnings.some((w) => w.includes("reconciliation")));
   assert.ok(report.warnings.some((w) => w.includes("dataset is only")));
+});
+
+test("thin coverage marks the day a backlog; broad coverage does not", async () => {
+  const thin = makeDatabase({
+    verification: {
+      activeTotal: 100_000,
+      neverChecked: 95_000,
+      lastActive: 10,
+      lastMissing: 2,
+      lastInconclusive: 1,
+      oldestCheckAt: daysAgo(1),
+      newestCheckAt: daysAgo(1),
+    },
+  });
+  const thinReport = await buildDailyMarketReport(NOW, 0, thin.db);
+  assert.equal(thinReport.backlog.active, true);
+  assert.ok(thinReport.backlog.daysToFullCoverage && thinReport.backlog.daysToFullCoverage > 0);
+
+  const broad = makeDatabase({
+    verification: {
+      activeTotal: 100_000,
+      neverChecked: 20_000,
+      lastActive: 10,
+      lastMissing: 2,
+      lastInconclusive: 1,
+      oldestCheckAt: daysAgo(2),
+      newestCheckAt: daysAgo(1),
+    },
+  });
+  const broadReport = await buildDailyMarketReport(NOW, 0, broad.db);
+  assert.equal(broadReport.backlog.active, false);
+});
+
+test("the daily series are dense 21-day windows ending today, plus the new aggregates", async () => {
+  const { db } = makeDatabase();
+  const report = await buildDailyMarketReport(NOW, 0, db);
+
+  assert.equal(report.removalsByDay.length, 21);
+  assert.equal(report.newListingsByDay.length, 21);
+  assert.equal(report.removalsByDay.at(-1)?.date, "2026-09-02");
+  assert.equal(report.removalsByDay.at(-1)?.count, 12);
+  assert.equal(report.removalsByDay.at(-2)?.count, 7);
+  assert.equal(report.removalsByDay[0]?.count, 0, "days with no data are zero, not gaps");
+  assert.equal(report.newListingsByDay.at(-1)?.count, 30);
+
+  assert.equal(report.removedToDate.blocket, 480);
+  assert.equal(report.removedToDate.total, 500);
+  assert.equal(report.priceChangeHistogram.length, 13);
+  assert.equal(report.priceChangeHistogram[6].count, 40);
+  assert.equal(report.priceChangeHistogram[3].count, 5);
+  assert.equal(report.removalDrivetrainMix[0]?.name, "all_wheel_drive");
 });
 
 test("a healthy day with coverage produces the seller/model observations and fewer warnings", async () => {
