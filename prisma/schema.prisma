@@ -96,6 +96,8 @@ model ListingRecord {
   imageHash                  String?
   equipmentHash              String?
   missingReconciliationCount Int                      @default(0)
+  availabilityCheckedAt      DateTime?
+  availabilityCheckStatus    String?
   vehicleMatchMethod         String?
   vehicleMatchConfidence     Float?
   /// True for the one active listing that represents its physical vehicle in
@@ -119,6 +121,7 @@ model ListingRecord {
   @@index([isVehicleRepresentative, status, priceAmount])
   @@index([status, listedAt, id])
   @@index([provider, sourceScope, status, lastSeenAt])
+  @@index([provider, status, availabilityCheckedAt])
   @@index([mileageKm])
   @@index([lastSeenAt])
 }

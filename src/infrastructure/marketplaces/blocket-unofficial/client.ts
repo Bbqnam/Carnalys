@@ -87,6 +87,25 @@ export class BlocketUnofficialClient {
   // (horsepower, engine, drivetrain, etc.) for most listings even though
   // Blocket's own listing page always shows it — fetched directly as a
   // fallback when that happens. See listing-page-parser.ts for the scrape.
+  async checkCarAvailability(id: string): Promise<"active" | "missing" | "inconclusive"> {
+    try {
+      const response = await fetch(
+        new URL(`/v1/ad/car?id=${encodeURIComponent(id)}`, this.baseUrl),
+        {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "CarnalysDevelopmentImporter/1.0",
+          },
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      if (response.ok) return "active";
+      if (response.status === 404 || response.status === 410) return "missing";
+      return "inconclusive";
+    } catch {
+      return "inconclusive";
+    }
+  }
   async getListingPageHtml(url: string) {
     const response = await fetch(url, {
       headers: {
