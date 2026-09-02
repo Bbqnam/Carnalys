@@ -5,7 +5,10 @@ import {
   type AvailabilityClient,
   type VerificationDb,
 } from "./verify-blocket-listings";
-import type { BlocketAvailability } from "@/infrastructure/marketplaces/blocket-unofficial/availability";
+import type {
+  BlocketAvailability,
+  BlocketMissingKind,
+} from "@/infrastructure/marketplaces/blocket-unofficial/availability";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -145,8 +148,25 @@ class FakeDb implements VerificationDb {
   };
 }
 
-function fixedClient(map: Record<string, BlocketAvailability>): AvailabilityClient {
-  return { checkCarAvailability: async (id) => map[id] ?? "inconclusive" };
+type FixedVerdict =
+  | BlocketAvailability
+  | { availability: "missing"; missingKind: BlocketMissingKind };
+
+function fixedClient(map: Record<string, FixedVerdict>): AvailabilityClient {
+  return {
+    checkListingAvailability: async ({ externalId }) => {
+      const v = map[externalId] ?? "inconclusive";
+      if (typeof v === "string") {
+        return {
+          availability: v,
+          missingKind: v === "missing" ? "unknown" : null,
+          reason: "test",
+          via: "api",
+        };
+      }
+      return { availability: "missing", missingKind: v.missingKind, reason: "test", via: "page" };
+    },
+  };
 }
 
 const NOW = new Date("2026-09-02T09:00:00Z");
@@ -165,12 +185,31 @@ test("a confirmed missing listing becomes removed with a disappeared observation
 
   assert.equal(rows[0].status, "removed");
   assert.equal(rows[0].removedAt?.getTime(), NOW.getTime());
-  assert.equal(rows[0].availabilityCheckStatus, "missing");
+  assert.equal(rows[0].availabilityCheckStatus, "missing:unknown");
   assert.equal(rows[0].availabilityCheckedAt?.getTime(), NOW.getTime());
   assert.equal(db.observations.length, 1);
   assert.equal(db.observations[0].kind, "disappeared");
   assert.equal(result.missing, 1);
   assert.equal(result.newlyRemoved, 1);
+  assert.equal(result.newDisappearances, 1);
+});
+
+test("a seller-deactivated ad records missing:deactivated and one disappeared observation", async () => {
+  const rows = [listing({ id: "110", firstSeenAt: old(35), lastSeenAt: old(11) })];
+  const db = new FakeDb(rows);
+  db.setCandidates(() => rows);
+  const result = await verifyBlocketListingSample({
+    db,
+    client: fixedClient({ "110": { availability: "missing", missingKind: "deactivated" } }),
+    now: () => NOW,
+    concurrency: 1,
+  });
+
+  assert.equal(rows[0].status, "removed");
+  assert.equal(rows[0].availabilityCheckStatus, "missing:deactivated");
+  assert.equal(db.observations.length, 1);
+  assert.equal(db.observations[0].kind, "disappeared");
+  assert.equal(result.missing, 1);
   assert.equal(result.newDisappearances, 1);
 });
 

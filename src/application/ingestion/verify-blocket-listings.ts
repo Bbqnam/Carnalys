@@ -1,5 +1,8 @@
-import { BlocketUnofficialClient } from "@/infrastructure/marketplaces/blocket-unofficial/client";
-import type { BlocketAvailability } from "@/infrastructure/marketplaces/blocket-unofficial/availability";
+import {
+  BlocketUnofficialClient,
+  type BlocketAvailability,
+  type BlocketListingAvailability,
+} from "@/infrastructure/marketplaces/blocket-unofficial/client";
 
 const provider = "blocket_unofficial";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -42,6 +45,7 @@ export type BlocketVerificationResult = {
 type Candidate = {
   id: string;
   externalId: string;
+  listingUrl: string;
   priceAmount: number;
   previousPriceAmount: number | null;
   mileageKm: number;
@@ -53,7 +57,10 @@ type Candidate = {
 };
 
 export interface AvailabilityClient {
-  checkCarAvailability(id: string): Promise<BlocketAvailability>;
+  checkListingAvailability(input: {
+    externalId: string;
+    listingUrl: string;
+  }): Promise<BlocketListingAvailability>;
 }
 
 export interface VerificationDb {
@@ -130,6 +137,7 @@ export async function verifyBlocketListingSample(
     select: {
       id: true,
       externalId: true,
+      listingUrl: true,
       priceAmount: true,
       previousPriceAmount: true,
       mileageKm: true,
@@ -189,9 +197,15 @@ export async function verifyBlocketListingSample(
     while (nextIndex < candidates.length) {
       const candidate = candidates[nextIndex++];
       const checkedAt = now();
-      let availability: BlocketAvailability;
+      let availability: BlocketAvailability = "inconclusive";
+      let missingKind: BlocketListingAvailability["missingKind"] = null;
       try {
-        availability = await client.checkCarAvailability(candidate.externalId);
+        const verdict = await client.checkListingAvailability({
+          externalId: candidate.externalId,
+          listingUrl: candidate.listingUrl,
+        });
+        availability = verdict.availability;
+        missingKind = verdict.missingKind;
       } catch {
         availability = "inconclusive";
       }
@@ -222,7 +236,11 @@ export async function verifyBlocketListingSample(
             // Keep the first removal time if the listing was already removed.
             removedAt: current?.removedAt ?? checkedAt,
             availabilityCheckedAt: checkedAt,
-            availabilityCheckStatus: "missing",
+            // `missing:<kind>` — the daily report parses the suffix
+            // (deactivated_sold / purged / direct_check_missing). This is a
+            // plain string on a TEXT column; it is NOT the `verified_missing`
+            // enum value that caused the 22P02 production crash.
+            availabilityCheckStatus: `missing:${missingKind ?? "unknown"}`,
           },
         });
         const existing = await transaction.listingObservation.findFirst({
