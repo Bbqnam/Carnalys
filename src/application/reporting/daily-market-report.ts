@@ -1,3 +1,5 @@
+import { plausibleAskingPriceSql } from "@/domain/vehicle/pricing";
+
 const STOCKHOLM_TIME_ZONE = "Europe/Stockholm";
 
 // Every value ever written to ListingObservation.kind. In production this
@@ -292,6 +294,13 @@ export async function buildDailyMarketReport(
   const { reportDate, start, end } = stockholmDay(now, daysBack);
   const baselineStart = new Date(start.getTime() - 7 * 24 * 60 * 60_000);
 
+  // ~5% of ads advertise a monthly rate, deposit or 1 kr placeholder instead of
+  // the car's price. They still count as listings that appeared/disappeared,
+  // but they must not pollute the money figures (averages, cheapest/priciest).
+  const currentYear = now.getUTCFullYear();
+  const plausibleObs = plausibleAskingPriceSql('o."priceAmount"', 'v."modelYear"', currentYear);
+  const plausibleNew = plausibleAskingPriceSql('l."priceAmount"', 'v."modelYear"', currentYear);
+
   const [
     activeRows,
     newRows,
@@ -316,14 +325,22 @@ export async function buildDailyMarketReport(
       `SELECT COUNT(*)::bigint AS count FROM "ListingRecord" WHERE status = 'active'`,
     ),
     db.$queryRawUnsafe<PriceSummaryRow[]>(
-      `SELECT COUNT(*)::bigint AS count, AVG("priceAmount") AS "averagePrice", MIN("priceAmount") AS "minimumPrice", MAX("priceAmount") AS "maximumPrice"
-       FROM "ListingRecord" WHERE "firstSeenAt" >= $1 AND "firstSeenAt" < $2`,
+      `SELECT COUNT(*)::bigint AS count,
+         AVG(l."priceAmount") FILTER (WHERE ${plausibleNew}) AS "averagePrice",
+         MIN(l."priceAmount") FILTER (WHERE ${plausibleNew}) AS "minimumPrice",
+         MAX(l."priceAmount") FILTER (WHERE ${plausibleNew}) AS "maximumPrice"
+       FROM "ListingRecord" l JOIN "VehicleRecord" v ON v.id = l."vehicleId"
+       WHERE l."firstSeenAt" >= $1 AND l."firstSeenAt" < $2`,
       start,
       end,
     ),
     db.$queryRawUnsafe<PriceSummaryRow[]>(
-      `SELECT COUNT(DISTINCT "listingId")::bigint AS count, AVG("priceAmount") AS "averagePrice", MIN("priceAmount") AS "minimumPrice", MAX("priceAmount") AS "maximumPrice"
-       FROM "ListingObservation" WHERE kind = 'disappeared' AND "observedAt" >= $1 AND "observedAt" < $2`,
+      `SELECT COUNT(DISTINCT o."listingId")::bigint AS count,
+         AVG(o."priceAmount") FILTER (WHERE ${plausibleObs}) AS "averagePrice",
+         MIN(o."priceAmount") FILTER (WHERE ${plausibleObs}) AS "minimumPrice",
+         MAX(o."priceAmount") FILTER (WHERE ${plausibleObs}) AS "maximumPrice"
+       FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2`,
       start,
       end,
     ),
@@ -340,7 +357,7 @@ export async function buildDailyMarketReport(
     db.$queryRawUnsafe<VehicleRow[]>(
       `SELECT ${VEHICLE_COLUMNS}
        FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
-       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2 AND ${plausibleObs}
        ORDER BY o."priceAmount" ASC LIMIT 1`,
       start,
       end,
@@ -348,7 +365,7 @@ export async function buildDailyMarketReport(
     db.$queryRawUnsafe<VehicleRow[]>(
       `SELECT ${VEHICLE_COLUMNS}
        FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
-       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
+       WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2 AND ${plausibleObs}
        ORDER BY o."priceAmount" DESC LIMIT 1`,
       start,
       end,
@@ -362,7 +379,8 @@ export async function buildDailyMarketReport(
       end,
     ),
     db.$queryRawUnsafe<RankedRow[]>(
-      `SELECT CONCAT(v.make, ' ', v.model) AS name, COUNT(DISTINCT o."listingId")::bigint AS count, AVG(o."priceAmount") AS "averagePrice"
+      `SELECT CONCAT(v.make, ' ', v.model) AS name, COUNT(DISTINCT o."listingId")::bigint AS count,
+         AVG(o."priceAmount") FILTER (WHERE ${plausibleObs}) AS "averagePrice"
        FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
        WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
        GROUP BY v.make, v.model ORDER BY count DESC, name ASC LIMIT 8`,
@@ -370,8 +388,9 @@ export async function buildDailyMarketReport(
       end,
     ),
     db.$queryRawUnsafe<RankedRow[]>(
-      `SELECT COALESCE(NULLIF(TRIM(l."sellerName"), ''), 'Unknown seller') AS name, COUNT(DISTINCT o."listingId")::bigint AS count, AVG(o."priceAmount") AS "averagePrice"
-       FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId"
+      `SELECT COALESCE(NULLIF(TRIM(l."sellerName"), ''), 'Unknown seller') AS name, COUNT(DISTINCT o."listingId")::bigint AS count,
+         AVG(o."priceAmount") FILTER (WHERE ${plausibleObs}) AS "averagePrice"
+       FROM "ListingObservation" o JOIN "ListingRecord" l ON l.id = o."listingId" JOIN "VehicleRecord" v ON v.id = l."vehicleId"
        WHERE o.kind = 'disappeared' AND o."observedAt" >= $1 AND o."observedAt" < $2
        GROUP BY name ORDER BY count DESC, name ASC LIMIT 8`,
       start,
