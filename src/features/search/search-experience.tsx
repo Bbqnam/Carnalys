@@ -14,7 +14,6 @@ import {
   GridIcon,
   ListIcon,
   SearchEmptyIcon,
-  SearchIcon,
   SlidersIcon,
 } from "./icons";
 import { QuickFilters } from "./quick-filters";
@@ -37,6 +36,7 @@ import type {
   VehicleSearchResult,
 } from "./types";
 import { VehicleCard } from "./vehicle-card";
+import { AnalystPanel } from "@/features/analyst/analyst-panel";
 import { VehicleRow } from "./vehicle-row";
 
 const savedSearchKey = "carnalys:search-state:v1";
@@ -736,6 +736,9 @@ export function SearchExperience({
         onRequestLocation={requestCurrentLocation}
         savedCount={favorites.size}
         compareCount={compared.length}
+        searchQuery={filters.query}
+        onSearchQueryChange={(query) => changeFilters({ ...filters, query }, 300)}
+        onSearchSubmit={scrollToResults}
         syncSlot={
           <SynchronizationButton
             activeSynchronization={activeSynchronization}
@@ -746,36 +749,20 @@ export function SearchExperience({
 
       {showHero ? (
         <SearchHero
+          analyst={
+            <AnalystPanel
+              compact
+              context={{ surface: "search", filters }}
+              key={JSON.stringify(filters)}
+              locale={locale}
+            />
+          }
           locale={locale}
-          onQueryChange={(query) => changeFilters({ ...filters, query }, 300)}
-          onSearch={scrollToResults}
-          query={filters.query}
           totalListings={pagination.totalListings}
-        >
-          {quickFilters}
-        </SearchHero>
+        />
       ) : (
         <div className="border-b border-border bg-surface">
           <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-5 py-3 sm:px-8 lg:px-12">
-            <form
-              className="flex h-11 max-w-xl items-center gap-2.5 rounded-full border border-border bg-surface-subtle px-4 transition focus-within:border-accent/50"
-              role="search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                scrollToResults();
-              }}
-            >
-              <SearchIcon className="size-4 shrink-0 text-ink-subtle" />
-              <span className="sr-only">{copy.results.searchAria}</span>
-              <input
-                autoComplete="off"
-                className="w-full bg-transparent text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-subtle"
-                onChange={(event) => changeFilters({ ...filters, query: event.target.value }, 300)}
-                placeholder={copy.hero.searchPlaceholder}
-                type="search"
-                value={filters.query}
-              />
-            </form>
             {quickFilters}
           </div>
         </div>

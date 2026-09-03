@@ -1,11 +1,15 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { CarnalysMark } from "./carnalys-mark";
 import {
   CompareIcon,
+  CloseIcon,
   HeartIcon,
+  HomeIcon,
   MapPinIcon,
   MarketAnalysisIcon,
   MenuIcon,
@@ -33,6 +37,9 @@ interface SiteHeaderProps {
    *  beside the location button (the results page passes its "Update listings"
    *  button here). */
   syncSlot?: ReactNode;
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
+  onSearchSubmit?: () => void;
 }
 
 export function SiteHeader({
@@ -45,15 +52,30 @@ export function SiteHeader({
   locationStatus,
   onRequestLocation,
   syncSlot,
+  searchQuery,
+  onSearchQueryChange,
+  onSearchSubmit,
 }: SiteHeaderProps) {
+  const router = useRouter();
   const { user } = useAccount();
   const copy = uiCopy[locale];
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery ?? "");
   const menuRef = useRef<HTMLDivElement | null>(null);
   const accountRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const menuId = useId();
   const accountId = useId();
+  const searchId = useId();
+  const effectiveSearchQuery = searchQuery ?? localSearchQuery;
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   const locationLabel =
     locationStatus === "locating"
@@ -67,16 +89,18 @@ export function SiteHeader({
             : copy.results.useCurrentLocation;
 
   useEffect(() => {
-    if (!menuOpen && !accountOpen) return;
+    if (!menuOpen && !accountOpen && !searchOpen) return;
     function onPointerDown(event: PointerEvent) {
       const target = event.target as Node;
       if (menuOpen && !menuRef.current?.contains(target)) setMenuOpen(false);
       if (accountOpen && !accountRef.current?.contains(target)) setAccountOpen(false);
+      if (searchOpen && !searchRef.current?.contains(target)) setSearchOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setMenuOpen(false);
         setAccountOpen(false);
+        setSearchOpen(false);
       }
     }
     window.addEventListener("pointerdown", onPointerDown);
@@ -85,14 +109,14 @@ export function SiteHeader({
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [menuOpen, accountOpen]);
+  }, [menuOpen, accountOpen, searchOpen]);
 
   const navItems = (
     [
-      ["cars", "/", copy.nav.search, SearchIcon, null],
+      ["cars", "/", copy.nav.home, HomeIcon, null],
       ["saved", "/saved", copy.nav.saved, HeartIcon, savedCount],
       ["compare", "/compare", copy.nav.compare, CompareIcon, compareCount],
-      ["analysis", "/analysis", copy.nav.insights, MarketAnalysisIcon, null],
+      ["analysis", "/analysis", copy.nav.analysis, MarketAnalysisIcon, null],
     ] as const
   ).map(([page, href, label, Icon, count]) => ({
     page,
@@ -102,6 +126,72 @@ export function SiteHeader({
     count,
     isActive: activePage === page,
   }));
+
+  function updateSearchQuery(query: string) {
+    setLocalSearchQuery(query);
+    onSearchQueryChange?.(query);
+  }
+
+  function submitSearch() {
+    if (onSearchSubmit) {
+      onSearchSubmit();
+      return;
+    }
+    const parameters = new URLSearchParams();
+    if (effectiveSearchQuery.trim()) parameters.set("q", effectiveSearchQuery.trim());
+    router.push(`/${parameters.size ? `?${parameters.toString()}` : ""}#cars`);
+  }
+
+  const searchForm = (mobile = false) => (
+    <form
+      className={mobile
+        ? "flex items-center gap-2 rounded-xl border border-border bg-surface-subtle p-1.5"
+        : "flex h-full w-full items-center border-b-2 border-accent"}
+      role="search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submitSearch();
+        if (mobile) setMenuOpen(false);
+      }}
+    >
+      <label className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+        <SearchIcon className="size-4 shrink-0 text-ink-subtle" />
+        <span className="sr-only">{copy.hero.searchLabel}</span>
+        <input
+          autoComplete="off"
+          className="min-w-0 flex-1 bg-transparent text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-subtle"
+          id={mobile ? undefined : searchId}
+          onChange={(event) => updateSearchQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (!mobile && event.key === "Escape") setSearchOpen(false);
+          }}
+          placeholder={copy.hero.searchPlaceholder}
+          ref={mobile ? undefined : searchInputRef}
+          type="search"
+          value={effectiveSearchQuery}
+        />
+      </label>
+      {!mobile ? (
+        <button
+          aria-label={locale === "sv" ? "Stäng sökfältet" : "Close search"}
+          className="grid size-8 shrink-0 place-items-center rounded-full text-ink-subtle transition hover:bg-surface-muted hover:text-ink"
+          onClick={() => setSearchOpen(false)}
+          type="button"
+        >
+          <CloseIcon className="size-3.5" />
+        </button>
+      ) : null}
+      <button
+        aria-label={copy.hero.searchAction}
+        className={mobile
+          ? "grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-surface"
+          : "grid size-9 shrink-0 place-items-center rounded-full text-accent-strong transition hover:bg-accent-soft active:scale-95"}
+        type="submit"
+      >
+        <SearchIcon className="size-4" />
+      </button>
+    </form>
+  );
 
   return (
     <header className="relative z-30 border-b border-border bg-surface">
@@ -118,10 +208,10 @@ export function SiteHeader({
             </span>
           </Link>
 
-          {/* Full labelled nav from lg up. Below that the same items live in the
+          {/* Full labelled nav from xl up. Below that the same items live in the
               menu. Active item carries an accent underline flush with the
               header's bottom border. */}
-          <nav className="hidden h-full items-stretch gap-1 lg:flex">
+          <nav className="hidden h-full items-stretch gap-1 xl:flex">
             {navItems.map(({ page, href, label, Icon, count, isActive }) => (
               <Link
                 aria-current={isActive ? "page" : undefined}
@@ -142,17 +232,55 @@ export function SiteHeader({
                 ) : null}
               </Link>
             ))}
+            <motion.div
+              animate={{ width: searchOpen ? 288 : 72 }}
+              className="h-full shrink-0 overflow-hidden"
+              initial={false}
+              ref={searchRef}
+              transition={{ duration: reduceMotion ? 0 : 0.38, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <AnimatePresence initial={false} mode="wait">
+                {searchOpen ? (
+                  <motion.div
+                    animate={{ filter: "blur(0px)", opacity: 1, x: 0 }}
+                    className="h-full w-72"
+                    exit={{ filter: "blur(2px)", opacity: 0, x: -10 }}
+                    initial={{ filter: "blur(2px)", opacity: 0, x: -14 }}
+                    key="search-form"
+                    transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+                  >
+                    {searchForm()}
+                  </motion.div>
+                ) : (
+                  <motion.button
+                    animate={{ opacity: 1, x: 0 }}
+                    aria-controls={searchId}
+                    aria-expanded="false"
+                    className="inline-flex h-full w-[72px] items-center gap-2 border-b-2 border-transparent px-2.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+                    exit={{ opacity: 0, x: 8 }}
+                    initial={{ opacity: 0, x: 8 }}
+                    key="search-trigger"
+                    onClick={() => setSearchOpen(true)}
+                    transition={{ duration: reduceMotion ? 0 : 0.14 }}
+                    type="button"
+                  >
+                    <SearchIcon className="size-4 shrink-0" />
+                    {copy.nav.search}
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </motion.div>
           </nav>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {syncSlot ? <div className="hidden lg:flex">{syncSlot}</div> : null}
+          {syncSlot ? <div className="hidden xl:flex">{syncSlot}</div> : null}
 
           {onRequestLocation ? (
             <button
               aria-label={locationLabel}
               aria-live="polite"
-              className={`hidden size-10 place-items-center rounded-full border shadow-sm transition lg:grid ${
+              className={`hidden size-10 place-items-center rounded-full border shadow-sm transition xl:grid ${
                 locationStatus === "ready"
                   ? "border-accent/40 bg-accent-soft text-accent-strong"
                   : "border-border bg-surface text-ink hover:border-border-strong hover:shadow-md"
@@ -165,7 +293,7 @@ export function SiteHeader({
             </button>
           ) : null}
 
-          <div className="hidden lg:flex lg:items-center lg:gap-3">
+          <div className="hidden xl:flex xl:items-center xl:gap-3">
             <div
               aria-label={copy.languageSwitchLabel}
               className="flex rounded-full border border-border bg-surface/65 p-0.5 text-[11px] font-semibold shadow-sm backdrop-blur"
@@ -194,7 +322,7 @@ export function SiteHeader({
             />
           </div>
 
-          <div className="relative hidden lg:block" ref={accountRef}>
+          <div className="relative hidden xl:block" ref={accountRef}>
             <button
               aria-controls={accountOpen ? accountId : undefined}
               aria-expanded={accountOpen}
@@ -264,14 +392,14 @@ export function SiteHeader({
             ) : null}
           </div>
 
-          {/* Below lg: the page's sync action, the contextual location action,
+          {/* Below xl: the page's sync action, the contextual location action,
               and one menu holding everything else. */}
-          {syncSlot ? <div className="lg:hidden">{syncSlot}</div> : null}
+          {syncSlot ? <div className="xl:hidden">{syncSlot}</div> : null}
 
           {onRequestLocation ? (
             <button
               aria-label={locationLabel}
-              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition lg:hidden ${
+              className={`grid size-10 place-items-center rounded-full border shadow-sm backdrop-blur transition xl:hidden ${
                 locationStatus === "ready"
                   ? "border-accent/40 bg-accent-soft text-accent-strong"
                   : "border-border-strong bg-surface text-ink hover:border-ink"
@@ -284,7 +412,7 @@ export function SiteHeader({
             </button>
           ) : null}
 
-          <div className="relative lg:hidden" ref={menuRef}>
+          <div className="relative xl:hidden" ref={menuRef}>
             <button
               aria-controls={menuId}
               aria-expanded={menuOpen}
@@ -334,6 +462,9 @@ export function SiteHeader({
                       ) : null}
                     </Link>
                   ))}
+                  <div className="mt-1 border-t border-border pt-1.5">
+                    {searchForm(true)}
+                  </div>
                   {user ? (
                     <>
                       <Link

@@ -44,6 +44,7 @@ import { useFavorites } from "@/features/search/use-favorites";
 import type { VehicleSearchResult } from "@/features/search/types";
 import { estimateFuelConsumptionL100km, type ScoreFactor } from "@/domain/vehicle";
 import { SourceLogo } from "@/features/source/source-logo";
+import { AnalystPanel } from "@/features/analyst/analyst-panel";
 
 interface VehicleDetailProps {
   result: VehicleSearchResult;
@@ -797,7 +798,14 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             ) : null}
           </div>
         </div>
-      </div>
+        </div>
+        <div className="mt-6 sm:mt-8">
+          <AnalystPanel
+            context={{ surface: "listing", listingId: listing.id }}
+            key={listing.id}
+            locale={locale}
+          />
+        </div>
       </div>
 
       <CompareTray

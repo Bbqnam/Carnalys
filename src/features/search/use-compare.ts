@@ -11,7 +11,7 @@ export interface ComparedVehicle {
 }
 
 const storageKey = "carnalys:compare:v2";
-const maxCompared = 4;
+const maxCompared = 3;
 const listeners = new Set<() => void>();
 
 function isComparedVehicle(value: unknown): value is ComparedVehicle {
@@ -30,7 +30,7 @@ function readStoredCompared(): ComparedVehicle[] {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isComparedVehicle) : [];
+    return Array.isArray(parsed) ? parsed.filter(isComparedVehicle).slice(0, maxCompared) : [];
   } catch {
     return [];
   }

@@ -8,23 +8,23 @@ datasource db {
 }
 
 model VehicleRecord {
-  id                 String          @id
-  vin                String?         @unique
-  registrationNumber String?         @unique
-  make               String
-  model              String
-  variant            String?
-  modelYear          Int
-  registrationYear   Int?
-  bodyStyle          String
-  fuelType           String
-  transmission       String
-  drivetrain         String?
-  horsepower         Int?
-  engineDescription  String?
-  engineDisplacement Int?
-  fuelConsumption    String?
-  firstRegistration  DateTime?
+  id                   String          @id
+  vin                  String?         @unique
+  registrationNumber   String?         @unique
+  make                 String
+  model                String
+  variant              String?
+  modelYear            Int
+  registrationYear     Int?
+  bodyStyle            String
+  fuelType             String
+  transmission         String
+  drivetrain           String?
+  horsepower           Int?
+  engineDescription    String?
+  engineDisplacement   Int?
+  fuelConsumption      String?
+  firstRegistration    DateTime?
   /// Canonical taxonomy (see src/domain/vehicle/taxonomy). `make`/`model`/
   /// `bodyStyle`/`fuelType` above hold the *canonical* values; the source
   /// strings are kept below for provenance. `generation`/`trim`/
@@ -35,9 +35,9 @@ model VehicleRecord {
   trim                 String?
   performanceVariant   String?
   normalizationVersion Int             @default(0)
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  listings           ListingRecord[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  listings             ListingRecord[]
 
   @@index([make, model])
   @@index([make, model, bodyStyle, fuelType])
@@ -69,7 +69,7 @@ model ListingRecord {
   title                      String?
   listingUrl                 String
   sellerName                 String?
-  sellerOrganizationNumber  String?
+  sellerOrganizationNumber   String?
   dealerStockNumber          String?
   sellerType                 String
   priceAmount                Int
@@ -119,7 +119,7 @@ model ListingRecord {
   /// near-duplicate cards when the user has not narrowed to specific sources.
   isVehicleRepresentative    Boolean                  @default(true)
   sourceProvider             ListingProvider          @relation(fields: [provider], references: [key], onDelete: Restrict, onUpdate: Cascade)
-  vehicle                    VehicleRecord            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicle                    VehicleRecord            @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   images                     ListingImageRecord[]
   equipment                  ListingEquipmentRecord[]
   analysis                   ListingAnalysisRecord?
@@ -141,19 +141,20 @@ model ListingRecord {
 /// Lightweight first-party accounts. Usernames are displayed as entered while
 /// usernameNormalized is the case-insensitive identity used at sign-in.
 model User {
-  id                 String        @id @default(uuid())
+  id                 String            @id @default(uuid())
   username           String
-  usernameNormalized String        @unique
+  usernameNormalized String            @unique
   passwordHash       String
-  locale             String        @default("en")
-  theme              String        @default("light")
-  isAdmin            Boolean       @default(false)
-  viewMode           String        @default("grid")
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  locale             String            @default("en")
+  theme              String            @default("light")
+  isAdmin            Boolean           @default(false)
+  viewMode           String            @default("grid")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
   sessions           UserSession[]
   favorites          UserFavorite[]
   savedSearches      SavedSearch[]
+  analystUsage       AnalystUsageLog[]
 }
 
 /// Session cookies contain an opaque random token; only its SHA-256 digest is
@@ -192,6 +193,30 @@ model SavedSearch {
   @@index([userId, updatedAt])
 }
 
+/// Metadata-only Analyst telemetry. Prompts, answers, tool payloads, and model
+/// reasoning are deliberately never stored.
+model AnalystUsageLog {
+  id                    String   @id @default(uuid())
+  userId                String
+  requestId             String   @unique
+  surface               String
+  model                 String
+  status                String
+  modelTurns            Int
+  toolCalls             Int
+  inputTokens           Int
+  cachedInputTokens     Int
+  outputTokens          Int
+  reasoningTokens       Int
+  estimatedCostMicroUsd Int
+  durationMs            Int
+  createdAt             DateTime @default(now())
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
 /// Append-only log of everything we have ever observed about a listing's
 /// market state. This is the only place historical market data lives —
 /// `ListingRecord` holds just the current state, which is overwritten on
@@ -207,23 +232,30 @@ model SavedSearch {
 /// `VehicleRecord` — because a disappearance is not a deletion of what we
 /// learned. Nothing in the application ever deletes from this table.
 model ListingObservation {
-  id                  BigInt   @id @default(autoincrement())
-  listingId           String
-  provider            String
+  id                               BigInt                       @id @default(autoincrement())
+  listingId                        String
+  provider                         String
   /// When this state was first observed by us — not when the seller changed
   /// it, which the marketplace does not tell us.
-  observedAt          DateTime
+  observedAt                       DateTime
   /// first_seen | price_change | mileage_change | status_change | disappeared | relisted
-  kind                String
-  priceAmount         Int
-  previousPriceAmount Int?
-  mileageKm           Int
-  sellerType          String
+  kind                             ListingObservationKind
+  priceAmount                      Int
+  previousPriceAmount              Int?
+  mileageKm                        Int
+  previousMileageKm                Int?
+  sellerType                       String
+  previousSellerType               String?
+  sellerName                       String?
+  previousSellerName               String?
+  sellerOrganizationNumber         String?
+  previousSellerOrganizationNumber String?
   /// Listing status *as we observed it*: active | reserved | sold | removed.
   /// "removed" means the ad left the marketplace, which is not evidence of a
   /// sale — see the `disappeared` kind.
-  status              String
-  createdAt           DateTime @default(now())
+  status                           String
+  provenance                       ListingObservationProvenance @default(observed)
+  createdAt                        DateTime                     @default(now())
 
   @@unique([listingId, observedAt, kind])
   @@index([listingId, observedAt])
@@ -405,4 +437,73 @@ model CatalogSummary {
   maximumPrice       Int
   lastSynchronizedAt DateTime?
   facetsUpdatedAt    DateTime
+}
+
+model MarketCohort {
+  id                   BigInt           @id @default(autoincrement())
+  cohortKey            String           @unique
+  granularity          String
+  make                 String
+  model                String
+  fuelType             String?
+  transmission         String?
+  modelYear            Int?
+  mileageBucket        Int?
+  normalizationVersion String
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime
+  snapshots            MarketSnapshot[]
+
+  @@index([make, model, granularity, normalizationVersion])
+}
+
+model MarketSnapshot {
+  id                          BigInt       @id @default(autoincrement())
+  cohortId                    BigInt
+  snapshotDate                DateTime     @db.Date
+  sourceWatermark             DateTime
+  activeListingCount          Int
+  medianPriceAmount           Int
+  averagePriceAmount          Int
+  minimumPriceAmount          Int
+  maximumPriceAmount          Int
+  priceP10Amount              Int
+  priceP25Amount              Int
+  priceP75Amount              Int
+  priceP90Amount              Int
+  medianMileageKm             Int
+  averageMileageKm            Int
+  medianDaysOnMarket          Float
+  averageDaysOnMarket         Float
+  newListingCount             Int
+  reactivatedListingCount     Int
+  removedListingCount         Int
+  priceReductionCount         Int
+  priceReductionListingCount  Int
+  medianPriceReductionAmount  Int?
+  averagePriceReductionAmount Int?
+  priceReductionShare         Float
+  medianDealScore             Float?
+  medianMarketValueAmount     Int?
+  generatedAt                 DateTime     @default(now())
+  cohort                      MarketCohort @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+
+  @@unique([cohortId, snapshotDate])
+  @@index([snapshotDate])
+}
+
+enum ListingObservationKind {
+  first_seen
+  price_change
+  mileage_change
+  status_change
+  disappeared
+  relisted
+  seller_change
+  other_meaningful_change
+}
+
+enum ListingObservationProvenance {
+  observed
+  reconstructed
 }

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application/ingestion/types";
 import { exactVehicleMatchEvidence } from "@/application/ingestion/vehicle-match-policy";
+import { meaningfulListingEvents } from "@/domain/market/listing-history";
 import { canonicalizeVehicle } from "@/domain/vehicle/taxonomy";
 import { Prisma } from "@/generated/prisma/client";
 import { listingImageWritePolicy } from "./listing-image-write-policy";
@@ -245,36 +246,13 @@ interface ExistingListingState {
   status: string;
   priceAmount: number;
   mileageKm: number;
+  sellerName: string | null;
+  sellerOrganizationNumber: string | null;
+  sellerType: string;
   contentHash: string | null;
   imageHash: string | null;
   imageCount: number;
   equipmentHash: string | null;
-}
-
-/**
- * Decides whether this sync saw anything worth writing to the permanent
- * observation log, and what to call it.
- *
- * The log exists to answer historical questions ("what did this cost in
- * March?", "how often do sellers cut prices?"), so it records *market state*
- * only: price, mileage, and whether the ad is live. A seller rewriting the
- * description or swapping photos changes the listing's content hash but not
- * its market state, and writing a row for that would inflate the table
- * without teaching us anything. Returning `undefined` here is the normal case
- * — most listings, most runs, change nothing.
- */
-function observationKind(
-  existing: ExistingListingState | undefined,
-  listing: NormalizedVehicleListing["listing"],
-) {
-  if (!existing) return "first_seen" as const;
-  // The ad is back after we recorded it gone. Not the same event as a new
-  // listing: the car was on the market before, which matters when measuring
-  // how long stock sits.
-  if (existing.status !== "active") return "relisted" as const;
-  if (existing.priceAmount !== listing.priceAmount) return "price_change" as const;
-  if (existing.mileageKm !== listing.mileageKm) return "mileage_change" as const;
-  return undefined;
 }
 
 async function writeListing(
@@ -495,16 +473,15 @@ async function writeListing(
     }
   }
 
-  const kind = observationKind(existing, listing);
-  if (kind) {
+  const events = meaningfulListingEvents(existing, listing);
+  if (events.length > 0) {
     // Same transaction as the listing write, so the log can never claim a
     // state the listing row never reached (or miss one it did). Duplicates
     // are skipped rather than thrown: a retried batch re-runs with the same
     // synchronizedAt, and re-recording an identical observation is a no-op,
     // not a failure worth aborting a page of listings for.
     await transaction.listingObservation.createMany({
-      data: [
-        {
+      data: events.map((kind) => ({
           listingId,
           provider: normalized.source.provider,
           observedAt: synchronizedAt,
@@ -513,12 +490,25 @@ async function writeListing(
           previousPriceAmount:
             kind === "price_change"
               ? existing!.priceAmount
-              : listing.previousPriceAmount,
+              : null,
           mileageKm: listing.mileageKm,
+          previousMileageKm:
+            kind === "mileage_change" ? existing!.mileageKm : null,
           sellerType: listing.sellerType,
+          previousSellerType:
+            kind === "seller_change" ? existing!.sellerType : null,
+          sellerName: listing.sellerName ?? null,
+          previousSellerName:
+            kind === "seller_change" ? existing!.sellerName : null,
+          sellerOrganizationNumber:
+            listing.sellerOrganizationNumber ?? null,
+          previousSellerOrganizationNumber:
+            kind === "seller_change"
+              ? existing!.sellerOrganizationNumber
+              : null,
           status: "active",
-        },
-      ],
+          provenance: "observed",
+        })),
       skipDuplicates: true,
     });
   }
@@ -598,6 +588,9 @@ export async function upsertNormalizedListings(
       status: true,
       priceAmount: true,
       mileageKm: true,
+      sellerName: true,
+      sellerOrganizationNumber: true,
+      sellerType: true,
       contentHash: true,
       imageHash: true,
       equipmentHash: true,

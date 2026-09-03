@@ -1,0 +1,76 @@
+import { Prisma } from "@/generated/prisma/client";
+
+/** Explicit allow-list for model-facing listing data. Sensitive vehicle/source fields never enter this shape. */
+export const analystListingSelect = {
+  id: true,
+  provider: true,
+  title: true,
+  priceAmount: true,
+  previousPriceAmount: true,
+  monthlyCostAmount: true,
+  mileageKm: true,
+  municipality: true,
+  sellerType: true,
+  description: true,
+  serviceHistory: true,
+  ownerCount: true,
+  status: true,
+  firstSeenAt: true,
+  lastSeenAt: true,
+  synchronizedAt: true,
+  sourceProvider: { select: { displayName: true } },
+  vehicle: {
+    select: {
+      make: true,
+      model: true,
+      variant: true,
+      modelYear: true,
+      registrationYear: true,
+      bodyStyle: true,
+      fuelType: true,
+      transmission: true,
+      drivetrain: true,
+      horsepower: true,
+      engineDescription: true,
+      engineDisplacement: true,
+      fuelConsumption: true,
+      performanceVariant: true,
+    },
+  },
+  equipment: {
+    select: { label: true },
+    orderBy: { label: "asc" as const },
+    take: 20,
+  },
+  analysis: {
+    select: {
+      marketValueAmount: true,
+      marketValueMinimum: true,
+      marketValueMaximum: true,
+      comparableCount: true,
+      confidence: true,
+      dealScore: true,
+      dealScoreFactors: true,
+      buyConfidenceScore: true,
+      buyConfidenceFactors: true,
+      methodologyVersion: true,
+      calculatedAt: true,
+      sourceSynchronizedAt: true,
+    },
+  },
+} satisfies Prisma.ListingRecordSelect;
+
+export const forbiddenAnalystProjectionFields = [
+  "vin",
+  "registrationNumber",
+  "sellerOrganizationNumber",
+  "dealerStockNumber",
+  "rawPayload",
+  "contentHash",
+  "imageHash",
+  "equipmentHash",
+  "passwordHash",
+  "listingUrl",
+  "externalId",
+] as const;
+

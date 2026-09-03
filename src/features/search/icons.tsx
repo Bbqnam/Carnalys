@@ -20,6 +20,15 @@ export function SearchIcon(props: IconProps) {
   );
 }
 
+export function HomeIcon(props: IconProps) {
+  return (
+    <svg aria-hidden="true" {...iconDefaults} {...props}>
+      <path d="m3.5 10.5 8.5-7 8.5 7" />
+      <path d="M5.5 9v11h13V9M9.5 20v-6h5v6" />
+    </svg>
+  );
+}
+
 export function HeartIcon({ fill = "none", ...props }: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} fill={fill} {...props}>
