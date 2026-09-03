@@ -57,6 +57,27 @@ function readStored(): { messages: ThreadMessage[]; open: boolean } {
   }
 }
 
+const funStatuses = {
+  sv: [
+    "Vroom vroom…", "Startar motorn…", "Växlar upp…", "Rattar genom marknaden…",
+    "Läser av mätarställningen…", "Kollar servicehäftet…", "Provkör siffrorna…",
+    "Dammsuger annonserna…", "Räknar hästkrafter…", "Sparkar på däcken…", "Blocket-dyk pågår…",
+  ],
+  en: [
+    "Vroom vroom…", "Starting the engine…", "Shifting up…", "Cruising the market…",
+    "Reading the odometer…", "Checking the service book…", "Test-driving the numbers…",
+    "Combing the listings…", "Counting horsepower…", "Kicking the tyres…", "Diving into the data…",
+  ],
+} as const;
+let lastFunStatus = -1;
+function funStatus(locale: Locale) {
+  const pool = funStatuses[locale === "sv" ? "sv" : "en"];
+  let index = Math.floor(Math.random() * pool.length);
+  if (index === lastFunStatus) index = (index + 1) % pool.length;
+  lastFunStatus = index;
+  return pool[index];
+}
+
 function recentPairs(messages: readonly ThreadMessage[]): AnalystConversationMessage[] {
   const pairs: AnalystConversationMessage[] = [];
   for (let index = 0; index < messages.length; index += 1) {
@@ -101,6 +122,10 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
       setMessages(stored.messages);
       setOpen(stored.open);
       setHydrated(true);
+      // Continue message ids past whatever was restored so a new turn can't
+      // collide with a rehydrated one ("two children with the same key").
+      const highest = Math.max(0, ...stored.messages.map((message) => Number.parseInt(message.id.replace(/\D/g, ""), 10) || 0));
+      idRef.current = highest;
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -146,7 +171,7 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
     setMessages((current) => [
       ...current,
       { id: `${assistantId}-u`, role: "user", content: trimmed, evidence: [], status: "", state: "complete" },
-      { id: assistantId, role: "assistant", content: "", evidence: [], status: locale === "sv" ? "Startar analys…" : "Starting analysis…", state: "streaming" },
+      { id: assistantId, role: "assistant", content: "", evidence: [], status: funStatus(locale), state: "streaming" },
     ]);
     setRunning(true);
 
@@ -178,8 +203,11 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
           for (const line of lines) {
             if (!line.trim()) continue;
             const event = JSON.parse(line) as AnalystStreamEvent;
-            if (event.type === "status" && event.message) {
-              const message = event.message;
+            if (event.type === "status") {
+              // The server's status text is functional ("Interpreting evidence…").
+              // Swap in a playful car-themed line instead; the spinner already
+              // says "working".
+              const message = funStatus(locale);
               patch((current) => ({ ...current, status: message }));
             }
             if (event.type === "delta" && event.delta) {

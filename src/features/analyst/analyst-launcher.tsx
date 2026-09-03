@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Locale } from "@/features/search/copy";
 import { readLocaleCookie } from "@/features/search/locale";
 import { useAnalystChat } from "./analyst-chat-provider";
@@ -26,6 +26,9 @@ function ChevronDown({ className = "" }: { className?: string }) {
 }
 
 const hiddenPrefixes = ["/login", "/admin"];
+const sizeKey = "carnalys:analyst:size:v1";
+const MIN_W = 320;
+const MIN_H = 380;
 
 export function HeroAskButton({ locale }: { locale: Locale }) {
   const { setOpen } = useAnalystChat();
@@ -44,14 +47,36 @@ export function HeroAskButton({ locale }: { locale: Locale }) {
   );
 }
 
+interface Size {
+  w: number;
+  h: number;
+}
+
+function readSize(): Size | null {
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(sizeKey) ?? "null") as unknown;
+    if (value && typeof value === "object" && typeof (value as Size).w === "number" && typeof (value as Size).h === "number") {
+      return value as Size;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 export function AnalystLauncher({ initialLocale }: { initialLocale: Locale }) {
   const pathname = usePathname();
   const { open, setOpen, toggle, messages } = useAnalystChat();
   const reduceMotion = useReducedMotion() ?? false;
   const [locale, setLocale] = useState<Locale>(initialLocale);
+  const [size, setSize] = useState<Size | null>(null);
+  const dragRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setLocale(readLocaleCookie() ?? initialLocale), 0);
+    const timer = window.setTimeout(() => {
+      setLocale(readLocaleCookie() ?? initialLocale);
+      setSize(readSize());
+    }, 0);
     return () => window.clearTimeout(timer);
   }, [pathname, initialLocale]);
 
@@ -64,6 +89,42 @@ export function AnalystLauncher({ initialLocale }: { initialLocale: Locale }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
+  useEffect(() => () => dragRef.current?.abort(), []);
+
+  const onResizeStart = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const panel = event.currentTarget.parentElement;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const start = { x: event.clientX, y: event.clientY, w: rect.width, h: rect.height };
+    const controller = new AbortController();
+    dragRef.current = controller;
+
+    window.addEventListener("pointermove", (move) => {
+      const maxW = window.innerWidth - 24;
+      const maxH = window.innerHeight - 96;
+      setSize({
+        w: Math.min(maxW, Math.max(MIN_W, start.w + (start.x - move.clientX))),
+        h: Math.min(maxH, Math.max(MIN_H, start.h + (start.y - move.clientY))),
+      });
+    }, { signal: controller.signal });
+
+    window.addEventListener("pointerup", () => {
+      controller.abort();
+      dragRef.current = null;
+      setSize((current) => {
+        if (current) {
+          try {
+            window.sessionStorage.setItem(sizeKey, JSON.stringify(current));
+          } catch {
+            // ignore
+          }
+        }
+        return current;
+      });
+    }, { signal: controller.signal });
+  }, []);
+
   if (hiddenPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) return null;
 
   const hasThread = messages.length > 0;
@@ -74,11 +135,22 @@ export function AnalystLauncher({ initialLocale }: { initialLocale: Locale }) {
         {open ? (
           <motion.div
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="fixed bottom-24 right-3 z-50 flex h-[min(34rem,calc(100dvh-7.5rem))] w-[calc(100vw-1.5rem)] flex-col sm:right-6 sm:w-[24rem]"
+            className="fixed bottom-24 right-3 z-50 flex max-h-[calc(100dvh-7rem)] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] flex-col sm:right-6 sm:w-[24rem]"
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            style={size ? { width: size.w, height: size.h } : { height: "min(34rem, calc(100dvh - 7rem))" }}
             transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}
           >
+            <button
+              aria-label={locale === "sv" ? "Ändra storlek" : "Resize"}
+              className="absolute -left-2 -top-2 z-10 hidden size-6 cursor-nwse-resize touch-none place-items-center rounded-full border border-border bg-surface text-ink-subtle shadow-sm transition hover:text-ink sm:grid"
+              onPointerDown={onResizeStart}
+              type="button"
+            >
+              <svg aria-hidden="true" className="size-3" fill="none" viewBox="0 0 12 12">
+                <path d="M2 8.5 8.5 2M5 9.5 9.5 5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+              </svg>
+            </button>
             <AnalystPanel locale={locale} onClose={() => setOpen(false)} />
           </motion.div>
         ) : null}

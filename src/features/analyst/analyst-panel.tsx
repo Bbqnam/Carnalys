@@ -78,37 +78,27 @@ function citedIds(text: string) {
   return ids;
 }
 
-// The analyst is told to write plain text, but models still slip in Markdown.
-// Strip the common markers so they don't render as literal ** and # in the UI.
-function stripMarkdown(text: string) {
+// The analyst writes for people, not for the citation scheme: strip any
+// Markdown it slips in, and remove the [E1] evidence markers entirely — the
+// car cards below the message are the visible reference.
+function cleanText(text: string) {
   return text
     .replace(/\*\*([\s\S]+?)\*\*/g, "$1")
     .replace(/__([\s\S]+?)__/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/(^|\n)[ \t]*#{1,6}[ \t]+/g, "$1")
-    .replace(/(^|\n)[ \t]*[*-][ \t]+/g, "$1• ");
+    .replace(/(^|\n)[ \t]*[*-][ \t]+/g, "$1• ")
+    .replace(/ ?\[E\d+\]/g, "")
+    .replace(/[ \t]+([.,;:!?])/g, "$1")
+    .replace(/\(\s*\)/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n");
 }
 
-function EvidenceCitation({ id, evidence }: { id: string; evidence: readonly AnalystEvidence[] }) {
-  const item = evidence.find((candidate) => candidate.id === id);
-  if (!item) return null;
-  return item.href ? (
-    <Link className="mx-0.5 inline-flex rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-bold text-accent-strong hover:underline" href={item.href} title={item.label}>
-      {id}
-    </Link>
-  ) : <span className="mx-0.5 inline-flex rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-bold text-accent-strong">{id}</span>;
-}
-
-function Answer({ text, evidence, streaming = false }: { text: string; evidence: readonly AnalystEvidence[]; streaming?: boolean }) {
-  const parts = stripMarkdown(text).split(/(\[E\d+\])/g);
+function Answer({ text, streaming = false }: { text: string; streaming?: boolean }) {
   return (
     <div className="whitespace-pre-wrap text-sm leading-6 text-ink">
-      {parts.map((part, index) => {
-        const match = /^\[(E\d+)\]$/.exec(part);
-        return match
-          ? <EvidenceCitation evidence={evidence} id={match[1]} key={`${part}-${index}`} />
-          : <span key={index}>{part}</span>;
-      })}
+      {cleanText(text)}
       {streaming ? <span aria-hidden="true" className="ml-1 inline-block h-[1em] w-px animate-pulse bg-accent align-[-0.15em]" /> : null}
     </div>
   );
@@ -194,25 +184,6 @@ function ListingCards({ items, locale }: { items: readonly AnalystEvidence[]; lo
   );
 }
 
-function SourceList({ evidence, locale }: { evidence: readonly AnalystEvidence[]; locale: Locale }) {
-  return (
-    <details className="rounded-xl border border-border bg-surface-subtle px-3 py-2.5">
-      <summary className="cursor-pointer text-xs font-semibold text-ink">{locale === "sv" ? `Källor (${evidence.length})` : `Sources (${evidence.length})`}</summary>
-      <ul className="mt-3 grid gap-2">
-        {evidence.map((item) => (
-          <li className="text-xs leading-5 text-ink-muted" key={item.id}>
-            <span className="font-bold text-accent-strong">{item.id}</span>{" "}
-            {item.href ? <Link className="font-medium text-ink hover:underline" href={item.href}>{item.label}</Link> : <span className="font-medium text-ink">{item.label}</span>}
-            {item.sampleSize !== undefined ? ` · n=${item.sampleSize}` : ""}
-            {` · ${new Date(item.asOf).toLocaleString(locale === "sv" ? "sv-SE" : "en-SE", { dateStyle: "medium", timeStyle: "short" })}`}
-            {item.warning ? <span className="block text-ink-subtle">{item.warning}</span> : null}
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
 function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale: Locale; reduceMotion: boolean }) {
   if (message.role === "user") {
     return (
@@ -242,7 +213,7 @@ function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale
       <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-strong"><AnalystMark className="size-4" /></span>
       <div className="min-w-0 flex-1 space-y-3">
         {message.content ? (
-          <Answer evidence={message.evidence} streaming={message.state === "streaming"} text={message.content} />
+          <Answer streaming={message.state === "streaming"} text={message.content} />
         ) : message.state === "streaming" ? (
           <div className="flex items-center gap-2 py-1 text-sm text-ink-muted">
             <span aria-hidden="true" className="flex gap-1">
@@ -256,7 +227,6 @@ function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale
         {message.truncated ? (
           <p className="text-xs text-ink-subtle">{locale === "sv" ? "Snabbt svar — fråga vidare för fler detaljer." : "Quick take — ask a follow-up for more detail."}</p>
         ) : null}
-        {message.evidence.length > 0 ? <SourceList evidence={message.evidence} locale={locale} /> : null}
       </div>
     </motion.div>
   );
