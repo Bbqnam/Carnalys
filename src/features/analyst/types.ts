@@ -26,6 +26,22 @@ export type AnalystToolName =
   | "search_inventory"
   | "compare_listings";
 
+export interface AnalystListingPreview {
+  listingId: string;
+  name: string;
+  variant?: string;
+  modelYear: number;
+  priceAmount: number;
+  mileageKm: number;
+  fuelType: string;
+  transmission: string;
+  sellerType: "dealer" | "private";
+  dealScore: number | null;
+  monthlyCostAmount?: number;
+  marketValueAmount?: number | null;
+  imageUrl?: string;
+}
+
 export interface AnalystEvidence {
   id: string;
   kind: "listing" | "score" | "history" | "cohort" | "comparable" | "search" | "ownership";
@@ -34,6 +50,8 @@ export interface AnalystEvidence {
   sampleSize?: number;
   href?: string;
   warning?: string;
+  /** Structured card data for listing/comparable evidence the UI renders visually. */
+  listing?: AnalystListingPreview;
 }
 
 export interface AnalystToolResult<T = unknown> {
@@ -83,5 +101,6 @@ export interface CompactListing {
   };
   missingFields: readonly string[];
   href: string;
+  imageUrl?: string;
 }
 

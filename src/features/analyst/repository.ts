@@ -62,6 +62,11 @@ const candidateSelect = {
       calculatedAt: true,
     },
   },
+  images: {
+    select: { url: true, thumbnailUrl: true },
+    orderBy: { position: "asc" as const },
+    take: 1,
+  },
 } satisfies Prisma.ListingRecordSelect;
 
 type CandidateRow = Prisma.ListingRecordGetPayload<{ select: typeof candidateSelect }>;
@@ -153,6 +158,7 @@ function compactListing(row: CandidateRow): CompactListing {
       ...(row.vehicle.horsepower === null ? ["engine power"] : []),
     ],
     href: `/vehicle/${row.id}`,
+    imageUrl: row.images[0]?.thumbnailUrl ?? row.images[0]?.url,
   };
 }
 
@@ -214,6 +220,21 @@ export async function getListingAnalysisEvidence(
         label: `${row.vehicle.modelYear} ${row.vehicle.make} ${row.vehicle.model} listing facts`,
         asOf: row.synchronizedAt.toISOString(),
         href: `/vehicle/${row.id}`,
+        listing: {
+          listingId: row.id,
+          name: `${row.vehicle.make} ${row.vehicle.model}`,
+          variant: row.vehicle.variant ?? undefined,
+          modelYear: row.vehicle.modelYear,
+          priceAmount: row.priceAmount,
+          mileageKm: row.mileageKm,
+          fuelType: row.vehicle.fuelType,
+          transmission: row.vehicle.transmission,
+          sellerType: row.sellerType === "private" ? "private" : "dealer",
+          dealScore: row.analysis?.dealScore ?? null,
+          monthlyCostAmount: Math.round(ownership.annualCost.amount / 12),
+          marketValueAmount: row.analysis && row.analysis.comparableCount >= 3 ? row.analysis.marketValueAmount : null,
+          imageUrl: row.images[0]?.thumbnailUrl ?? row.images[0]?.url,
+        },
       },
       {
         id: "stored-analysis",
@@ -603,6 +624,21 @@ export async function searchInventoryEvidence(filters: SearchFilters, finalistId
           label: `${listing.modelYear} ${listing.name}${listing.variant ? ` ${listing.variant}` : ""} · ${listing.mileageKm.toLocaleString("sv-SE")} km · ${listing.priceAmount.toLocaleString("sv-SE")} kr`,
           asOf,
           href: listing.href,
+          listing: {
+            listingId: listing.listingId,
+            name: listing.name,
+            variant: listing.variant,
+            modelYear: listing.modelYear,
+            priceAmount: listing.priceAmount,
+            mileageKm: listing.mileageKm,
+            fuelType: listing.fuelType,
+            transmission: listing.transmission,
+            sellerType: listing.sellerType,
+            dealScore: listing.storedAnalysis.dealScore,
+            monthlyCostAmount: listing.ownership.monthlyCostAmount,
+            marketValueAmount: listing.storedAnalysis.marketValueAmount,
+            imageUrl: listing.imageUrl,
+          },
         })),
       ],
     };

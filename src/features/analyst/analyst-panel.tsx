@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 import { useAccount } from "@/features/auth/account-provider";
 import type { Locale } from "@/features/search/copy";
 import { useAnalystChat, type ThreadMessage } from "./analyst-chat-provider";
-import type { AnalystEvidence } from "./types";
+import type { AnalystEvidence, AnalystListingPreview } from "./types";
 
 function AnalystMark({ className = "" }: { className?: string }) {
   return (
@@ -38,6 +38,14 @@ function ArrowIcon({ className = "" }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
       <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function CarGlyph({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
+      <path d="M4 13.5 5.6 8A2 2 0 0 1 7.5 6.5h9A2 2 0 0 1 18.4 8L20 13.5m-16 0h16m-16 0v4h2.5v-2h11v2H20v-4M7 16.5h.01M17 16.5h.01" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
     </svg>
   );
 }
@@ -106,19 +114,83 @@ function Answer({ text, evidence, streaming = false }: { text: string; evidence:
   );
 }
 
-function ListingCard({ item }: { item: AnalystEvidence }) {
-  const [name, ...rest] = item.label.split(" · ");
+const SEK = { format: (value: number) => `${Math.round(value).toLocaleString("sv-SE")} kr` };
+
+function fuelLabel(fuel: string, locale: Locale) {
+  const sv: Record<string, string> = { petrol: "Bensin", diesel: "Diesel", electric: "El", plug_in_hybrid: "Laddhybrid", self_charging_hybrid: "Hybrid", ethanol: "Etanol", hydrogen: "Vätgas" };
+  const en: Record<string, string> = { petrol: "Petrol", diesel: "Diesel", electric: "Electric", plug_in_hybrid: "Plug-in hybrid", self_charging_hybrid: "Hybrid", ethanol: "Ethanol", hydrogen: "Hydrogen" };
+  return (locale === "sv" ? sv : en)[fuel] ?? fuel;
+}
+
+function transmissionLabel(transmission: string, locale: Locale) {
+  if (transmission === "automatic") return locale === "sv" ? "Automat" : "Automatic";
+  if (transmission === "manual") return locale === "sv" ? "Manuell" : "Manual";
+  return transmission;
+}
+
+function DealScorePill({ score }: { score: number }) {
+  const tone = score >= 80 ? "bg-accent-soft text-accent-strong" : score >= 65 ? "bg-surface-muted text-ink-muted" : "bg-negative-soft text-negative";
+  return <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${tone}`}>{score}</span>;
+}
+
+function ListingCard({ preview, href, index, locale }: { preview: AnalystListingPreview; href: string; index?: number; locale: Locale }) {
+  const mil = Math.round(preview.mileageKm / 10).toLocaleString("sv-SE");
+  const specs = [`${mil} mil`, fuelLabel(preview.fuelType, locale), transmissionLabel(preview.transmission, locale)];
+  const delta = preview.marketValueAmount && preview.marketValueAmount > 0
+    ? Math.round(((preview.priceAmount - preview.marketValueAmount) / preview.marketValueAmount) * 100)
+    : null;
   return (
-    <Link
-      className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5 transition hover:border-border-strong hover:bg-surface-subtle"
-      href={item.href ?? "#"}
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-semibold text-ink">{name}</span>
-        {rest.length ? <span className="mt-0.5 block truncate text-xs text-ink-muted">{rest.join(" · ")}</span> : null}
-      </span>
-      <span className="shrink-0 rounded-md bg-accent-soft p-1 text-accent-strong"><ArrowIcon className="size-3.5" /></span>
+    <Link className="group flex gap-3 rounded-2xl border border-border bg-surface p-2.5 transition hover:border-border-strong hover:shadow-[0_10px_30px_rgba(26,35,29,0.10)]" href={href}>
+      <div className="relative size-[4.25rem] shrink-0 overflow-hidden rounded-xl bg-surface-muted">
+        {preview.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt=""
+            className="size-full object-cover"
+            loading="lazy"
+            onError={(event) => { event.currentTarget.style.display = "none"; }}
+            referrerPolicy="no-referrer"
+            src={preview.imageUrl}
+          />
+        ) : null}
+        <span className="pointer-events-none absolute inset-0 grid place-items-center text-ink-subtle"><CarGlyph className="size-6" /></span>
+        {index ? <span className="absolute left-1 top-1 grid size-4 place-items-center rounded-full bg-ink text-[10px] font-bold text-surface">{index}</span> : null}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 truncate text-[13px] font-semibold text-ink">
+            {preview.modelYear} {preview.name}{preview.variant ? ` ${preview.variant}` : ""}
+          </p>
+          {preview.dealScore != null ? <DealScorePill score={preview.dealScore} /> : null}
+        </div>
+        <p className="mt-0.5 flex items-baseline gap-1.5">
+          <span className="text-sm font-semibold tabular-nums text-ink">{SEK.format(preview.priceAmount)}</span>
+          {delta != null && Math.abs(delta) >= 2 ? (
+            <span className={`text-[11px] font-medium tabular-nums ${delta < 0 ? "text-positive" : "text-ink-subtle"}`}>
+              {delta < 0 ? "" : "+"}{delta}% {locale === "sv" ? "mot marknad" : "vs market"}
+            </span>
+          ) : null}
+        </p>
+        <p className="mt-1 truncate text-[11px] text-ink-muted">{specs.join(" · ")}</p>
+        {preview.monthlyCostAmount ? (
+          <p className="mt-0.5 text-[11px] text-ink-subtle">
+            ≈ {SEK.format(preview.monthlyCostAmount)}/{locale === "sv" ? "mån drift" : "mo to run"}
+          </p>
+        ) : null}
+      </div>
+      <ArrowIcon className="mt-0.5 size-4 shrink-0 self-center text-ink-subtle transition group-hover:translate-x-0.5 group-hover:text-accent-strong" />
     </Link>
+  );
+}
+
+function ListingCards({ items, locale }: { items: readonly AnalystEvidence[]; locale: Locale }) {
+  const multiple = items.length > 1;
+  return (
+    <div className="grid gap-2">
+      {items.map((item, index) => (
+        <ListingCard href={item.href ?? "#"} index={multiple ? index + 1 : undefined} key={item.id} locale={locale} preview={item.listing!} />
+      ))}
+    </div>
   );
 }
 
@@ -158,7 +230,7 @@ function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale
   const thinking = message.status || (locale === "sv" ? "Analyserar…" : "Analysing…");
   const cited = citedIds(message.content);
   const cards = message.state === "complete"
-    ? message.evidence.filter((item) => item.href && (item.kind === "listing" || item.kind === "comparable") && cited.has(item.id))
+    ? message.evidence.filter((item) => item.listing && item.href && cited.has(item.id)).slice(0, 4)
     : [];
   return (
     <motion.div
@@ -180,11 +252,7 @@ function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale
           </div>
         ) : null}
         {message.state === "error" && message.error ? <p className="text-sm text-negative">{message.error}</p> : null}
-        {cards.length ? (
-          <div className="grid gap-2">
-            {cards.map((item) => <ListingCard item={item} key={item.id} />)}
-          </div>
-        ) : null}
+        {cards.length ? <ListingCards items={cards} locale={locale} /> : null}
         {message.truncated ? (
           <p className="text-xs text-ink-subtle">{locale === "sv" ? "Snabbt svar — fråga vidare för fler detaljer." : "Quick take — ask a follow-up for more detail."}</p>
         ) : null}

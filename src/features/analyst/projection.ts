@@ -42,6 +42,11 @@ export const analystListingSelect = {
     orderBy: { label: "asc" as const },
     take: 20,
   },
+  images: {
+    select: { url: true, thumbnailUrl: true },
+    orderBy: { position: "asc" as const },
+    take: 1,
+  },
   analysis: {
     select: {
       marketValueAmount: true,
