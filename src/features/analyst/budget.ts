@@ -2,7 +2,7 @@ export class AnalystBudget {
   turns = 0;
   toolCalls = 0;
 
-  constructor(readonly maximumTurns = 3, readonly maximumToolCalls = 4) {}
+  constructor(readonly maximumTurns = 3, readonly maximumToolCalls = 5) {}
 
   startTurn() {
     if (this.turns >= this.maximumTurns) return false;

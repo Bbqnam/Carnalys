@@ -358,6 +358,13 @@ const marketCandidateSelect = {
   vehicle: { select: { make: true, model: true, fuelType: true, transmission: true, bodyStyle: true, performanceVariant: true, modelYear: true } },
 } satisfies Prisma.ListingRecordSelect;
 
+// constructIndependentCohort never looks past ±8 model years, so the SQL pull
+// is bounded the same way — for a popular model that turns a multi-thousand-row
+// scan into a few hundred. The row cap is a backstop for the rare model that
+// still has more than this many active adverts inside that window.
+const MARKET_YEAR_SPAN = 8;
+const MARKET_POOL_CAP = 1_200;
+
 export async function analyseListingMarketEvidence(listingId: string): Promise<AnalystToolResult> {
   await initializeDatabase();
   const [freshness, catalogFreshness] = await Promise.all([
@@ -387,15 +394,23 @@ export async function analyseListingMarketEvidence(listingId: string): Promise<A
         priceAmount: { gte: 3_000, lte: 3_000_000 },
         mileageKm: { gte: 0, lte: 1_000_000 },
       } satisfies Prisma.ListingRecordWhereInput;
+      const targetModelYear = targetRow.vehicle.modelYear;
       const sameModelRows = await prisma.listingRecord.findMany({
-        where: { ...plausibleWhere, vehicle: { is: { make: targetRow.vehicle.make, model: targetRow.vehicle.model } } },
+        where: {
+          ...plausibleWhere,
+          vehicle: { is: {
+            make: targetRow.vehicle.make,
+            model: targetRow.vehicle.model,
+            modelYear: { gte: targetModelYear - MARKET_YEAR_SPAN, lte: targetModelYear + MARKET_YEAR_SPAN },
+          } },
+        },
         select: marketCandidateSelect,
         orderBy: [{ synchronizedAt: "desc" }, { id: "asc" }],
-        take: 2_001,
+        take: MARKET_POOL_CAP + 1,
       });
       const filterPlausible = (rows: typeof sameModelRows) => rows
         .filter((row) => row.priceAmount >= minimumPlausibleAskingPrice(row.vehicle.modelYear, currentYear))
-        .slice(0, 2_000)
+        .slice(0, MARKET_POOL_CAP)
         .map(marketCandidate);
       const target: AnalystMarketTarget = {
         ...marketCandidate(targetRow),
@@ -415,12 +430,12 @@ export async function analyseListingMarketEvidence(listingId: string): Promise<A
           },
           select: marketCandidateSelect,
           orderBy: [{ synchronizedAt: "desc" }, { id: "asc" }],
-          take: 2_001,
+          take: MARKET_POOL_CAP + 1,
         });
-        fallbackCapped = fallbackRows.length > 2_000;
+        fallbackCapped = fallbackRows.length > MARKET_POOL_CAP;
         cohort = constructIndependentCohort(target, sameModel, filterPlausible(fallbackRows));
       }
-      const capped = sameModelRows.length > 2_000 || fallbackCapped;
+      const capped = sameModelRows.length > MARKET_POOL_CAP || fallbackCapped;
       const valuation = valueVehicle(
         { ageYears: currentYear - target.modelYear, mileageKm: target.mileageKm },
         valuationComparables(cohort.candidates, currentYear),
@@ -439,7 +454,7 @@ export async function analyseListingMarketEvidence(listingId: string): Promise<A
       const usableMarketValue = priceAssessment.usable ? valuation.marketValue : null;
       const warnings = [
         ...cohort.warnings,
-        ...(capped ? ["The eligible pool exceeded the 2,000-row safety cap; the newest 2,000 were evaluated."] : []),
+        ...(capped ? [`The eligible pool exceeded the ${MARKET_POOL_CAP.toLocaleString("en-US")}-row safety cap; the newest ${MARKET_POOL_CAP.toLocaleString("en-US")} were evaluated.`] : []),
         ...(!priceAssessment.usable ? [`The target asking price was quarantined as ${priceAssessment.reason}; no fair-price conclusion is defensible.`] : []),
         ...(priceAssessment.cautious ? ["The asking price is unusually low and should be independently verified."] : []),
       ];
@@ -557,7 +572,9 @@ export async function searchInventoryEvidence(filters: SearchFilters, finalistId
     ];
     const [total, batches] = await Promise.all([
       prisma.listingRecord.count({ where }),
-      inLanes(views, 2, (orderBy) => prisma.listingRecord.findMany({ where, select: candidateSelect, orderBy, take: 75 })),
+      // The views are independent reads; run them all at once rather than two
+      // at a time so search latency is one round-trip, not three.
+      inLanes(views, views.length, (orderBy) => prisma.listingRecord.findMany({ where, select: candidateSelect, orderBy, take: 75 })),
     ]);
     // Roughly 5% of the catalogue advertises a leasing monthly rate or a
     // "call for price" placeholder in priceAmount, not the car's price. Drop
@@ -647,7 +664,8 @@ export async function searchInventoryEvidence(filters: SearchFilters, finalistId
 
 export async function compareListingsEvidence(listingIds: readonly string[]): Promise<AnalystToolResult> {
   const ordered = [...listingIds].slice(0, 3);
-  const pairs = orderByRequestedIds(ordered, await inLanes(ordered, 2, async (listingId) => {
+  // Two or three cars, each an independent read pair — fan them all out.
+  const pairs = orderByRequestedIds(ordered, await inLanes(ordered, ordered.length, async (listingId) => {
     const [listing, market] = await Promise.all([
       getListingAnalysisEvidence(listingId, false),
       analyseListingMarketEvidence(listingId),

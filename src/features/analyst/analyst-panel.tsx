@@ -77,6 +77,29 @@ function citedIds(text: string) {
   return ids;
 }
 
+// Which listing cards belong under an answer. Citations are the primary signal,
+// but a low-effort model sometimes names a car without the [E#] tag — so fall
+// back to matching the car's name in the prose, and, when the whole answer is
+// about a known small set (a listing page, a comparison), just show that set.
+function cardsForAnswer(evidence: readonly AnalystEvidence[], text: string) {
+  const listings = evidence.filter((item) => item.listing && item.href);
+  if (listings.length === 0) return [];
+  const cited = citedIds(text);
+  const byCitation = listings.filter((item) => cited.has(item.id));
+  if (byCitation.length) return byCitation.slice(0, 4);
+
+  const hay = text.toLowerCase();
+  const byName = listings.filter((item) => {
+    const preview = item.listing!;
+    const name = preview.name.toLowerCase();
+    const model = name.split(" ").at(-1) ?? name;
+    return hay.includes(name) || (model.length > 1 && hay.includes(model) && hay.includes(String(preview.modelYear)));
+  });
+  if (byName.length) return byName.slice(0, 4);
+
+  return listings.length <= 3 ? listings.slice(0, 3) : [];
+}
+
 // The analyst writes for people, not for the citation scheme: strip any
 // Markdown it slips in, and remove the [E1] evidence markers entirely — the
 // car cards below the message are the visible reference.
@@ -193,10 +216,7 @@ function Row({ message, locale }: { message: ThreadMessage; locale: Locale }) {
   }
 
   const thinking = message.status || (locale === "sv" ? "Analyserar…" : "Analysing…");
-  const cited = citedIds(message.content);
-  const cards = message.state === "complete"
-    ? message.evidence.filter((item) => item.listing && item.href && cited.has(item.id)).slice(0, 4)
-    : [];
+  const cards = message.state === "complete" ? cardsForAnswer(message.evidence, message.content) : [];
   return (
     <div className="rise-in flex items-start gap-2.5">
       <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-strong"><AnalystMark className="size-4" /></span>
@@ -221,6 +241,18 @@ function Row({ message, locale }: { message: ThreadMessage; locale: Locale }) {
   );
 }
 
+function contextLine(surface: "listing" | "search" | "comparison", label: string | null, locale: Locale) {
+  if (surface === "listing") {
+    return label
+      ? (locale === "sv" ? `Om ${label}` : `About ${label}`)
+      : (locale === "sv" ? "Om den här bilen" : "About this car");
+  }
+  if (surface === "comparison") {
+    return locale === "sv" ? "Bilarna du jämför" : "The cars you're comparing";
+  }
+  return locale === "sv" ? "Hela Carnalys-lagret" : "Across all Carnalys cars";
+}
+
 function prefersReducedMotion() {
   return typeof window !== "undefined"
     && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -228,7 +260,7 @@ function prefersReducedMotion() {
 
 export function AnalystPanel({ locale, onClose }: { locale: Locale; onClose?: () => void }) {
   const { user } = useAccount();
-  const { messages, running, pageSurface, ask, stop, reset } = useAnalystChat();
+  const { messages, running, pageSurface, pageLabel, ask, stop, reset } = useAnalystChat();
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const active = messages.length > 0;
@@ -261,8 +293,9 @@ export function AnalystPanel({ locale, onClose }: { locale: Locale; onClose?: ()
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-[14px] font-semibold tracking-[-0.02em] text-ink">Ask Carnalys</h2>
-          <p className="text-[11px] leading-4 text-ink-muted">
-            {locale === "sv" ? "Verifierad marknadsdata, förklarad enkelt." : "Verified market data, explained clearly."}
+          <p className="flex items-center gap-1 truncate text-[11px] leading-4 text-ink-muted" title={contextLine(pageSurface, pageLabel, locale)}>
+            <CarGlyph className="size-3 shrink-0 text-ink-subtle" />
+            <span className="truncate">{contextLine(pageSurface, pageLabel, locale)}</span>
           </p>
         </div>
         {active ? (

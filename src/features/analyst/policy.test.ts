@@ -7,15 +7,15 @@ import { untrustedMarketplaceText } from "./safety";
 import { analystInstructions } from "./prompt";
 import { withAbortAndTimeout } from "./async-control";
 
-test("tool and turn budgets cannot exceed three model turns and four tool calls", () => {
+test("tool and turn budgets cannot exceed three model turns and five tool calls", () => {
   const budget = new AnalystBudget();
   assert.equal(budget.startTurn(), true);
   assert.equal(budget.startTurn(), true);
   assert.equal(budget.startTurn(), true);
   assert.equal(budget.startTurn(), false);
-  assert.equal(budget.reserveToolCalls(4), true);
+  assert.equal(budget.reserveToolCalls(5), true);
   assert.equal(budget.reserveToolCalls(1), false);
-  assert.equal(budget.toolCalls, 4);
+  assert.equal(budget.toolCalls, 5);
 });
 
 test("comparison ordering follows the request, not database return order", () => {

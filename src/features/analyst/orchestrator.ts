@@ -16,7 +16,10 @@ import type { AnalystRequest } from "./types";
 import { AnalystBudget } from "./budget";
 
 export const MAX_MODEL_TURNS = 3;
-export const MAX_TOOL_CALLS = 4;
+// A search plus a finalist deep-dive plus an independent market check should
+// all fit without forcing a truncated synthesis. The prompt tells the model
+// how to spend these (compare_listings once, not per-car).
+export const MAX_TOOL_CALLS = 5;
 
 export type { AnalystRunResult };
 

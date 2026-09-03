@@ -168,8 +168,11 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   } = useCompare();
   const { location, status: locationStatus, requestCurrentLocation } = useCurrentLocation();
   const { vehicle, listing, analysis } = result;
-  useAnalystPageContext({ surface: "listing", listingId: listing.id });
   const { identity, specification } = vehicle;
+  useAnalystPageContext(
+    { surface: "listing", listingId: listing.id },
+    `${identity.modelYear} ${identity.make} ${identity.model}`,
+  );
   const copy = uiCopy[locale];
   const moneyFormatter = createMoneyFormatter(locale);
   const numberFormatter = createNumberFormatter(locale);

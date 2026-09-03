@@ -29,7 +29,9 @@ interface AnalystChatValue {
   open: boolean;
   /** Surface of the page the user is currently on, for context-aware prompts. */
   pageSurface: AnalystContext["surface"];
-  setPageContext: (context: AnalystContext | null) => void;
+  /** Human label for what the chat is currently looking at (e.g. a car name). */
+  pageLabel: string | null;
+  setPageContext: (context: AnalystContext | null, label?: string | null) => void;
   setOpen: (value: boolean) => void;
   toggle: () => void;
   ask: (text: string) => void;
@@ -78,6 +80,24 @@ function funStatus(locale: Locale) {
   return pool[index];
 }
 
+// The line shown the instant the user sends, held until the first real answer
+// token replaces it. On a specific car or a comparison the model can go quiet
+// for ten or twenty seconds gathering evidence, so name what it's looking at;
+// when the user is just browsing, a playful line is friendlier than echoing
+// their half-formed query back at them.
+function openingLine(context: AnalystContext, label: string | null, locale: Locale) {
+  const sv = locale === "sv";
+  if (context.surface === "listing") {
+    return label
+      ? (sv ? `Tittar på ${label}…` : `Looking at the ${label}…`)
+      : (sv ? "Tittar på den här bilen…" : "Looking at this car…");
+  }
+  if (context.surface === "comparison") {
+    return sv ? "Ställer bilarna mot varandra…" : "Lining up the cars you're comparing…";
+  }
+  return funStatus(locale);
+}
+
 function recentPairs(messages: readonly ThreadMessage[]): AnalystConversationMessage[] {
   const pairs: AnalystConversationMessage[] = [];
   for (let index = 0; index < messages.length; index += 1) {
@@ -96,9 +116,11 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
   const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [pageSurface, setPageSurface] = useState<AnalystContext["surface"]>("search");
+  const [pageLabel, setPageLabel] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<readonly ThreadMessage[]>([]);
   const pageContextRef = useRef<AnalystContext | null>(null);
+  const pageLabelRef = useRef<string | null>(null);
   const idRef = useRef(0);
   const localeRef = useRef<Locale>(initialLocale);
 
@@ -109,9 +131,11 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
   // Pages register their own context (a listing, a comparison, the active
   // search) so a question inherits where the user is. Filters live only in the
   // ref, so typing a search filter does not re-render the whole app tree.
-  const setPageContext = useCallback((context: AnalystContext | null) => {
+  const setPageContext = useCallback((context: AnalystContext | null, label?: string | null) => {
     pageContextRef.current = context;
+    pageLabelRef.current = label ?? null;
     setPageSurface(context?.surface ?? "search");
+    setPageLabel(label ?? null);
   }, []);
 
   useEffect(() => {
@@ -167,11 +191,14 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
     const assistantId = `m${(idRef.current += 1)}`;
     const conversation = recentPairs(messagesRef.current);
     const context = pageContextRef.current ?? inventoryContext;
+    // Shown immediately, held for the whole answer — the server's status pings
+    // just keep it alive, they never re-roll it.
+    const workingLine = openingLine(context, pageLabelRef.current, locale);
 
     setMessages((current) => [
       ...current,
       { id: `${assistantId}-u`, role: "user", content: trimmed, evidence: [], status: "", state: "complete" },
-      { id: assistantId, role: "assistant", content: "", evidence: [], status: funStatus(locale), state: "streaming" },
+      { id: assistantId, role: "assistant", content: "", evidence: [], status: workingLine, state: "streaming" },
     ]);
     setRunning(true);
 
@@ -203,13 +230,8 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
           for (const line of lines) {
             if (!line.trim()) continue;
             const event = JSON.parse(line) as AnalystStreamEvent;
-            if (event.type === "status") {
-              // The server's status text is functional ("Interpreting evidence…").
-              // Swap in a playful car-themed line instead; the spinner already
-              // says "working".
-              const message = funStatus(locale);
-              patch((current) => ({ ...current, status: message }));
-            }
+            // `status` events are only a keep-alive now — the playful line was
+            // picked once per question and stays put so it doesn't flicker.
             if (event.type === "delta" && event.delta) {
               streamed = event.replace ? event.delta : streamed + event.delta;
               patch((current) => ({ ...current, content: streamed }));
@@ -242,8 +264,8 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
   }, []);
 
   const value = useMemo<AnalystChatValue>(
-    () => ({ messages, running, open, pageSurface, setPageContext, setOpen, toggle, ask, stop, reset }),
-    [messages, running, open, pageSurface, setPageContext, toggle, ask, stop, reset],
+    () => ({ messages, running, open, pageSurface, pageLabel, setPageContext, setOpen, toggle, ask, stop, reset }),
+    [messages, running, open, pageSurface, pageLabel, setPageContext, toggle, ask, stop, reset],
   );
 
   return <AnalystChatContext.Provider value={value}>{children}</AnalystChatContext.Provider>;
@@ -260,17 +282,19 @@ export function useAnalystChat() {
  * active search). A question asked from that page inherits it; on unmount the
  * context reverts to the whole-inventory fallback.
  */
-export function useAnalystPageContext(context: AnalystContext | null) {
+export function useAnalystPageContext(context: AnalystContext | null, label?: string | null) {
   const { setPageContext } = useAnalystChat();
   const contextRef = useRef(context);
-  const key = context ? JSON.stringify(context) : "";
+  const labelRef = useRef(label ?? null);
+  const key = `${context ? JSON.stringify(context) : ""}|${label ?? ""}`;
 
   useEffect(() => {
     contextRef.current = context;
-  }, [context]);
+    labelRef.current = label ?? null;
+  }, [context, label]);
 
   useEffect(() => {
-    setPageContext(contextRef.current);
+    setPageContext(contextRef.current, labelRef.current);
     return () => setPageContext(null);
   }, [key, setPageContext]);
 }
