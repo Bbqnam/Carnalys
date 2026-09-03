@@ -2,10 +2,11 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useAccount } from "@/features/auth/account-provider";
 import type { Locale } from "@/features/search/copy";
-import type { AnalystContext, AnalystConversationMessage, AnalystEvidence, AnalystStreamEvent } from "./types";
+import { useAnalystChat, type ThreadMessage } from "./analyst-chat-provider";
+import type { AnalystEvidence } from "./types";
 
 function AnalystMark({ className = "" }: { className?: string }) {
   return (
@@ -41,35 +42,43 @@ function ArrowIcon({ className = "" }: { className?: string }) {
   );
 }
 
-function suggestions(surface: AnalystContext["surface"], locale: Locale) {
-  const en = {
-    listing: ["Analyse this car.", "Explain its Deal Score.", "Is the asking price fair?", "Find better alternatives.", "Show its price history."],
-    search: ["Best value", "Automatic estate under 180,000 SEK", "Lower-mileage alternatives"],
-    comparison: ["Which is the safest market choice?", "Which has the lowest total cost?", "Compare them for space and newer technology."],
-  } as const;
-  const sv = {
-    listing: ["Analysera den här bilen.", "Förklara bilens Deal Score.", "Är priset rimligt?", "Hitta bättre alternativ.", "Visa prishistoriken."],
-    search: ["Bäst värde", "Automatkombi under 180 000 kr", "Alternativ med lägre miltal"],
-    comparison: ["Vilken är det tryggaste marknadsvalet?", "Vilken har lägst total kostnad?", "Jämför utrymme och nyare teknik."],
-  } as const;
-  return (locale === "sv" ? sv : en)[surface];
+function CloseIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
+      <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
+  );
 }
 
-interface ThreadMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  evidence: readonly AnalystEvidence[];
-  status: string;
-  state: "streaming" | "complete" | "error";
-  error?: string;
-  truncated?: boolean;
+function suggestions(surface: "listing" | "search" | "comparison", locale: Locale) {
+  const en = {
+    listing: ["Does this car look OK?", "Is the asking price fair?", "What are the risks here?", "Show cheaper alternatives"],
+    search: ["Best value right now", "Automatic estate under 180,000 SEK", "Reliable commuter, low running cost"],
+    comparison: ["Which is the best buy?", "Which is cheapest to own?", "Which has the strongest resale?"],
+  } as const;
+  const sv = {
+    listing: ["Ser den här bilen bra ut?", "Är priset rimligt?", "Vilka är riskerna?", "Visa billigare alternativ"],
+    search: ["Bäst värde just nu", "Automatkombi under 180 000 kr", "Pålitlig pendlarbil, låg ägandekostnad"],
+    comparison: ["Vilken är bästa köpet?", "Vilken är billigast att äga?", "Vilken håller värdet bäst?"],
+  } as const;
+  return (locale === "sv" ? sv : en)[surface];
 }
 
 function citedIds(text: string) {
   const ids = new Set<string>();
   for (const match of text.matchAll(/\[(E\d+)\]/g)) ids.add(match[1]);
   return ids;
+}
+
+// The analyst is told to write plain text, but models still slip in Markdown.
+// Strip the common markers so they don't render as literal ** and # in the UI.
+function stripMarkdown(text: string) {
+  return text
+    .replace(/\*\*([\s\S]+?)\*\*/g, "$1")
+    .replace(/__([\s\S]+?)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/(^|\n)[ \t]*#{1,6}[ \t]+/g, "$1")
+    .replace(/(^|\n)[ \t]*[*-][ \t]+/g, "$1• ");
 }
 
 function EvidenceCitation({ id, evidence }: { id: string; evidence: readonly AnalystEvidence[] }) {
@@ -83,7 +92,7 @@ function EvidenceCitation({ id, evidence }: { id: string; evidence: readonly Ana
 }
 
 function Answer({ text, evidence, streaming = false }: { text: string; evidence: readonly AnalystEvidence[]; streaming?: boolean }) {
-  const parts = text.split(/(\[E\d+\])/g);
+  const parts = stripMarkdown(text).split(/(\[E\d+\])/g);
   return (
     <div className="whitespace-pre-wrap text-sm leading-6 text-ink">
       {parts.map((part, index) => {
@@ -185,28 +194,24 @@ function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale
   );
 }
 
-export function AnalystPanel({
-  context,
-  locale,
-  compact = false,
-}: {
-  context: AnalystContext;
-  locale: Locale;
-  compact?: boolean;
-}) {
+export function AnalystPanel({ locale, onClose }: { locale: Locale; onClose?: () => void }) {
   const { user } = useAccount();
-  const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState<ThreadMessage[]>([]);
-  const [running, setRunning] = useState(false);
-  const controllerRef = useRef<AbortController | null>(null);
+  const { messages, running, pageSurface, ask, stop, reset } = useAnalystChat();
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const idRef = useRef(0);
-  const prompts = useMemo(() => suggestions(context.surface, locale), [context.surface, locale]);
   const reduceMotion = useReducedMotion() ?? false;
   const active = messages.length > 0;
+  const prompts = suggestions(pageSurface, locale);
 
-  useEffect(() => () => controllerRef.current?.abort(), []);
+  function submit() {
+    const value = inputRef.current?.value ?? "";
+    if (!value.trim() || running) return;
+    ask(value);
+    if (inputRef.current) {
+      inputRef.current.value = "";
+      inputRef.current.style.height = "auto";
+    }
+  }
 
   useEffect(() => {
     const element = threadRef.current;
@@ -214,191 +219,112 @@ export function AnalystPanel({
     element.scrollTo({ top: element.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
   }, [messages, reduceMotion]);
 
-  useEffect(() => {
-    const element = inputRef.current;
-    if (!element) return;
-    element.style.height = "0px";
-    element.style.height = `${Math.min(element.scrollHeight, 132)}px`;
-  }, [question]);
-
-  function priorConversation(): AnalystConversationMessage[] {
-    const pairs: AnalystConversationMessage[] = [];
-    for (let index = 0; index < messages.length; index += 1) {
-      const current = messages[index];
-      const next = messages[index + 1];
-      if (current.role === "user" && next && next.role === "assistant" && next.state === "complete" && next.content) {
-        pairs.push({ role: "user", content: current.content }, { role: "assistant", content: next.content });
-      }
-    }
-    return pairs.slice(-4);
-  }
-
-  function resetThread() {
-    controllerRef.current?.abort();
-    controllerRef.current = null;
-    setMessages([]);
-    setQuestion("");
-    setRunning(false);
-  }
-
-  async function ask(rawMessage = question) {
-    const trimmed = rawMessage.trim();
-    if (!trimmed || running) return;
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    const conversation = priorConversation();
-    const assistantId = `m${(idRef.current += 1)}`;
-    setQuestion("");
-    setMessages((current) => [
-      ...current,
-      { id: `${assistantId}-u`, role: "user", content: trimmed, evidence: [], status: "", state: "complete" },
-      { id: assistantId, role: "assistant", content: "", evidence: [], status: locale === "sv" ? "Startar analys…" : "Starting analysis…", state: "streaming" },
-    ]);
-    setRunning(true);
-
-    const patch = (apply: (message: ThreadMessage) => ThreadMessage) =>
-      setMessages((current) => current.map((message) => (message.id === assistantId ? apply(message) : message)));
-
-    try {
-      const response = await fetch("/api/analyst", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: trimmed, locale, context, conversation }),
-        signal: controller.signal,
-      });
-      if (!response.ok || !response.body) {
-        const payload = await response.json().catch(() => ({})) as { error?: string };
-        throw new Error(payload.error ?? (locale === "sv" ? "Analysen kunde inte startas." : "The analysis could not start."));
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let streamed = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const event = JSON.parse(line) as AnalystStreamEvent;
-          if (event.type === "status" && event.message) {
-            const message = event.message;
-            patch((current) => ({ ...current, status: message }));
-          }
-          if (event.type === "delta" && event.delta) {
-            streamed += event.delta;
-            patch((current) => ({ ...current, content: streamed }));
-          }
-          if (event.type === "evidence") {
-            patch((current) => ({ ...current, evidence: [...(event.evidence ?? [])], truncated: event.truncated }));
-          }
-          if (event.type === "error") throw new Error(event.message ?? (locale === "sv" ? "Analysen misslyckades." : "Analysis failed."));
-        }
-      }
-      patch((current) => ({ ...current, state: "complete", status: "" }));
-    } catch (caught) {
-      if (controller.signal.aborted) {
-        patch((current) => current.content
-          ? { ...current, state: "complete", status: "" }
-          : { ...current, state: "error", status: "", error: locale === "sv" ? "Analysen avbröts." : "Analysis cancelled." });
-      } else {
-        const message = caught instanceof Error ? caught.message : (locale === "sv" ? "Analysen misslyckades." : "Analysis failed.");
-        patch((current) => ({ ...current, state: "error", status: "", error: message }));
-      }
-    } finally {
-      if (controllerRef.current === controller) controllerRef.current = null;
-      setRunning(false);
-    }
-  }
-
   return (
-    <section
-      aria-label="Ask Carnalys"
-      className={`flex flex-col rounded-[1.5rem] border border-border bg-surface/90 shadow-[0_14px_45px_rgba(26,35,29,0.07)] backdrop-blur-md ${compact ? "p-4 sm:p-5" : "p-5 sm:p-6"} ${active ? (compact ? "h-[30rem]" : "h-[min(34rem,72vh)]") : ""}`}
-    >
-      <div className="flex shrink-0 items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-strong">
-          <AnalystMark className="size-[18px]" />
+    <section aria-label="Ask Carnalys" className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-border bg-surface shadow-[0_24px_60px_rgba(26,35,29,0.18)]">
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-strong">
+          <AnalystMark className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Ask Carnalys</h2>
-          <p className="mt-0.5 text-xs leading-4 text-ink-muted">
+          <h2 className="text-[14px] font-semibold tracking-[-0.02em] text-ink">Ask Carnalys</h2>
+          <p className="text-[11px] leading-4 text-ink-muted">
             {locale === "sv" ? "Verifierad marknadsdata, förklarad enkelt." : "Verified market data, explained clearly."}
           </p>
         </div>
         {active ? (
           <button
             className="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-ink-muted transition hover:bg-surface-muted hover:text-ink"
-            onClick={resetThread}
+            onClick={reset}
             type="button"
           >
             {locale === "sv" ? "Ny fråga" : "New chat"}
           </button>
         ) : null}
+        {onClose ? (
+          <button
+            aria-label={locale === "sv" ? "Stäng" : "Close"}
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-ink-muted transition hover:bg-surface-muted hover:text-ink"
+            onClick={onClose}
+            type="button"
+          >
+            <CloseIcon className="size-4" />
+          </button>
+        ) : null}
       </div>
 
-      {!user ? (
-        <div className="mt-4 flex items-center justify-between gap-4 border-t border-border pt-4">
-          <p className="text-xs leading-5 text-ink-muted">{locale === "sv" ? "Logga in för att fråga om bilarna." : "Sign in to ask about the cars."}</p>
-          <Link className="inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-ink px-4 text-xs font-semibold text-surface transition hover:opacity-90 active:scale-[0.98]" href="/login">{locale === "sv" ? "Logga in" : "Sign in"}</Link>
-        </div>
-      ) : (
-        <>
-          {active ? (
-            <div
-              aria-busy={running}
-              aria-live="polite"
-              className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1"
-              ref={threadRef}
-            >
-              {messages.map((message) => (
-                <Row key={message.id} locale={locale} message={message} reduceMotion={reduceMotion} />
-              ))}
-            </div>
-          ) : null}
-
-          <form className={active ? "mt-3 shrink-0" : "mt-4"} onSubmit={(event) => { event.preventDefault(); void ask(); }}>
-            <div className="flex items-end gap-1.5 rounded-[1.1rem] border border-border-strong bg-background p-1 shadow-sm transition duration-200 focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/10">
-              <label className="sr-only" htmlFor={`analyst-${context.surface}`}>{locale === "sv" ? "Fråga Carnalys" : "Ask Carnalys"}</label>
-              <textarea
-                className="max-h-[132px] min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-6 text-ink outline-none placeholder:text-ink-subtle"
-                disabled={running}
-                id={`analyst-${context.surface}`}
-                maxLength={600}
-                onChange={(event) => setQuestion(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void ask();
-                  }
-                }}
-                placeholder={active
-                  ? (locale === "sv" ? "Ställ en följdfråga…" : "Ask a follow-up…")
-                  : (locale === "sv" ? "Fråga om bilen eller marknaden…" : "Ask about the car or market…")}
-                ref={inputRef}
-                rows={1}
-                value={question}
-              />
-              {running ? (
-                <button aria-label={locale === "sv" ? "Avbryt analys" : "Cancel analysis"} className="mb-px grid size-10 shrink-0 place-items-center rounded-[0.9rem] border border-border bg-surface text-ink transition hover:bg-surface-muted" onClick={() => controllerRef.current?.abort()} type="button"><StopIcon className="size-4" /></button>
-              ) : (
-                <button aria-label={locale === "sv" ? "Analysera" : "Analyse"} className="mb-px grid size-10 shrink-0 place-items-center rounded-[0.9rem] bg-ink text-surface transition duration-200 hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-subtle" disabled={!question.trim()} type="submit"><SendIcon className="size-[18px]" /></button>
-              )}
-            </div>
-          </form>
-
-          {!active ? (
-            <div className="mt-3 flex flex-wrap gap-2">
+      <div aria-busy={running} aria-live="polite" className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4" ref={threadRef}>
+        {active ? (
+          messages.map((message) => <Row key={message.id} locale={locale} message={message} reduceMotion={reduceMotion} />)
+        ) : (
+          <div className="flex h-full flex-col justify-end gap-3">
+            <p className="text-sm leading-6 text-ink-muted">
+              {pageSurface === "listing"
+                ? (locale === "sv"
+                  ? "Fråga om den här bilen — pris mot marknaden, ägandekostnad, prishistorik och risker."
+                  : "Ask about this car — price versus the market, ownership cost, price history, and risks.")
+                : pageSurface === "comparison"
+                  ? (locale === "sv"
+                    ? "Fråga om bilarna du jämför — bästa köpet, ägandekostnad och andrahandsvärde."
+                    : "Ask about the cars you're comparing — best buy, ownership cost, and resale.")
+                  : (locale === "sv"
+                    ? "Fråga om vilken bil som helst på Carnalys — pris mot marknaden, ägandekostnad och bäst värde just nu."
+                    : "Ask about any car on Carnalys — price versus the market, ownership cost, and the best value right now.")}
+            </p>
+            <div className="flex flex-wrap gap-2">
               {prompts.map((prompt) => (
-                <button className="rounded-full bg-surface-muted px-3 py-1.5 text-[11px] font-medium text-ink-muted transition hover:bg-accent-soft hover:text-accent-strong disabled:opacity-50" disabled={running} key={prompt} onClick={() => void ask(prompt)} type="button">
+                <button
+                  className="rounded-full bg-surface-muted px-3 py-1.5 text-[11px] font-medium text-ink-muted transition hover:bg-accent-soft hover:text-accent-strong disabled:opacity-50"
+                  disabled={running || !user}
+                  key={prompt}
+                  onClick={() => ask(prompt)}
+                  type="button"
+                >
                   {prompt}
                 </button>
               ))}
             </div>
-          ) : null}
-        </>
+          </div>
+        )}
+      </div>
+
+      {!user ? (
+        <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border px-4 py-3">
+          <p className="text-xs leading-5 text-ink-muted">{locale === "sv" ? "Logga in för att fråga om bilarna." : "Sign in to ask about the cars."}</p>
+          <Link className="inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-ink px-4 text-xs font-semibold text-surface transition hover:opacity-90 active:scale-[0.98]" href="/login">{locale === "sv" ? "Logga in" : "Sign in"}</Link>
+        </div>
+      ) : (
+        <form className="shrink-0 border-t border-border px-3 py-3" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+          <div className="flex items-end gap-1.5 rounded-[1.1rem] border border-border-strong bg-background p-1 shadow-sm transition duration-200 focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/10">
+            <label className="sr-only" htmlFor="analyst-chat-input">{locale === "sv" ? "Fråga Carnalys" : "Ask Carnalys"}</label>
+            <textarea
+              className="max-h-[132px] min-h-9 min-w-0 flex-1 resize-none bg-transparent px-3 py-1.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-subtle"
+              disabled={running}
+              id="analyst-chat-input"
+              maxLength={600}
+              onInput={(event) => {
+                const element = event.currentTarget;
+                element.style.height = "auto";
+                element.style.height = `${Math.min(element.scrollHeight, 132)}px`;
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  submit();
+                }
+              }}
+              placeholder={active
+                ? (locale === "sv" ? "Ställ en följdfråga…" : "Ask a follow-up…")
+                : (locale === "sv" ? "Fråga om bilen eller marknaden…" : "Ask about the car or market…")}
+              ref={inputRef}
+              rows={1}
+            />
+            {running ? (
+              <button aria-label={locale === "sv" ? "Avbryt analys" : "Cancel analysis"} className="mb-px grid size-10 shrink-0 place-items-center rounded-[0.9rem] border border-border bg-surface text-ink transition hover:bg-surface-muted" onClick={stop} type="button"><StopIcon className="size-4" /></button>
+            ) : (
+              <button aria-label={locale === "sv" ? "Analysera" : "Analyse"} className="mb-px grid size-10 shrink-0 place-items-center rounded-[0.9rem] bg-ink text-surface transition duration-200 hover:opacity-90 active:scale-95" type="submit"><SendIcon className="size-[18px]" /></button>
+            )}
+          </div>
+        </form>
       )}
     </section>
   );

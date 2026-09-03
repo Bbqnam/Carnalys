@@ -538,7 +538,14 @@ export async function searchInventoryEvidence(filters: SearchFilters, finalistId
       prisma.listingRecord.count({ where }),
       inLanes(views, 2, (orderBy) => prisma.listingRecord.findMany({ where, select: candidateSelect, orderBy, take: 75 })),
     ]);
-    const rows = [...new Map(batches.flat().map((row) => [row.id, row])).values()].slice(0, 300);
+    // Roughly 5% of the catalogue advertises a leasing monthly rate or a
+    // "call for price" placeholder in priceAmount, not the car's price. Drop
+    // anything below the age-relative plausibility floor so those do not top
+    // the ranking as impossibly cheap. Mirrors analyse_listing_market.
+    const currentYear = new Date().getFullYear();
+    const rows = [...new Map(batches.flat().map((row) => [row.id, row])).values()]
+      .filter((row) => row.priceAmount >= minimumPlausibleAskingPrice(row.vehicle.modelYear, currentYear))
+      .slice(0, 300);
     const mapped = rows.map(compactListing);
     const years = mapped.map((row) => row.modelYear);
     const mileages = mapped.map((row) => row.mileageKm);

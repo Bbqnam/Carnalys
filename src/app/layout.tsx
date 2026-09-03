@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { cookies } from "next/headers";
 import { themeInitScript } from "@/features/search/theme";
 import { AccountProvider } from "@/features/auth/account-provider";
 import { getAccountBootstrap } from "@/features/auth/session";
+import { AnalystChatProvider } from "@/features/analyst/analyst-chat-provider";
+import { AnalystLauncher } from "@/features/analyst/analyst-launcher";
+import { defaultLocale, isLocale, localeCookieName } from "@/features/search/locale";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,7 +21,9 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const account = await getAccountBootstrap();
+  const [account, cookieStore] = await Promise.all([getAccountBootstrap(), cookies()]);
+  const localeCookie = cookieStore.get(localeCookieName)?.value;
+  const locale = isLocale(localeCookie) ? localeCookie : defaultLocale;
   return (
     <html
       lang="en"
@@ -35,7 +41,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           initialUser={account.user}
           key={account.user?.id ?? "guest"}
         >
-          {children}
+          <AnalystChatProvider initialLocale={locale}>
+            {children}
+            <AnalystLauncher initialLocale={locale} />
+          </AnalystChatProvider>
         </AccountProvider>
       </body>
     </html>

@@ -44,7 +44,7 @@ import { useFavorites } from "@/features/search/use-favorites";
 import type { VehicleSearchResult } from "@/features/search/types";
 import { estimateFuelConsumptionL100km, type ScoreFactor } from "@/domain/vehicle";
 import { SourceLogo } from "@/features/source/source-logo";
-import { AnalystPanel } from "@/features/analyst/analyst-panel";
+import { useAnalystPageContext } from "@/features/analyst/analyst-chat-provider";
 
 interface VehicleDetailProps {
   result: VehicleSearchResult;
@@ -168,6 +168,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   } = useCompare();
   const { location, status: locationStatus, requestCurrentLocation } = useCurrentLocation();
   const { vehicle, listing, analysis } = result;
+  useAnalystPageContext({ surface: "listing", listingId: listing.id });
   const { identity, specification } = vehicle;
   const copy = uiCopy[locale];
   const moneyFormatter = createMoneyFormatter(locale);
@@ -798,13 +799,6 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             ) : null}
           </div>
         </div>
-        </div>
-        <div className="mt-6 sm:mt-8">
-          <AnalystPanel
-            context={{ surface: "listing", listingId: listing.id }}
-            key={listing.id}
-            locale={locale}
-          />
         </div>
       </div>
 

@@ -36,7 +36,8 @@ import type {
   VehicleSearchResult,
 } from "./types";
 import { VehicleCard } from "./vehicle-card";
-import { AnalystPanel } from "@/features/analyst/analyst-panel";
+import { HeroAskButton } from "@/features/analyst/analyst-launcher";
+import { useAnalystPageContext } from "@/features/analyst/analyst-chat-provider";
 import { VehicleRow } from "./vehicle-row";
 
 const savedSearchKey = "carnalys:search-state:v1";
@@ -153,6 +154,7 @@ export function SearchExperience({
   const copy = uiCopy[locale];
   const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
   const showHero = pagination.page <= 1;
+  useAnalystPageContext({ surface: "search", filters });
   // A neutral fallback analysis means this server payload was produced before
   // the background analysis row existed. It is different from a deliberately
   // unrated Deal Score, whose current methodology version is still present.
@@ -749,14 +751,7 @@ export function SearchExperience({
 
       {showHero ? (
         <SearchHero
-          analyst={
-            <AnalystPanel
-              compact
-              context={{ surface: "search", filters }}
-              key={JSON.stringify(filters)}
-              locale={locale}
-            />
-          }
+          analyst={<HeroAskButton locale={locale} />}
           locale={locale}
           totalListings={pagination.totalListings}
         />

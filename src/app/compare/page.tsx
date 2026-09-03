@@ -15,12 +15,17 @@ import { SiteHeader } from "@/features/search/site-header";
 import { useCompare } from "@/features/search/use-compare";
 import { useFavorites } from "@/features/search/use-favorites";
 import type { VehicleSearchResult } from "@/features/search/types";
-import { AnalystPanel } from "@/features/analyst/analyst-panel";
+import { useAnalystPageContext } from "@/features/analyst/analyst-chat-provider";
 
 export default function ComparePage() {
   const router = useRouter();
   const { compared, remove, clear } = useCompare();
   const { favorites } = useFavorites();
+  useAnalystPageContext(
+    compared.length >= 2 && compared.length <= 3
+      ? { surface: "comparison", listingIds: compared.map((vehicle) => vehicle.id) }
+      : null,
+  );
   const [locale, writeLocale] = useLocaleCookie();
   const [fetchedResults, setResults] = useState<VehicleSearchResult[] | null>(null);
   const copy = uiCopy[locale];
@@ -213,17 +218,6 @@ export default function ComparePage() {
             </button>
           ) : null}
         </div>
-
-        {compared.length >= 2 && compared.length <= 3 ? (
-          <div className="mt-6">
-            <AnalystPanel
-              compact
-              context={{ surface: "comparison", listingIds: compared.map((vehicle) => vehicle.id) }}
-              key={compared.map((vehicle) => vehicle.id).join(":")}
-              locale={locale}
-            />
-          </div>
-        ) : null}
 
         {results === null ? (
           <p className="mt-6 text-sm text-ink-muted">…</p>
