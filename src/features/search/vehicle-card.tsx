@@ -93,15 +93,16 @@ export function VehicleCard({
               onError={() => setImageFailed(true)}
               placeholder="blur"
               preload={priority}
-              sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 25vw"
+              sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 23rem"
               src={image.url}
             />
           ) : (
-            <Image
+            /* Static local SVG — a plain <img> skips the loader/srcset work
+               next/image would do for a single unoptimizable asset. */
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               alt={copy.card.missingImage}
-              className="object-cover"
-              fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 25vw"
+              className="absolute inset-0 size-full object-cover"
               src="/images/vehicle-fallback.svg"
             />
           )}

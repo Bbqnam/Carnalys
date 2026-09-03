@@ -88,11 +88,11 @@ export function VehicleRow({
               src={image.url}
             />
           ) : (
-            <Image
+            /* Static local SVG — a plain <img> skips the loader/srcset work. */
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               alt={copy.card.missingImage}
-              className="object-cover"
-              fill
-              sizes="(max-width: 640px) 33vw, 220px"
+              className="absolute inset-0 size-full object-cover"
               src="/images/vehicle-fallback.svg"
             />
           )}

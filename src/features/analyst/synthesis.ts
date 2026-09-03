@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { AnalystBudget } from "./budget";
 import { EvidenceRegistry, sanitizeEvidenceCitations } from "./evidence";
 import { analystInstructions } from "./prompt";
-import type { AnalystModelProvider, ModelUsage } from "./provider";
+import type { AnalystModelProvider, ModelUsage, StreamCallbacks } from "./provider";
 import type { AnalystEvidence, AnalystRequest } from "./types";
 
 export interface AnalystRunResult {
@@ -75,12 +75,13 @@ interface SynthesizeInputs {
   usage: ModelUsage;
   userId: string;
   signal: AbortSignal;
+  stream?: StreamCallbacks;
 }
 
 // The evidence-gathering loop ran out of budget before the model produced a
 // conclusion. Rather than return a canned dead-end, make one last tool-free
 // call so the model has to answer from what it already collected.
-export async function synthesizeAnswer({ provider, model, input, registry, request, budget, usage, userId, signal }: SynthesizeInputs): Promise<AnalystRunResult> {
+export async function synthesizeAnswer({ provider, model, input, registry, request, budget, usage, userId, signal, stream }: SynthesizeInputs): Promise<AnalystRunResult> {
   signal.throwIfAborted();
   input.push({
     role: "user" as const,
@@ -92,7 +93,7 @@ export async function synthesizeAnswer({ provider, model, input, registry, reque
     input,
     tools: [],
     safetyIdentifier: safeIdentifier(userId),
-  }, signal);
+  }, signal, stream);
   addUsage(usage, response.usage);
 
   if (response.outputText.trim()) {

@@ -2,6 +2,7 @@ import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { synchronizeMarketplace } from "@/application/ingestion/synchronize-marketplace";
 import { marketAnalysisCacheTag } from "@/infrastructure/database/market-analysis-repository";
+import { catalogCountCacheTag } from "@/infrastructure/database/vehicle-listing-repository";
 import { initializeDatabase } from "@/infrastructure/database/prisma";
 import { existingListingDetailPayloads } from "@/infrastructure/database/listing-write-repository";
 import { SynchronizationAlreadyRunningError } from "@/infrastructure/database/synchronization-state-repository";
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
 
     // Fresh listings mean the Analysis page's cached aggregates are stale.
     revalidateTag(marketAnalysisCacheTag, "max");
+    revalidateTag(catalogCountCacheTag, "max");
 
     return NextResponse.json({
       status: "completed",

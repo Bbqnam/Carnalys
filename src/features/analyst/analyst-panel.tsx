@@ -1,6 +1,5 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { useAccount } from "@/features/auth/account-provider";
@@ -184,17 +183,12 @@ function ListingCards({ items, locale }: { items: readonly AnalystEvidence[]; lo
   );
 }
 
-function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale: Locale; reduceMotion: boolean }) {
+function Row({ message, locale }: { message: ThreadMessage; locale: Locale }) {
   if (message.role === "user") {
     return (
-      <motion.div
-        animate={{ opacity: 1, y: 0 }}
-        className="flex justify-end"
-        initial={{ opacity: 0, y: 4 }}
-        transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
-      >
+      <div className="rise-in flex justify-end">
         <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-ink px-3.5 py-2 text-[13px] leading-5 text-surface">{message.content}</p>
-      </motion.div>
+      </div>
     );
   }
 
@@ -204,12 +198,7 @@ function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale
     ? message.evidence.filter((item) => item.listing && item.href && cited.has(item.id)).slice(0, 4)
     : [];
   return (
-    <motion.div
-      animate={{ opacity: 1, y: 0 }}
-      className="flex items-start gap-2.5"
-      initial={{ opacity: 0, y: 4 }}
-      transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
-    >
+    <div className="rise-in flex items-start gap-2.5">
       <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-strong"><AnalystMark className="size-4" /></span>
       <div className="min-w-0 flex-1 space-y-3">
         {message.content ? (
@@ -228,8 +217,13 @@ function Row({ message, locale, reduceMotion }: { message: ThreadMessage; locale
           <p className="text-xs text-ink-subtle">{locale === "sv" ? "Snabbt svar — fråga vidare för fler detaljer." : "Quick take — ask a follow-up for more detail."}</p>
         ) : null}
       </div>
-    </motion.div>
+    </div>
   );
+}
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined"
+    && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
 
 export function AnalystPanel({ locale, onClose }: { locale: Locale; onClose?: () => void }) {
@@ -237,7 +231,6 @@ export function AnalystPanel({ locale, onClose }: { locale: Locale; onClose?: ()
   const { messages, running, pageSurface, ask, stop, reset } = useAnalystChat();
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const reduceMotion = useReducedMotion() ?? false;
   const active = messages.length > 0;
   const prompts = suggestions(pageSurface, locale);
 
@@ -254,8 +247,11 @@ export function AnalystPanel({ locale, onClose }: { locale: Locale; onClose?: ()
   useEffect(() => {
     const element = threadRef.current;
     if (!element) return;
-    element.scrollTo({ top: element.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
-  }, [messages, reduceMotion]);
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
+  }, [messages]);
 
   return (
     <section aria-label="Ask Carnalys" className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-border bg-surface shadow-[0_24px_60px_rgba(26,35,29,0.18)]">
@@ -292,7 +288,7 @@ export function AnalystPanel({ locale, onClose }: { locale: Locale; onClose?: ()
 
       <div aria-busy={running} aria-live="polite" className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4" ref={threadRef}>
         {active ? (
-          messages.map((message) => <Row key={message.id} locale={locale} message={message} reduceMotion={reduceMotion} />)
+          messages.map((message) => <Row key={message.id} locale={locale} message={message} />)
         ) : (
           <div className="flex h-full flex-col justify-end gap-3">
             <p className="text-sm leading-6 text-ink-muted">

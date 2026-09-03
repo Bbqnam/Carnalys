@@ -61,9 +61,13 @@ export interface AnalystToolResult<T = unknown> {
 }
 
 export interface AnalystStreamEvent {
-  type: "status" | "delta" | "evidence" | "done" | "error";
+  type: "status" | "delta" | "evidence" | "done" | "error" | "final";
   message?: string;
   delta?: string;
+  /** On a `delta`, replace the answer so far rather than appending to it. */
+  replace?: boolean;
+  /** Canonical, citation-validated answer, sent once as a `final` event. */
+  answer?: string;
   evidence?: readonly AnalystEvidence[];
   truncated?: boolean;
   requestId?: string;

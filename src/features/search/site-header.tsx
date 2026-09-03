@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
@@ -71,7 +70,6 @@ export function SiteHeader({
   const accountId = useId();
   const searchId = useId();
   const effectiveSearchQuery = searchQuery ?? localSearchQuery;
-  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
@@ -232,44 +230,29 @@ export function SiteHeader({
                 ) : null}
               </Link>
             ))}
-            <motion.div
-              animate={{ width: searchOpen ? 288 : 72 }}
-              className="h-full shrink-0 overflow-hidden"
-              initial={false}
+            <div
+              className="h-full shrink-0 overflow-hidden transition-[width] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
               ref={searchRef}
-              transition={{ duration: reduceMotion ? 0 : 0.38, ease: [0.22, 1, 0.36, 1] }}
+              style={{ width: searchOpen ? 288 : 72 }}
             >
-              <AnimatePresence initial={false} mode="wait">
-                {searchOpen ? (
-                  <motion.div
-                    animate={{ filter: "blur(0px)", opacity: 1, x: 0 }}
-                    className="h-full w-72"
-                    exit={{ filter: "blur(2px)", opacity: 0, x: -10 }}
-                    initial={{ filter: "blur(2px)", opacity: 0, x: -14 }}
-                    key="search-form"
-                    transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
-                  >
-                    {searchForm()}
-                  </motion.div>
-                ) : (
-                  <motion.button
-                    animate={{ opacity: 1, x: 0 }}
-                    aria-controls={searchId}
-                    aria-expanded="false"
-                    className="inline-flex h-full w-[72px] items-center gap-2 border-b-2 border-transparent px-2.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
-                    exit={{ opacity: 0, x: 8 }}
-                    initial={{ opacity: 0, x: 8 }}
-                    key="search-trigger"
-                    onClick={() => setSearchOpen(true)}
-                    transition={{ duration: reduceMotion ? 0 : 0.14 }}
-                    type="button"
-                  >
-                    <SearchIcon className="size-4 shrink-0" />
-                    {copy.nav.search}
-                  </motion.button>
-                )}
-              </AnimatePresence>
-            </motion.div>
+              {searchOpen ? (
+                <div className="fade-in h-full w-72" key="search-form">
+                  {searchForm()}
+                </div>
+              ) : (
+                <button
+                  aria-controls={searchId}
+                  aria-expanded="false"
+                  className="fade-in inline-flex h-full w-[72px] items-center gap-2 border-b-2 border-transparent px-2.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+                  key="search-trigger"
+                  onClick={() => setSearchOpen(true)}
+                  type="button"
+                >
+                  <SearchIcon className="size-4 shrink-0" />
+                  {copy.nav.search}
+                </button>
+              )}
+            </div>
           </nav>
         </div>
 

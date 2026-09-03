@@ -1,9 +1,8 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { uiCopy, type Locale } from "./copy";
 import { CompareMobileBar, CompareTrayPanel } from "./compare-tray";
 import { FilterPanel } from "./filter-panel";
@@ -142,6 +141,20 @@ export function SearchExperience({
   } = useCompare();
   const comparedIds = new Set(compared.map((vehicle) => vehicle.id));
   const [showFilters, setShowFilters] = useState(false);
+  // The drawer plays an exit animation before it leaves the tree: `closeFilters`
+  // flags the node, then unmounts it a beat later. Opening clears the flag.
+  const [filtersClosing, setFiltersClosing] = useState(false);
+  const closeFilters = useCallback(() => {
+    setFiltersClosing(true);
+    window.setTimeout(() => {
+      setShowFilters(false);
+      setFiltersClosing(false);
+    }, 240);
+  }, []);
+  const openFilters = useCallback(() => {
+    setFiltersClosing(false);
+    setShowFilters(true);
+  }, []);
   const [viewMode, changeViewMode] = useViewMode();
   const {
     location: userLocation,
@@ -415,7 +428,7 @@ export function SearchExperience({
     closeFiltersRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setShowFilters(false);
+      if (event.key === "Escape") closeFilters();
       if (event.key !== "Tab") return;
 
       const dialog = document.getElementById("filters-drawer");
@@ -447,7 +460,7 @@ export function SearchExperience({
       window.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus();
     };
-  }, [showFilters]);
+  }, [showFilters, closeFilters]);
 
   function changeLocale(nextLocale: Locale) {
     setLocale(nextLocale);
@@ -531,38 +544,29 @@ export function SearchExperience({
       <>
         {viewMode === "list" ? (
           <div className="flex min-w-0 flex-col gap-3">
-            <AnimatePresence initial={false}>
-              {results.map((result, index) => (
-                <motion.div
-                  animate={{ opacity: 1, y: 0 }}
-                  className="min-w-0"
-                  exit={{ opacity: 0 }}
-                  initial={{ opacity: 0, y: 8 }}
-                  key={result.listing.id}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                >
-                  <VehicleRow
-                    currentLocation={userLocation}
-                    isFavorite={favorites.has(result.listing.id)}
-                    isCompared={comparedIds.has(result.listing.id)}
-                    compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
-                    locale={locale}
-                    onToggleFavorite={() => toggleFavorite(result.listing.id)}
-                    onToggleCompare={() =>
-                      toggleCompare({
-                        id: result.listing.id,
-                        make: result.vehicle.identity.make,
-                        model: result.vehicle.identity.model,
-                        variant: result.vehicle.identity.variant,
-                        imageUrl: result.listing.images[0]?.url,
-                      })
-                    }
-                    priority={index < 3}
-                    result={result}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {results.map((result, index) => (
+              <div className="min-w-0 rise-in" key={result.listing.id}>
+                <VehicleRow
+                  currentLocation={userLocation}
+                  isFavorite={favorites.has(result.listing.id)}
+                  isCompared={comparedIds.has(result.listing.id)}
+                  compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
+                  locale={locale}
+                  onToggleFavorite={() => toggleFavorite(result.listing.id)}
+                  onToggleCompare={() =>
+                    toggleCompare({
+                      id: result.listing.id,
+                      make: result.vehicle.identity.make,
+                      model: result.vehicle.identity.model,
+                      variant: result.vehicle.identity.variant,
+                      imageUrl: result.listing.images[0]?.url,
+                    })
+                  }
+                  priority={index < 3}
+                  result={result}
+                />
+              </div>
+            ))}
           </div>
         ) : (
           /* Column count follows the space rather than a breakpoint ladder:
@@ -572,38 +576,29 @@ export function SearchExperience({
              the cards keep real breathing room on wide screens instead of
              shrinking to fit six or seven across. */
           <div className="grid min-w-0 gap-5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,max(20rem,calc((100%_-_5rem)/5))),1fr))]">
-            <AnimatePresence initial={false}>
-              {results.map((result, index) => (
-                <motion.div
-                  animate={{ opacity: 1, y: 0 }}
-                  className="min-w-0"
-                  exit={{ opacity: 0 }}
-                  initial={{ opacity: 0, y: 8 }}
-                  key={result.listing.id}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                >
-                  <VehicleCard
-                    currentLocation={userLocation}
-                    isFavorite={favorites.has(result.listing.id)}
-                    isCompared={comparedIds.has(result.listing.id)}
-                    compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
-                    locale={locale}
-                    onToggleFavorite={() => toggleFavorite(result.listing.id)}
-                    onToggleCompare={() =>
-                      toggleCompare({
-                        id: result.listing.id,
-                        make: result.vehicle.identity.make,
-                        model: result.vehicle.identity.model,
-                        variant: result.vehicle.identity.variant,
-                        imageUrl: result.listing.images[0]?.url,
-                      })
-                    }
-                    priority={index < 2}
-                    result={result}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {results.map((result, index) => (
+              <div className="min-w-0 rise-in" key={result.listing.id}>
+                <VehicleCard
+                  currentLocation={userLocation}
+                  isFavorite={favorites.has(result.listing.id)}
+                  isCompared={comparedIds.has(result.listing.id)}
+                  compareDisabled={compareFull && !comparedIds.has(result.listing.id)}
+                  locale={locale}
+                  onToggleFavorite={() => toggleFavorite(result.listing.id)}
+                  onToggleCompare={() =>
+                    toggleCompare({
+                      id: result.listing.id,
+                      make: result.vehicle.identity.make,
+                      model: result.vehicle.identity.model,
+                      variant: result.vehicle.identity.variant,
+                      imageUrl: result.listing.images[0]?.url,
+                    })
+                  }
+                  priority={index < 2}
+                  result={result}
+                />
+              </div>
+            ))}
           </div>
         )}
 
@@ -803,7 +798,7 @@ export function SearchExperience({
                 aria-controls="filters-drawer"
                 aria-expanded={showFilters}
                 className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-sm font-semibold text-ink shadow-sm transition hover:border-border-strong hover:shadow-md active:scale-[0.98]"
-                onClick={() => setShowFilters(true)}
+                onClick={openFilters}
                 type="button"
               >
                 <SlidersIcon className="size-4" />
@@ -920,36 +915,30 @@ export function SearchExperience({
         </div>
       </footer>
 
-      <AnimatePresence>
-        {showFilters ? (
-          <motion.div
-            animate={{ opacity: 1 }}
-            aria-labelledby="filters-drawer-title"
-            aria-modal="true"
-            className="fixed inset-0 z-50"
-            exit={{ opacity: 0 }}
-            id="filters-drawer"
-            initial={{ opacity: 0 }}
-            role="dialog"
+      {showFilters ? (
+        <div
+          aria-labelledby="filters-drawer-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50"
+          id="filters-drawer"
+          role="dialog"
+        >
+          <button
+            aria-label={copy.results.closeFilters}
+            className="slide-over-backdrop absolute inset-0 bg-[#101712]/55"
+            data-closing={filtersClosing}
+            onClick={closeFilters}
+            tabIndex={-1}
+            type="button"
+          />
+          {/* The animated element carries a transform; iOS momentum scrolling
+              on a transformed overflow container is unreliable, so the panel
+              only slides — a plain inner <div> does the scrolling, with the
+              header and footer pinned outside it. */}
+          <div
+            className="slide-over-panel absolute inset-y-0 right-0 z-10 flex w-full max-w-[26rem] flex-col bg-background shadow-2xl"
+            data-closing={filtersClosing}
           >
-            <button
-              aria-label={copy.results.closeFilters}
-              className="absolute inset-0 bg-[#101712]/55"
-              onClick={() => setShowFilters(false)}
-              tabIndex={-1}
-              type="button"
-            />
-            {/* The animated element carries a transform; iOS momentum scrolling
-                on a transformed overflow container is unreliable, so the panel
-                only slides — a plain inner <div> does the scrolling, with the
-                header and footer pinned outside it. */}
-            <motion.div
-              animate={{ x: 0 }}
-              className="absolute inset-y-0 right-0 z-10 flex w-full max-w-[26rem] flex-col bg-background shadow-2xl"
-              exit={{ x: "100%" }}
-              initial={{ x: "100%" }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            >
               <div className="flex items-center justify-between px-5 pb-3 pt-4">
                 <h2
                   className="text-lg font-semibold tracking-[-0.025em] text-ink"
@@ -960,7 +949,7 @@ export function SearchExperience({
                 <button
                   aria-label={copy.results.closeFilters}
                   className="grid size-11 place-items-center rounded-full border border-border bg-surface text-ink shadow-sm transition hover:border-border-strong"
-                  onClick={() => setShowFilters(false)}
+                  onClick={closeFilters}
                   ref={closeFiltersRef}
                   type="button"
                 >
@@ -982,16 +971,15 @@ export function SearchExperience({
               <div className="border-t border-border px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
                 <button
                   className="h-13 w-full rounded-full bg-ink text-sm font-semibold text-surface shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition hover:opacity-90 active:scale-[0.99]"
-                  onClick={() => setShowFilters(false)}
+                  onClick={closeFilters}
                   type="button"
                 >
                   {copy.hero.showCars(pagination.totalListings)}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+          </div>
+        </div>
+      ) : null}
 
       <CompareMobileBar
         compared={compared}

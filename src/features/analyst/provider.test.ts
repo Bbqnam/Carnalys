@@ -38,6 +38,45 @@ test("OpenAI provider boundary parses tool calls and usage without exposing its 
   }
 });
 
+test("OpenAI provider streams text deltas and parses the completed response", async () => {
+  const originalFetch = globalThis.fetch;
+  const frames = [
+    'data: {"type":"response.output_text.delta","delta":"Hello"}',
+    'data: {"type":"response.output_text.delta","delta":", world"}',
+    'data: {"type":"response.completed","response":{"id":"resp_s","output":[{"type":"message","content":[{"type":"output_text","text":"Hello, world"}]}],"usage":{"input_tokens":8,"input_tokens_details":{"cached_tokens":0},"output_tokens":4,"output_tokens_details":{"reasoning_tokens":0}}}}',
+  ];
+  let sentBody = "";
+  globalThis.fetch = async (_input, init) => {
+    sentBody = String(init?.body);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        for (const frame of frames) controller.enqueue(encoder.encode(`${frame}\n\n`));
+        controller.close();
+      },
+    });
+    return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+  };
+  try {
+    const chunks: Array<{ delta: string; first: boolean }> = [];
+    const result = await new OpenAIResponsesProvider("server-secret", "https://example.test/v1").createResponse(
+      request,
+      new AbortController().signal,
+      { onTextDelta: (delta, isFirst) => chunks.push({ delta, first: isFirst }) },
+    );
+    assert.deepEqual(chunks, [
+      { delta: "Hello", first: true },
+      { delta: ", world", first: false },
+    ]);
+    assert.equal(result.outputText, "Hello, world");
+    assert.equal(result.toolCalls.length, 0);
+    assert.deepEqual(result.usage, { inputTokens: 8, cachedInputTokens: 0, outputTokens: 4, reasoningTokens: 0 });
+    assert.equal(JSON.parse(sentBody).stream, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("OpenAI provider propagates cancellation through fetch", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (_input, init) => new Promise<Response>((_resolve, reject) => {

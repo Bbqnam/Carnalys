@@ -338,12 +338,12 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               />
             ) : (
               /* The fallback is a drawing sized to the frame, not a car
-                 someone needs to inspect, so it may fill it. */
-              <Image
+                 someone needs to inspect, so it may fill it. A plain <img>
+                 skips the loader/srcset work for one static local asset. */
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 alt={copy.card.missingImage}
-                className="object-cover"
-                fill
-                sizes="(max-width: 1023px) 100vw, 60vw"
+                className="absolute inset-0 size-full object-cover"
                 src="/images/vehicle-fallback.svg"
               />
             )}

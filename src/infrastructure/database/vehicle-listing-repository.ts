@@ -1,5 +1,8 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import type {
   AnalysisConfidence,
   BodyStyle,
@@ -186,8 +189,61 @@ const cardListingSelect = {
   },
 } satisfies Prisma.ListingRecordSelect;
 
+/**
+ * The detail page pulls up to 50 other listings of the same make/model purely
+ * to compute two medians — annual mileage and annual ownership cost — for the
+ * "vs the sample" insights. Those need identity, price, powertrain and mileage
+ * and nothing else, so this select drops the images, equipment, the sibling
+ * `listings` relation and the whole stored-analysis row that
+ * `storedListingSelect` was dragging along 50 times over.
+ */
+const comparableListingSelect = {
+  id: true,
+  vehicleId: true,
+  provider: true,
+  externalId: true,
+  listingUrl: true,
+  firstSeenAt: true,
+  lastSeenAt: true,
+  sellerName: true,
+  sellerType: true,
+  status: true,
+  priceAmount: true,
+  previousPriceAmount: true,
+  monthlyCostAmount: true,
+  municipality: true,
+  latitude: true,
+  longitude: true,
+  mileageKm: true,
+  serviceHistory: true,
+  ownerCount: true,
+  publishedAt: true,
+  synchronizedAt: true,
+  vehicle: {
+    select: {
+      id: true,
+      make: true,
+      model: true,
+      variant: true,
+      modelYear: true,
+      registrationYear: true,
+      bodyStyle: true,
+      fuelType: true,
+      transmission: true,
+      drivetrain: true,
+      horsepower: true,
+      engineDisplacement: true,
+      fuelConsumption: true,
+    },
+  },
+} satisfies Prisma.ListingRecordSelect;
+
 type CardListing = Prisma.ListingRecordGetPayload<{
   select: typeof cardListingSelect;
+}>;
+
+type ComparableListing = Prisma.ListingRecordGetPayload<{
+  select: typeof comparableListingSelect;
 }>;
 
 type StoredListing = Prisma.ListingRecordGetPayload<{
@@ -254,11 +310,13 @@ function roundedThousands(value: number) {
 }
 
 function createStoredAnalysis(
-  result: StoredListing | CardListing,
+  result: StoredListing | CardListing | ComparableListing,
   specification: VehicleSpecification,
   itemised: boolean,
 ): VehicleSearchResult["analysis"] {
-  const stored = result.analysis;
+  // The comparable select omits the analysis row entirely; it reads as absent
+  // here, exactly like the card select's missing JSON columns.
+  const stored = (result as Partial<StoredListing>).analysis;
   // The card select omits the three JSON columns behind the scores; they read
   // as absent rather than as a separate branch.
   const narrow = (stored ?? {}) as Partial<
@@ -351,7 +409,7 @@ function createStoredAnalysis(
  * different code path — one mapper, two payload widths.
  */
 function mapStoredListing(
-  record: StoredListing | CardListing,
+  record: StoredListing | CardListing | ComparableListing,
   { itemisedOwnershipCost = true }: { itemisedOwnershipCost?: boolean } = {},
 ): VehicleSearchResult {
   const detail = record as Partial<StoredListing>;
@@ -437,7 +495,7 @@ function mapStoredListing(
       ),
       ownerCount: record.ownerCount ?? undefined,
       equipment: detail.equipment?.map(({ label }) => label) ?? [],
-      images: record.images.map((image) => ({
+      images: (detail.images ?? []).map((image) => ({
         url: image.url,
         alt: image.alt ?? undefined,
         position: image.position,
@@ -587,6 +645,30 @@ function listingOrder(
   }
 }
 
+/**
+ * Invalidated by every synchronization writer so a manual "Update listings"
+ * reflects immediately; between writes the catalogue does not move, so the
+ * result-count query — the slowest part of a search on a broad filter — is
+ * served from cache instead of re-run on every pagination click.
+ */
+export const catalogCountCacheTag = "listing-catalog-count";
+
+function countActiveListings(
+  where: Prisma.ListingRecordWhereInput,
+): Promise<number> {
+  // `where` can hold Date instances (the "posted within" cutoff), so it is not
+  // round-tripped through the cache — the closure keeps the real object and the
+  // key is a hash of its JSON form, which is stable for a given filter set.
+  const key = createHash("sha1")
+    .update(JSON.stringify(where))
+    .digest("hex");
+  return unstable_cache(
+    () => prisma.listingRecord.count({ where }),
+    ["listing-record-count-v1", key],
+    { revalidate: 900, tags: [catalogCountCacheTag] },
+  )();
+}
+
 export async function getActiveVehicleListings(
   options: VehicleSearchOptions,
 ): Promise<VehicleListingCatalog> {
@@ -599,7 +681,7 @@ export async function getActiveVehicleListings(
   // on the queries where the count is slowest.
   const requestedPage = Math.max(1, Math.trunc(options.page));
   const [totalListings, records, preparedCatalog] = await Promise.all([
-    prisma.listingRecord.count({ where }),
+    countActiveListings(where),
     prisma.listingRecord.findMany({
       where,
       select: cardListingSelect,
@@ -646,7 +728,13 @@ export interface ListingSummary {
   imageUrl?: string;
 }
 
-export async function getListingSummaryById(
+// `cache()` dedupes within one server render: the vehicle page's
+// `generateMetadata` and the page body both call these for the same id, and
+// without this that is two round trips for one screen.
+export const getListingSummaryById = cache(_getListingSummaryById);
+export const getListingById = cache(_getListingById);
+
+async function _getListingSummaryById(
   listingId: string,
 ): Promise<ListingSummary | null> {
   await initializeDatabase();
@@ -681,7 +769,7 @@ export async function getListingSummaryById(
   };
 }
 
-export async function getListingById(
+async function _getListingById(
   listingId: string,
 ): Promise<VehicleSearchResult | null> {
   await initializeDatabase();
@@ -699,7 +787,7 @@ export async function getListingById(
         is: { make: record.vehicle.make, model: record.vehicle.model },
       },
     },
-    select: storedListingSelect,
+    select: comparableListingSelect,
     take: 50,
   });
   const comparables = comparableRecords.map((record) => mapStoredListing(record));

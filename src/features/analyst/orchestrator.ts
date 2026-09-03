@@ -26,6 +26,13 @@ export interface AnalystRunOptions {
   signal: AbortSignal;
   provider?: AnalystModelProvider;
   onStatus?: (message: string) => void;
+  /**
+   * Forwards the model's visible answer as it streams. `isFirst` is true for
+   * the first chunk of a given model turn, so a consumer can replace the text
+   * so far rather than append it — an evidence-gathering turn produces little
+   * or no prose and is harmlessly superseded by the turn that answers.
+   */
+  onAnswerDelta?: (delta: string, isFirst: boolean) => void;
 }
 
 function parseArguments(value: string) {
@@ -45,6 +52,10 @@ export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRun
   const usage: ModelUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 };
   const budget = new AnalystBudget(MAX_MODEL_TURNS, MAX_TOOL_CALLS);
 
+  const stream = options.onAnswerDelta
+    ? { onTextDelta: options.onAnswerDelta }
+    : undefined;
+
   const synthesize = () => synthesizeAnswer({
     provider,
     model,
@@ -55,6 +66,7 @@ export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRun
     usage,
     userId: options.userId,
     signal: options.signal,
+    stream,
   });
 
   for (let turn = 0; turn < MAX_MODEL_TURNS; turn += 1) {
@@ -69,7 +81,7 @@ export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRun
       input,
       tools: analystToolDefinitions,
       safetyIdentifier: safeIdentifier(options.userId),
-    }, options.signal);
+    }, options.signal, stream);
     addUsage(usage, response.usage);
 
     if (response.toolCalls.length === 0) {

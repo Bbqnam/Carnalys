@@ -211,7 +211,11 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
               patch((current) => ({ ...current, status: message }));
             }
             if (event.type === "delta" && event.delta) {
-              streamed += event.delta;
+              streamed = event.replace ? event.delta : streamed + event.delta;
+              patch((current) => ({ ...current, content: streamed }));
+            }
+            if (event.type === "final" && typeof event.answer === "string") {
+              streamed = event.answer;
               patch((current) => ({ ...current, content: streamed }));
             }
             if (event.type === "evidence") {

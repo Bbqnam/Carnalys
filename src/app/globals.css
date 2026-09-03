@@ -379,6 +379,125 @@ select:focus-visible {
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
+/* One-shot entrance used for list items that mount in place — result cards,
+   analyst chat rows. Replaces a per-node JS animation library: the browser
+   runs this off the main thread, and the global prefers-reduced-motion reset
+   above already neutralises it. `both` keeps the from-state before the frame
+   the element first paints. */
+.rise-in {
+  animation: rise-in 200ms ease-out both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Plain opacity fade for overlays/backdrops. */
+.fade-in {
+  animation: fade-in 180ms ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+/* Right-hand slide-over (filters drawer, analyst panel) — enter on mount,
+   exit driven by a `data-closing` flag the component sets before it unmounts
+   the node a beat later. Easings/durations match the values the previous
+   animation library was configured with. */
+.slide-over-backdrop {
+  animation: fade-in 200ms ease-out both;
+}
+
+.slide-over-backdrop[data-closing="true"] {
+  animation: fade-out 200ms ease-in both;
+}
+
+.slide-over-panel {
+  animation: slide-over-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.slide-over-panel[data-closing="true"] {
+  animation: slide-over-out 240ms ease-in both;
+}
+
+@keyframes slide-over-in {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes slide-over-out {
+  from {
+    transform: none;
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Popover/panel that grows from its trigger (analyst chat window). */
+.pop-in {
+  animation: pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pop-in[data-closing="true"] {
+  animation: pop-out 160ms ease-in both;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
 /* Scatter marks glide between filter results rather than cutting: the sample
    is deterministic, so a listing that survives a filter change keeps its DOM
    node and simply travels to its new position. Only genuinely new points

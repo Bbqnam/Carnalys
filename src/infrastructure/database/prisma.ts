@@ -20,8 +20,11 @@ function createPrismaClient() {
   // writes during a full reconciliation (see writeConcurrency in
   // listing-write-repository.ts) — raised with room to spare for the
   // process's other concurrent queries (checkpoint/facet updates) that share
-  // this same pool.
-  const adapter = new PrismaPg({ connectionString: databaseUrl, max: 15 });
+  // this same pool. Overridable via `PRISMA_POOL_MAX` so a serverless request
+  // deployment can run leaner (each instance opens its own pool) without
+  // touching the sync scripts, which want the headroom.
+  const max = Number(process.env.PRISMA_POOL_MAX) || 15;
+  const adapter = new PrismaPg({ connectionString: databaseUrl, max });
   return new PrismaClient({ adapter });
 }
 

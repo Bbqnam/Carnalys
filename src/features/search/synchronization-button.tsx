@@ -133,11 +133,15 @@ export function SynchronizationButton({
           ? english
             ? "Another synchronization is already running."
             : "En annan synkronisering körs redan."
-          : state.outcome === "failed"
+          : state.outcome === "unauthorized"
             ? english
-              ? "The update failed. Existing listings are unchanged."
-              : "Uppdateringen misslyckades. Befintliga annonser är kvar."
-            : undefined;
+              ? "Sign in to update listings."
+              : "Logga in för att uppdatera annonser."
+            : state.outcome === "failed"
+              ? english
+                ? "The update failed. Existing listings are unchanged."
+                : "Uppdateringen misslyckades. Befintliga annonser är kvar."
+              : undefined;
 
   const progressLabel =
     progress && progress.totalListings > 0

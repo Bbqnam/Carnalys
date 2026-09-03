@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       };
       send({ type: "status", message: parsed.locale === "sv" ? "Startar Carnalys Analyst…" : "Starting Carnalys Analyst…", requestId });
       let status = "failed";
+      let streamedAny = false;
       let telemetry: Awaited<ReturnType<typeof runAnalyst>> | undefined;
       try {
         telemetry = await runAnalyst({
@@ -72,9 +73,18 @@ export async function POST(request: Request) {
           userId: user.id,
           signal: controller.signal,
           onStatus: (message) => send({ type: "status", message, requestId }),
+          onAnswerDelta: (delta, isFirst) => {
+            streamedAny = true;
+            send({ type: "delta", delta, requestId, ...(isFirst ? { replace: true } : {}) });
+          },
         });
-        for (let index = 0; index < telemetry.answer.length; index += 96) {
-          send({ type: "delta", delta: telemetry.answer.slice(index, index + 96), requestId });
+        // The streamed chunks are raw model output; `telemetry.answer` is the
+        // same text with its evidence citations validated (and an evidence line
+        // appended when the model cited none). Reconcile the client to that.
+        if (streamedAny) {
+          send({ type: "final", answer: telemetry.answer, requestId });
+        } else {
+          send({ type: "delta", delta: telemetry.answer, requestId, replace: true });
         }
         send({ type: "evidence", evidence: telemetry.evidence, truncated: telemetry.truncated, requestId });
         send({ type: "done", requestId });
