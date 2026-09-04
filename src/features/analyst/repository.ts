@@ -523,7 +523,12 @@ function postedCutoff(value: SearchFilters["postedWithin"]) {
   return new Date(Date.now() - days * 86_400_000);
 }
 
-function searchWhere(filters: SearchFilters): Prisma.ListingRecordWhereInput {
+// bodyStyle in SearchFilters only ever holds one value, so it can select a
+// single body style but not express "any passenger car" — there's no way to
+// ask for that shape without excluding these two ourselves.
+const commercialBodyStyles: readonly BodyStyle[] = ["van", "pickup"];
+
+function searchWhere(filters: SearchFilters, excludeCommercialBodyStyles: boolean): Prisma.ListingRecordWhereInput {
   const tokens = filters.query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   return {
     status: "active",
@@ -539,7 +544,7 @@ function searchWhere(filters: SearchFilters): Prisma.ListingRecordWhereInput {
       ...(filters.models.length ? { model: { in: [...filters.models] } } : {}),
       ...(filters.fuelType ? { fuelType: filters.fuelType } : {}),
       ...(filters.transmission ? { transmission: filters.transmission } : {}),
-      ...(filters.bodyStyle ? { bodyStyle: filters.bodyStyle } : {}),
+      ...(filters.bodyStyle ? { bodyStyle: filters.bodyStyle } : excludeCommercialBodyStyles ? { bodyStyle: { notIn: [...commercialBodyStyles] } } : {}),
       ...(filters.minYear !== null || filters.maxYear !== null ? { modelYear: { ...(filters.minYear !== null ? { gte: filters.minYear } : {}), ...(filters.maxYear !== null ? { lte: filters.maxYear } : {}) } } : {}),
     } },
   };
@@ -558,12 +563,16 @@ async function inLanes<T, R>(items: readonly T[], concurrency: number, run: (ite
   return results;
 }
 
-export async function searchInventoryEvidence(filters: SearchFilters, finalistIds: readonly string[] = []): Promise<AnalystToolResult> {
+export async function searchInventoryEvidence(
+  filters: SearchFilters,
+  finalistIds: readonly string[] = [],
+  excludeCommercialBodyStyles = false,
+): Promise<AnalystToolResult> {
   await initializeDatabase();
   const freshness = await getCatalogFreshness();
   const freshnessKey = freshness?.lastSynchronizedAt?.toISOString() ?? "unknown";
-  return analystEvidenceCache.get(`search:${freshnessKey}:${JSON.stringify(filters)}:${finalistIds.join(",")}`, 3 * 60_000, async () => {
-    const where = searchWhere(filters);
+  return analystEvidenceCache.get(`search:${freshnessKey}:${JSON.stringify(filters)}:${finalistIds.join(",")}:${excludeCommercialBodyStyles ? 1 : 0}`, 3 * 60_000, async () => {
+    const where = searchWhere(filters, excludeCommercialBodyStyles);
     const views: Prisma.ListingRecordOrderByWithRelationInput[][] = [
       [{ analysis: { dealScore: { sort: "desc", nulls: "last" } } }, { id: "asc" }],
       [{ priceAmount: "asc" }, { id: "asc" }],
@@ -622,6 +631,7 @@ export async function searchInventoryEvidence(filters: SearchFilters, finalistId
         finalists: finalists.map((result) => result.data),
         warnings: [
           ...(total > rows.length ? [`The database matched ${total} listings; deterministic multi-view ranking evaluated up to 300 and returned 20.`] : []),
+          ...(excludeCommercialBodyStyles ? ["Vans and pickups were excluded as commercial body styles."] : []),
           "Market price ratios use stored Carnalys valuations for ranking only; request analyse_listing_market for an independent cohort check.",
         ],
       },
@@ -635,7 +645,9 @@ export async function searchInventoryEvidence(filters: SearchFilters, finalistId
           warning: total > rows.length ? "Ranked from a capped 300-row multi-view pool of the matching inventory." : undefined,
           href: "/#cars",
         },
-        ...ranked.slice(0, 6).map((listing) => ({
+        // Ten, not just a handful: a "top 10" answer needs one evidence id —
+        // and one visual card — per car it names.
+        ...ranked.slice(0, 10).map((listing) => ({
           id: `candidate-${listing.listingId}`,
           kind: "listing" as const,
           label: `${listing.modelYear} ${listing.name}${listing.variant ? ` ${listing.variant}` : ""} · ${listing.mileageKm.toLocaleString("sv-SE")} km · ${listing.priceAmount.toLocaleString("sv-SE")} kr`,

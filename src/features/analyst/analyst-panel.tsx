@@ -77,6 +77,10 @@ function citedIds(text: string) {
   return ids;
 }
 
+// Matches the top-10 ceiling search_inventory's evidence and search_inventory's
+// prompt guidance both use — a "top 10" answer should be able to show all ten.
+const MAX_CARDS = 10;
+
 // Which listing cards belong under an answer. Citations are the primary signal,
 // but a low-effort model sometimes names a car without the [E#] tag — so fall
 // back to matching the car's name in the prose, and, when the whole answer is
@@ -86,7 +90,7 @@ function cardsForAnswer(evidence: readonly AnalystEvidence[], text: string) {
   if (listings.length === 0) return [];
   const cited = citedIds(text);
   const byCitation = listings.filter((item) => cited.has(item.id));
-  if (byCitation.length) return byCitation.slice(0, 4);
+  if (byCitation.length) return byCitation.slice(0, MAX_CARDS);
 
   const hay = text.toLowerCase();
   const byName = listings.filter((item) => {
@@ -95,7 +99,7 @@ function cardsForAnswer(evidence: readonly AnalystEvidence[], text: string) {
     const model = name.split(" ").at(-1) ?? name;
     return hay.includes(name) || (model.length > 1 && hay.includes(model) && hay.includes(String(preview.modelYear)));
   });
-  if (byName.length) return byName.slice(0, 4);
+  if (byName.length) return byName.slice(0, MAX_CARDS);
 
   return listings.length <= 3 ? listings.slice(0, 3) : [];
 }

@@ -76,7 +76,7 @@ export class AnalystToolSession {
       const filters = this.options.context.surface === "search"
         ? mergeTrustedSearchFilters(this.options.context.filters, call.arguments.filters)
         : call.arguments.filters;
-      work = searchInventoryEvidence(filters, call.arguments.finalistIds);
+      work = searchInventoryEvidence(filters, call.arguments.finalistIds, call.arguments.excludeCommercialBodyStyles);
     }
     const result = await withAbortAndTimeout(work, this.options.signal, timeoutMs);
     if (call.name === "search_inventory") {

@@ -178,7 +178,7 @@ export function parseAnalystRequest(value: unknown): AnalystRequest {
 export type ValidatedToolArguments =
   | { name: "get_listing_analysis"; arguments: { listingId: string; includeDescription: boolean } }
   | { name: "analyse_listing_market"; arguments: { listingId: string } }
-  | { name: "search_inventory"; arguments: { filters: SearchFilters; finalistIds: string[] } }
+  | { name: "search_inventory"; arguments: { filters: SearchFilters; finalistIds: string[]; excludeCommercialBodyStyles: boolean } }
   | { name: "compare_listings"; arguments: { listingIds: string[] } };
 
 export function validateToolArguments(name: string, value: unknown): ValidatedToolArguments {
@@ -196,9 +196,10 @@ export function validateToolArguments(name: string, value: unknown): ValidatedTo
     return { name, arguments: { listingId: listingId(input.listingId) } };
   }
   if (name === "search_inventory") {
-    onlyKeys(input, ["filters", "finalistIds"]);
+    onlyKeys(input, ["filters", "finalistIds", "excludeCommercialBodyStyles"]);
     const finalistIds = stringList(input.finalistIds, "finalistIds", 5).map(listingId);
-    return { name, arguments: { filters: parseAnalystSearchFilters(input.filters), finalistIds } };
+    const excludeCommercialBodyStyles = input.excludeCommercialBodyStyles === true;
+    return { name, arguments: { filters: parseAnalystSearchFilters(input.filters), finalistIds, excludeCommercialBodyStyles } };
   }
   onlyKeys(input, ["listingIds"]);
   const ids = stringList(input.listingIds, "listingIds", 3).map(listingId);

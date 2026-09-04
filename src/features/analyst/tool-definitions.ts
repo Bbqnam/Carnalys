@@ -67,15 +67,16 @@ export const analystToolDefinitions: readonly AnalystFunctionTool[] = [
   {
     type: "function",
     name: "search_inventory",
-    description: "Filter all active representative Carnalys inventory using normalized filters, deterministically rank at most 300 matches from several views, and return at most twenty candidates. finalistIds may request details for up to five ids already returned by an earlier search.",
+    description: "Filter all active representative Carnalys inventory using normalized filters, deterministically rank at most 300 matches from several views, and return at most twenty candidates. finalistIds may request details for up to five ids already returned by an earlier search. bodyStyle only accepts one value, so to answer a passenger-cars-only ('personbilar') question set excludeCommercialBodyStyles true instead of guessing a single bodyStyle.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         filters: searchFiltersSchema,
         finalistIds: { type: "array", items: { type: "string", pattern: "^[A-Za-z0-9_-]{1,100}$" }, maxItems: 5 },
+        excludeCommercialBodyStyles: { type: "boolean" },
       },
-      required: ["filters", "finalistIds"],
+      required: ["filters", "finalistIds", "excludeCommercialBodyStyles"],
     },
     strict: true,
   },
