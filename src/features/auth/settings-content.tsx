@@ -14,7 +14,6 @@ import { SiteHeader } from "@/features/search/site-header";
 import { useFavorites } from "@/features/search/use-favorites";
 import { useCompare } from "@/features/search/use-compare";
 import { useLocaleCookie } from "@/features/search/use-locale-cookie";
-import { setStoredTheme } from "@/features/search/theme";
 import { setLocaleCookie } from "@/features/search/locale";
 import { setStoredViewMode } from "@/features/search/use-view-mode";
 import { BookmarkIcon, HeartIcon, SettingsIcon, UserIcon } from "@/features/search/icons";
@@ -49,10 +48,8 @@ export function SettingsContent({
     if (!form) return;
     const data = new FormData(form);
     const nextLocale = data.get("locale") === "sv" ? "sv" : "en";
-    const theme = data.get("theme");
     const viewMode = data.get("viewMode") === "list" ? "list" : "grid";
     setLocaleCookie(nextLocale);
-    setStoredTheme(theme === "light" || theme === "dark" ? theme : undefined);
     setStoredViewMode(viewMode);
     document.documentElement.lang = nextLocale;
     router.refresh();
@@ -120,13 +117,6 @@ export function SettingsContent({
                 <select className={fieldClass} defaultValue={account.locale} name="locale">
                   <option value="en">English</option>
                   <option value="sv">Svenska</option>
-                </select>
-              </label>
-              <label className="block text-sm font-semibold text-ink">
-                {en ? "Theme" : "Tema"}
-                <select className={fieldClass} defaultValue={account.theme} name="theme">
-                  <option value="light">{en ? "Light" : "Ljust"}</option>
-                  <option value="dark">{en ? "Dark" : "Mörkt"}</option>
                 </select>
               </label>
               <label className="block text-sm font-semibold text-ink">

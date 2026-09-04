@@ -3,7 +3,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { importGuestFavoritesAction, setFavoriteAction } from "./actions";
 import type { AccountUser } from "./session";
-import { setStoredTheme } from "@/features/search/theme";
 import { setStoredViewMode } from "@/features/search/use-view-mode";
 
 const favoriteStorageKey = "carnalys:favorites:v1";
@@ -44,7 +43,6 @@ export function AccountProvider({
       return () => window.clearTimeout(timer);
     }
 
-    setStoredTheme(initialUser.theme);
     setStoredViewMode(initialUser.viewMode);
 
     const guestIds = readGuestFavorites();

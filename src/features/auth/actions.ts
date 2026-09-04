@@ -165,13 +165,11 @@ export async function updateSettingsAction(
 ): Promise<SettingsActionState> {
   const user = await requireCurrentUser();
   const locale = formData.get("locale") === "sv" ? "sv" : "en";
-  const requestedTheme = formData.get("theme");
-  const theme = requestedTheme === "dark" ? "dark" : "light";
   const viewMode = formData.get("viewMode") === "list" ? "list" : "grid";
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { locale, theme, viewMode },
+    data: { locale, viewMode },
   });
   (await cookies()).set(localeCookieName, locale, {
     path: "/",

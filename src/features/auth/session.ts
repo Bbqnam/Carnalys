@@ -18,16 +18,18 @@ export interface AccountUser {
   id: string;
   username: string;
   locale: "en" | "sv";
-  theme: "light" | "dark";
   isAdmin: boolean;
   viewMode: "grid" | "list";
 }
 
+// Theme is deliberately not part of the account: it's a browser-local choice
+// (see features/search/theme.ts) made through the page's own toggle, never
+// synced from or to the server — that sync used to fight the toggle, snapping
+// the page back to the account's stored theme on every reload.
 function accountUser(user: {
   id: string;
   username: string;
   locale: string;
-  theme: string;
   isAdmin: boolean;
   viewMode: string;
 }): AccountUser {
@@ -35,7 +37,6 @@ function accountUser(user: {
     id: user.id,
     username: user.username,
     locale: user.locale === "sv" ? "sv" : "en",
-    theme: user.theme === "dark" ? "dark" : "light",
     isAdmin: user.isAdmin,
     viewMode: user.viewMode === "list" ? "list" : "grid",
   };
