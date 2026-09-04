@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { AnalystBudget } from "./budget";
 import { EvidenceRegistry, sanitizeEvidenceCitations } from "./evidence";
+import { selectAnalystReasoningEffort } from "./models";
 import { analystInstructions } from "./prompt";
 import type { AnalystModelProvider, ModelUsage, StreamCallbacks } from "./provider";
 import type { AnalystEvidence, AnalystRequest } from "./types";
@@ -93,6 +94,7 @@ export async function synthesizeAnswer({ provider, model, input, registry, reque
     input,
     tools: [],
     safetyIdentifier: safeIdentifier(userId),
+    reasoningEffort: selectAnalystReasoningEffort(request.message, request.context.surface),
   }, signal, stream);
   addUsage(usage, response.usage);
 

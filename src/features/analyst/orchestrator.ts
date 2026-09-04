@@ -1,5 +1,5 @@
 import { EvidenceRegistry } from "./evidence";
-import { selectAnalystModel } from "./models";
+import { selectAnalystModel, selectAnalystReasoningEffort } from "./models";
 import { analystInstructions, initialModelInput } from "./prompt";
 import type { AnalystModelProvider, ModelUsage } from "./provider";
 import { OpenAIResponsesProvider } from "./provider";
@@ -49,6 +49,7 @@ function parseArguments(value: string) {
 export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRunResult> {
   const provider = options.provider ?? new OpenAIResponsesProvider();
   const model = selectAnalystModel(options.request.message);
+  const reasoningEffort = selectAnalystReasoningEffort(options.request.message, options.request.context.surface);
   const input: unknown[] = [...initialModelInput(options.request)];
   const registry = new EvidenceRegistry();
   const tools = new AnalystToolSession({ context: options.request.context, signal: options.signal });
@@ -84,6 +85,7 @@ export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRun
       input,
       tools: analystToolDefinitions,
       safetyIdentifier: safeIdentifier(options.userId),
+      reasoningEffort,
     }, options.signal, stream);
     addUsage(usage, response.usage);
 
@@ -97,9 +99,11 @@ export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRun
     }
 
     input.push(...response.output);
-    for (const call of response.toolCalls) {
+    options.onStatus?.(options.request.locale === "sv" ? "Hämtar Carnalys-underlag…" : "Reading Carnalys evidence…");
+    // A turn can carry more than one tool call (parallel_tool_calls is on) —
+    // run them concurrently rather than one DB round-trip after another.
+    const outputs = await Promise.all(response.toolCalls.map(async (call) => {
       options.signal.throwIfAborted();
-      options.onStatus?.(options.request.locale === "sv" ? "Hämtar Carnalys-underlag…" : "Reading Carnalys evidence…");
       let output: unknown;
       try {
         output = registry.register(await tools.execute(call.name, parseArguments(call.argumentsJson)));
@@ -110,7 +114,10 @@ export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRun
             : "The read-only tool could not complete this request.",
         };
       }
-      input.push({ type: "function_call_output", call_id: call.callId, output: JSON.stringify(output) });
+      return { call_id: call.callId, output: JSON.stringify(output) };
+    }));
+    for (const entry of outputs) {
+      input.push({ type: "function_call_output", ...entry });
     }
   }
 

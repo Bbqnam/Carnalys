@@ -27,6 +27,8 @@ export interface ModelRequest {
   input: readonly unknown[];
   tools: readonly AnalystFunctionTool[];
   safetyIdentifier: string;
+  /** Falls back to CARNALYS_ANALYST_REASONING_EFFORT when omitted. */
+  reasoningEffort?: string;
 }
 
 /**
@@ -182,8 +184,10 @@ export class OpenAIResponsesProvider implements AnalystModelProvider {
     if (!this.apiKey) throw new Error("MODEL_NOT_CONFIGURED");
     // A tool-free call (the final synthesis pass) must not ship an empty tool
     // list with tool_choice: "auto" — the model is being forced to answer now.
+    // Parallel calls let one turn request, say, an independent market check on
+    // two listings at once instead of spending a whole extra round-trip on it.
     const toolFields = request.tools.length > 0
-      ? { tools: request.tools, tool_choice: "auto", parallel_tool_calls: false }
+      ? { tools: request.tools, tool_choice: "auto", parallel_tool_calls: true }
       : { tool_choice: "none" };
     const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/responses`, {
       method: "POST",
@@ -197,7 +201,7 @@ export class OpenAIResponsesProvider implements AnalystModelProvider {
         instructions: request.instructions,
         input: request.input,
         ...toolFields,
-        reasoning: { effort: process.env.CARNALYS_ANALYST_REASONING_EFFORT ?? "low" },
+        reasoning: { effort: request.reasoningEffort ?? process.env.CARNALYS_ANALYST_REASONING_EFFORT ?? "low" },
         text: { verbosity: "low" },
         max_output_tokens: 1_200,
         store: false,

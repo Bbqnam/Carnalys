@@ -31,7 +31,7 @@ test("OpenAI provider boundary parses tool calls and usage without exposing its 
     assert.equal(JSON.parse(sentBody).model, "gpt-5.6-luna");
     assert.equal(JSON.parse(sentBody).safety_identifier, "privacy-safe-user");
     assert.equal(JSON.parse(sentBody).store, false);
-    assert.equal(JSON.parse(sentBody).parallel_tool_calls, false);
+    assert.equal(JSON.parse(sentBody).parallel_tool_calls, true);
     assert.equal(JSON.parse(sentBody).tools[0].strict, true);
   } finally {
     globalThis.fetch = originalFetch;
