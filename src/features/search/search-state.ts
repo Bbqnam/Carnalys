@@ -64,6 +64,7 @@ export const defaultSearchFilters: SearchFilters = {
   bodyStyle: "",
   sellerType: "",
   postedWithin: "",
+  licensePlate: "",
 };
 
 export const defaultSearchSort: SearchSort = "newest";
@@ -156,6 +157,9 @@ export function parseVehicleSearchOptions(
       bodyStyle: enumValue(parameters.body, bodyStyles),
       sellerType: enumValue(parameters.seller, sellerTypes),
       postedWithin: enumValue(parameters.posted, postedWithinValues),
+      // Parsed unconditionally — the admin check that decides whether this
+      // actually reaches the database happens once, server-side, in page.tsx.
+      licensePlate: stringValue(parameters.plate).slice(0, 20),
     },
   };
 }
@@ -182,6 +186,7 @@ export function vehicleSearchUrl({ filters, sort, page }: VehicleSearchOptions) 
   if (filters.bodyStyle) parameters.set("body", filters.bodyStyle);
   if (filters.sellerType) parameters.set("seller", filters.sellerType);
   if (filters.postedWithin) parameters.set("posted", filters.postedWithin);
+  if (filters.licensePlate.trim()) parameters.set("plate", filters.licensePlate.trim());
   if (sort !== defaultSearchSort) parameters.set("sort", sort);
   if (page > 1) parameters.set("page", page.toString());
 

@@ -169,12 +169,20 @@ export default async function AdminMarketReportPage() {
             <CarnalysMark className="size-8 text-ink" />
             <span className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Carnalys Admin</span>
           </Link>
-          <Link
-            className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted"
-            href="/settings"
-          >
-            Settings
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted"
+              href="/admin/users"
+            >
+              Users
+            </Link>
+            <Link
+              className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted"
+              href="/settings"
+            >
+              Settings
+            </Link>
+          </div>
         </div>
       </header>
 

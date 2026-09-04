@@ -736,6 +736,8 @@ export function SearchExperience({
         searchQuery={filters.query}
         onSearchQueryChange={(query) => changeFilters({ ...filters, query }, 300)}
         onSearchSubmit={scrollToResults}
+        licensePlateQuery={filters.licensePlate}
+        onLicensePlateQueryChange={(licensePlate) => changeFilters({ ...filters, licensePlate }, 300)}
         syncSlot={
           <SynchronizationButton
             activeSynchronization={activeSynchronization}

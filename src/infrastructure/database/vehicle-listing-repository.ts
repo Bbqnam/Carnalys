@@ -565,6 +565,11 @@ function buildListingWhere(
     };
   }
   if (filters.bodyStyle) vehicleFilter.bodyStyle = filters.bodyStyle;
+  // Admin-only lookup (the page that calls this clears licensePlate for
+  // anyone else first). A minimum length keeps a stray short value from
+  // effectively unfiltering the whole table.
+  const plate = filters.licensePlate.trim();
+  if (plate.length >= 2) vehicleFilter.registrationNumber = { contains: plate, mode: "insensitive" };
 
   const queryTokens = filters.query.trim().split(/\s+/).filter(Boolean);
 

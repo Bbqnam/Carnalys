@@ -36,6 +36,9 @@ export interface SearchFilters {
   bodyStyle: BodyStyle | "";
   sellerType: SellerType | "";
   postedWithin: PostedWithin | "";
+  /** Admin-only substring lookup against the vehicle's registration number.
+   *  Never surfaced to, or settable by, the Carnalys Analyst. */
+  licensePlate: string;
 }
 
 export type PostedWithin = "today" | "week" | "month";

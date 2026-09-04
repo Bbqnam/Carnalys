@@ -39,6 +39,10 @@ interface SiteHeaderProps {
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
   onSearchSubmit?: () => void;
+  /** Admin-only substring search against a car's registration number. Only
+   *  rendered when the signed-in account is an admin. */
+  licensePlateQuery?: string;
+  onLicensePlateQueryChange?: (plate: string) => void;
 }
 
 export function SiteHeader({
@@ -54,6 +58,8 @@ export function SiteHeader({
   searchQuery,
   onSearchQueryChange,
   onSearchSubmit,
+  licensePlateQuery,
+  onLicensePlateQueryChange,
 }: SiteHeaderProps) {
   const router = useRouter();
   const { user } = useAccount();
@@ -191,6 +197,22 @@ export function SiteHeader({
     </form>
   );
 
+  // Admin-only power tool, deliberately plain rather than matching the
+  // animated search widget — a fixed-width box, no expand/collapse.
+  const plateSearch = onLicensePlateQueryChange ? (
+    <label className="flex h-9 items-center gap-1.5 rounded-full border border-border bg-surface-subtle px-3 text-ink-subtle transition focus-within:border-accent/60">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.06em]">{locale === "sv" ? "Reg.nr" : "Plate"}</span>
+      <input
+        aria-label={locale === "sv" ? "Sök på registreringsnummer (admin)" : "Search by license plate (admin)"}
+        className="w-16 min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
+        onChange={(event) => onLicensePlateQueryChange(event.target.value)}
+        placeholder="97"
+        type="text"
+        value={licensePlateQuery ?? ""}
+      />
+    </label>
+  ) : null;
+
   return (
     <header className="relative z-30 border-b border-border bg-surface">
       <div className="mx-auto flex h-16 max-w-[1800px] items-stretch justify-between gap-4 px-5 sm:h-[4.5rem] sm:px-8 lg:px-12">
@@ -254,6 +276,7 @@ export function SiteHeader({
               )}
             </div>
           </nav>
+          {user?.isAdmin && plateSearch ? <div className="hidden xl:block">{plateSearch}</div> : null}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
@@ -447,6 +470,7 @@ export function SiteHeader({
                   ))}
                   <div className="mt-1 border-t border-border pt-1.5">
                     {searchForm(true)}
+                    {user?.isAdmin && plateSearch ? <div className="mt-1.5">{plateSearch}</div> : null}
                   </div>
                   {user ? (
                     <>

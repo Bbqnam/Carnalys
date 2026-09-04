@@ -83,10 +83,13 @@ function fuelTypeList(value: unknown): FuelType[] {
 export function parseAnalystSearchFilters(value: unknown): SearchFilters {
   if (value === undefined) return { ...defaultSearchFilters };
   const input = object(value);
+  // licensePlate is accepted (never rejected — the whole-object trusted
+  // context sent from the search page naturally carries it) but never read:
+  // see the hardcoded "" below.
   onlyKeys(input, [
     "query", "minPrice", "maxPrice", "brands", "models", "sources", "fuelType",
     "transmission", "minYear", "maxYear", "minMileageMil", "maxMileageMil",
-    "bodyStyle", "sellerType", "postedWithin",
+    "bodyStyle", "sellerType", "postedWithin", "licensePlate",
   ]);
   const minPrice = nullableInteger(input.minPrice, "minPrice", 10_000_000);
   const maxPrice = nullableInteger(input.maxPrice, "maxPrice", 10_000_000);
@@ -129,6 +132,12 @@ export function parseAnalystSearchFilters(value: unknown): SearchFilters {
     bodyStyle: bodyStyle as SearchFilters["bodyStyle"],
     sellerType: sellerType as SearchFilters["sellerType"],
     postedWithin: postedWithin as SearchFilters["postedWithin"],
+    // Always "" regardless of what was sent (see the onlyKeys comment above):
+    // licensePlate is absent from searchFiltersSchema's own properties, so the
+    // model can never set it, and this function ignores it even when the
+    // trusted search-page context includes it. The Analyst can never search
+    // or see registration numbers.
+    licensePlate: "",
   };
 }
 
