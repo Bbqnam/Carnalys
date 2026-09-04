@@ -1,19 +1,25 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/infrastructure/database/prisma";
 import { hashPassword } from "@/features/auth/password";
 import { requireAdmin } from "@/features/auth/session";
 
-export type CreateTestUserState = {
-  username?: string;
-  password?: string;
+export type UserFormState = {
   error?: string;
+  success?: boolean;
 };
 
-function randomToken(bytes: number) {
-  return randomBytes(bytes).toString("hex");
+// Same shape signUpAction enforces for a self-service account.
+const usernamePattern = /^[\p{L}\p{N}_-]{3,24}$/u;
+
+function usernameError(username: string): string | null {
+  return usernamePattern.test(username) ? null : "Use 3–24 letters, numbers, dashes or underscores.";
+}
+
+function passwordError(password: string): string | null {
+  return password.length >= 8 && password.length <= 128 ? null : "Use a password between 8 and 128 characters.";
 }
 
 export async function setUserAdminAction(formData: FormData) {
@@ -27,26 +33,70 @@ export async function setUserAdminAction(formData: FormData) {
   revalidatePath("/admin/users");
 }
 
-export async function createTestUserAction(
-  _state: CreateTestUserState,
-  _formData: FormData,
-): Promise<CreateTestUserState> {
+export async function createUserAction(
+  _state: UserFormState,
+  formData: FormData,
+): Promise<UserFormState> {
   await requireAdmin();
-  const password = randomBytes(12).toString("base64url");
+  const username = String(formData.get("username") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const invalidUsername = usernameError(username);
+  if (invalidUsername) return { error: invalidUsername };
+  const invalidPassword = passwordError(password);
+  if (invalidPassword) return { error: invalidPassword };
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const username = `test-${randomToken(4)}`;
-    const usernameNormalized = username.toLocaleLowerCase("en-US");
-    if (await prisma.user.findUnique({ where: { usernameNormalized } })) continue;
-    try {
-      await prisma.user.create({
-        data: { username, usernameNormalized, passwordHash: await hashPassword(password) },
-      });
-      revalidatePath("/admin/users");
-      return { username, password };
-    } catch {
-      // Unique-constraint race with another request creating the same name — retry.
-    }
+  const usernameNormalized = username.toLocaleLowerCase("en-US");
+  if (await prisma.user.findUnique({ where: { usernameNormalized } })) {
+    return { error: "That username is already taken." };
   }
-  return { error: "Could not find a free test username, try again." };
+  await prisma.user.create({
+    data: { username, usernameNormalized, passwordHash: await hashPassword(password) },
+  });
+  revalidatePath("/admin/users");
+  return { success: true };
+}
+
+export async function updateUserAction(
+  _state: UserFormState,
+  formData: FormData,
+): Promise<UserFormState> {
+  await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  const username = String(formData.get("username") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+
+  const invalidUsername = usernameError(username);
+  if (invalidUsername) return { error: invalidUsername };
+  if (password) {
+    const invalidPassword = passwordError(password);
+    if (invalidPassword) return { error: invalidPassword };
+  }
+
+  const usernameNormalized = username.toLocaleLowerCase("en-US");
+  const holder = await prisma.user.findUnique({ where: { usernameNormalized } });
+  if (holder && holder.id !== userId) return { error: "That username is already taken." };
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      username,
+      usernameNormalized,
+      ...(password ? { passwordHash: await hashPassword(password) } : {}),
+    },
+  });
+  revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${userId}`);
+  return { success: true };
+}
+
+export async function deleteUserAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  // Deleting your own signed-in account mid-request is a footgun, not a feature.
+  if (userId === admin.id) return;
+  await prisma.user.delete({ where: { id: userId } }).catch(() => {
+    // Already gone — treat it as success rather than surfacing a stale error.
+  });
+  revalidatePath("/admin/users");
+  redirect("/admin/users");
 }

@@ -4,7 +4,7 @@ import { prisma } from "@/infrastructure/database/prisma";
 import { requireAdmin } from "@/features/auth/session";
 import { CarnalysMark } from "@/features/search/carnalys-mark";
 import { setUserAdminAction } from "./actions";
-import { CreateTestUserButton } from "./create-test-user-button";
+import { CreateUserForm } from "./create-user-form";
 
 export const metadata = { title: "Users · Carnalys Admin" };
 export const dynamic = "force-dynamic";
@@ -70,7 +70,7 @@ export default async function AdminUsersPage() {
               {total > users.length ? ` · showing the most recent ${users.length}` : ""}
             </p>
           </div>
-          <CreateTestUserButton />
+          <CreateUserForm />
         </div>
 
         <div className="mt-8 overflow-x-auto rounded-xl border border-border">
@@ -106,19 +106,27 @@ export default async function AdminUsersPage() {
                       {dateTime.format(user.createdAt)}
                     </td>
                     <td className="px-3 py-2.5 text-[13px] text-ink-muted">{user.locale.toUpperCase()}</td>
-                    <td className="px-3 py-2.5 text-right">
-                      <form action={setUserAdminAction}>
-                        <input name="userId" type="hidden" value={user.id} />
-                        <input name="makeAdmin" type="hidden" value={String(!user.isAdmin)} />
-                        <button
-                          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-muted transition hover:bg-surface-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-                          disabled={isSelf && user.isAdmin}
-                          title={isSelf && user.isAdmin ? "You can't demote yourself" : undefined}
-                          type="submit"
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Link
+                          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-muted transition hover:bg-surface-muted hover:text-ink"
+                          href={`/admin/users/${user.id}`}
                         >
-                          {user.isAdmin ? "Demote" : "Promote"}
-                        </button>
-                      </form>
+                          Edit
+                        </Link>
+                        <form action={setUserAdminAction}>
+                          <input name="userId" type="hidden" value={user.id} />
+                          <input name="makeAdmin" type="hidden" value={String(!user.isAdmin)} />
+                          <button
+                            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-muted transition hover:bg-surface-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                            disabled={isSelf && user.isAdmin}
+                            title={isSelf && user.isAdmin ? "You can't demote yourself" : undefined}
+                            type="submit"
+                          >
+                            {user.isAdmin ? "Demote" : "Promote"}
+                          </button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                 );
