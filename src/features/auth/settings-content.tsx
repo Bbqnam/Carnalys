@@ -82,9 +82,14 @@ export function SettingsContent({
             {en ? `Signed in as ${account.username}` : `Inloggad som ${account.username}`}
           </p>
           {account.isAdmin ? (
-            <Link className="mt-4 inline-flex rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-surface transition hover:opacity-90" href="/admin/market-report">
-              {en ? "Open market control" : "Öppna marknadskontroll"}
-            </Link>
+            <div className="mt-4 flex flex-wrap items-center gap-2.5">
+              <Link className="inline-flex rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-surface transition hover:opacity-90" href="/admin/market-report">
+                {en ? "Open market control" : "Öppna marknadskontroll"}
+              </Link>
+              <Link className="inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-muted" href="/admin/users">
+                {en ? "Open users" : "Öppna användare"}
+              </Link>
+            </div>
           ) : null}
         </header>
 
