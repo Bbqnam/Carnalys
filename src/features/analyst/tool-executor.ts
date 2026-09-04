@@ -76,7 +76,13 @@ export class AnalystToolSession {
       const filters = this.options.context.surface === "search"
         ? mergeTrustedSearchFilters(this.options.context.filters, call.arguments.filters)
         : call.arguments.filters;
-      work = searchInventoryEvidence(filters, call.arguments.finalistIds, call.arguments.excludeCommercialBodyStyles);
+      work = searchInventoryEvidence(filters, {
+        finalistIds: call.arguments.finalistIds,
+        excludeCommercialBodyStyles: call.arguments.excludeCommercialBodyStyles,
+        fuelTypes: call.arguments.fuelTypes,
+        minHorsepower: call.arguments.minHorsepower,
+        maxHorsepower: call.arguments.maxHorsepower,
+      });
     }
     const result = await withAbortAndTimeout(work, this.options.signal, timeoutMs);
     if (call.name === "search_inventory") {

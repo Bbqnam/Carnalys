@@ -73,6 +73,13 @@ function stringList(value: unknown, name: string, maximumItems = 20) {
   return [...new Set(value.map((item) => text(item, name, 80)))];
 }
 
+function fuelTypeList(value: unknown): FuelType[] {
+  const items = stringList(value, "fuelTypes", fuels.size);
+  const invalid = items.find((item) => !fuels.has(item as FuelType));
+  if (invalid) throw new AnalystValidationError(`Invalid fuelTypes entry: ${invalid}.`);
+  return items as FuelType[];
+}
+
 export function parseAnalystSearchFilters(value: unknown): SearchFilters {
   if (value === undefined) return { ...defaultSearchFilters };
   const input = object(value);
@@ -178,7 +185,7 @@ export function parseAnalystRequest(value: unknown): AnalystRequest {
 export type ValidatedToolArguments =
   | { name: "get_listing_analysis"; arguments: { listingId: string; includeDescription: boolean } }
   | { name: "analyse_listing_market"; arguments: { listingId: string } }
-  | { name: "search_inventory"; arguments: { filters: SearchFilters; finalistIds: string[]; excludeCommercialBodyStyles: boolean } }
+  | { name: "search_inventory"; arguments: { filters: SearchFilters; finalistIds: string[]; excludeCommercialBodyStyles: boolean; fuelTypes: FuelType[]; minHorsepower: number | null; maxHorsepower: number | null } }
   | { name: "compare_listings"; arguments: { listingIds: string[] } };
 
 export function validateToolArguments(name: string, value: unknown): ValidatedToolArguments {
@@ -196,10 +203,16 @@ export function validateToolArguments(name: string, value: unknown): ValidatedTo
     return { name, arguments: { listingId: listingId(input.listingId) } };
   }
   if (name === "search_inventory") {
-    onlyKeys(input, ["filters", "finalistIds", "excludeCommercialBodyStyles"]);
+    onlyKeys(input, ["filters", "finalistIds", "excludeCommercialBodyStyles", "fuelTypes", "minHorsepower", "maxHorsepower"]);
     const finalistIds = stringList(input.finalistIds, "finalistIds", 5).map(listingId);
     const excludeCommercialBodyStyles = input.excludeCommercialBodyStyles === true;
-    return { name, arguments: { filters: parseAnalystSearchFilters(input.filters), finalistIds, excludeCommercialBodyStyles } };
+    const fuelTypes = fuelTypeList(input.fuelTypes);
+    const minHorsepower = nullableInteger(input.minHorsepower, "minHorsepower", 2_000);
+    const maxHorsepower = nullableInteger(input.maxHorsepower, "maxHorsepower", 2_000);
+    if (minHorsepower !== null && maxHorsepower !== null && minHorsepower > maxHorsepower) {
+      throw new AnalystValidationError("minHorsepower cannot exceed maxHorsepower.");
+    }
+    return { name, arguments: { filters: parseAnalystSearchFilters(input.filters), finalistIds, excludeCommercialBodyStyles, fuelTypes, minHorsepower, maxHorsepower } };
   }
   onlyKeys(input, ["listingIds"]);
   const ids = stringList(input.listingIds, "listingIds", 3).map(listingId);

@@ -523,13 +523,24 @@ function postedCutoff(value: SearchFilters["postedWithin"]) {
   return new Date(Date.now() - days * 86_400_000);
 }
 
-// bodyStyle in SearchFilters only ever holds one value, so it can select a
-// single body style but not express "any passenger car" — there's no way to
-// ask for that shape without excluding these two ourselves.
+// bodyStyle and fuelType in SearchFilters only ever hold one value each, so
+// they can select a single option but not express "any passenger car" or "petrol
+// or hybrid" — these analyst-only extras (outside the shared SearchFilters
+// shape) cover what a single-value filter structurally can't.
 const commercialBodyStyles: readonly BodyStyle[] = ["van", "pickup"];
 
-function searchWhere(filters: SearchFilters, excludeCommercialBodyStyles: boolean): Prisma.ListingRecordWhereInput {
+export interface AnalystSearchOptions {
+  finalistIds?: readonly string[];
+  excludeCommercialBodyStyles?: boolean;
+  fuelTypes?: readonly FuelType[];
+  minHorsepower?: number | null;
+  maxHorsepower?: number | null;
+}
+
+function searchWhere(filters: SearchFilters, options: AnalystSearchOptions): Prisma.ListingRecordWhereInput {
   const tokens = filters.query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const fuelTypes = options.fuelTypes ?? [];
+  const { minHorsepower, maxHorsepower } = options;
   return {
     status: "active",
     isVehicleRepresentative: true,
@@ -542,10 +553,11 @@ function searchWhere(filters: SearchFilters, excludeCommercialBodyStyles: boolea
     vehicle: { is: {
       ...(filters.brands.length ? { make: { in: [...filters.brands] } } : {}),
       ...(filters.models.length ? { model: { in: [...filters.models] } } : {}),
-      ...(filters.fuelType ? { fuelType: filters.fuelType } : {}),
+      ...(filters.fuelType ? { fuelType: filters.fuelType } : fuelTypes.length ? { fuelType: { in: [...fuelTypes] } } : {}),
       ...(filters.transmission ? { transmission: filters.transmission } : {}),
-      ...(filters.bodyStyle ? { bodyStyle: filters.bodyStyle } : excludeCommercialBodyStyles ? { bodyStyle: { notIn: [...commercialBodyStyles] } } : {}),
+      ...(filters.bodyStyle ? { bodyStyle: filters.bodyStyle } : options.excludeCommercialBodyStyles ? { bodyStyle: { notIn: [...commercialBodyStyles] } } : {}),
       ...(filters.minYear !== null || filters.maxYear !== null ? { modelYear: { ...(filters.minYear !== null ? { gte: filters.minYear } : {}), ...(filters.maxYear !== null ? { lte: filters.maxYear } : {}) } } : {}),
+      ...(minHorsepower != null || maxHorsepower != null ? { horsepower: { ...(minHorsepower != null ? { gte: minHorsepower } : {}), ...(maxHorsepower != null ? { lte: maxHorsepower } : {}) } } : {}),
     } },
   };
 }
@@ -565,14 +577,15 @@ async function inLanes<T, R>(items: readonly T[], concurrency: number, run: (ite
 
 export async function searchInventoryEvidence(
   filters: SearchFilters,
-  finalistIds: readonly string[] = [],
-  excludeCommercialBodyStyles = false,
+  options: AnalystSearchOptions = {},
 ): Promise<AnalystToolResult> {
+  const { finalistIds = [], excludeCommercialBodyStyles = false, fuelTypes = [], minHorsepower = null, maxHorsepower = null } = options;
   await initializeDatabase();
   const freshness = await getCatalogFreshness();
   const freshnessKey = freshness?.lastSynchronizedAt?.toISOString() ?? "unknown";
-  return analystEvidenceCache.get(`search:${freshnessKey}:${JSON.stringify(filters)}:${finalistIds.join(",")}:${excludeCommercialBodyStyles ? 1 : 0}`, 3 * 60_000, async () => {
-    const where = searchWhere(filters, excludeCommercialBodyStyles);
+  const cacheKey = `search:${freshnessKey}:${JSON.stringify(filters)}:${finalistIds.join(",")}:${excludeCommercialBodyStyles ? 1 : 0}:${[...fuelTypes].sort().join(",")}:${minHorsepower ?? ""}:${maxHorsepower ?? ""}`;
+  return analystEvidenceCache.get(cacheKey, 3 * 60_000, async () => {
+    const where = searchWhere(filters, { excludeCommercialBodyStyles, fuelTypes, minHorsepower, maxHorsepower });
     const views: Prisma.ListingRecordOrderByWithRelationInput[][] = [
       [{ analysis: { dealScore: { sort: "desc", nulls: "last" } } }, { id: "asc" }],
       [{ priceAmount: "asc" }, { id: "asc" }],
@@ -632,6 +645,8 @@ export async function searchInventoryEvidence(
         warnings: [
           ...(total > rows.length ? [`The database matched ${total} listings; deterministic multi-view ranking evaluated up to 300 and returned 20.`] : []),
           ...(excludeCommercialBodyStyles ? ["Vans and pickups were excluded as commercial body styles."] : []),
+          ...(fuelTypes.length ? [`Restricted to fuel types: ${fuelTypes.join(", ")}.`] : []),
+          ...(minHorsepower != null || maxHorsepower != null ? [`Restricted to horsepower ${minHorsepower ?? "any"}–${maxHorsepower ?? "any"}.`] : []),
           "Market price ratios use stored Carnalys valuations for ranking only; request analyse_listing_market for an independent cohort check.",
         ],
       },

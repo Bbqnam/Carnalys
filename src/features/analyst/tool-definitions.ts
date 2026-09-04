@@ -4,6 +4,7 @@ type JsonSchema = Record<string, unknown>;
 
 const nullableInteger = (maximum: number): JsonSchema => ({ type: ["integer", "null"], minimum: 0, maximum });
 const stringArray = { type: "array", items: { type: "string", maxLength: 80 }, maxItems: 20 };
+const fuelTypeValues = ["diesel", "electric", "ethanol", "hydrogen", "petrol", "plug_in_hybrid", "self_charging_hybrid", "other"];
 
 const searchFiltersSchema: JsonSchema = {
   type: "object",
@@ -15,7 +16,7 @@ const searchFiltersSchema: JsonSchema = {
     brands: stringArray,
     models: stringArray,
     sources: stringArray,
-    fuelType: { type: "string", enum: ["", "diesel", "electric", "ethanol", "hydrogen", "petrol", "plug_in_hybrid", "self_charging_hybrid", "other"] },
+    fuelType: { type: "string", enum: ["", ...fuelTypeValues] },
     transmission: { type: "string", enum: ["", "automatic", "manual", "other"] },
     minYear: nullableInteger(3_000),
     maxYear: nullableInteger(3_000),
@@ -67,7 +68,7 @@ export const analystToolDefinitions: readonly AnalystFunctionTool[] = [
   {
     type: "function",
     name: "search_inventory",
-    description: "Filter all active representative Carnalys inventory using normalized filters, deterministically rank at most 300 matches from several views, and return at most twenty candidates. finalistIds may request details for up to five ids already returned by an earlier search. bodyStyle only accepts one value, so to answer a passenger-cars-only ('personbilar') question set excludeCommercialBodyStyles true instead of guessing a single bodyStyle.",
+    description: "Filter all active representative Carnalys inventory using normalized filters, deterministically rank at most 300 matches from several views, and return at most twenty candidates. finalistIds may request details for up to five ids already returned by an earlier search. filters.fuelType and filters.bodyStyle only accept one value each — for a passenger-cars-only ('personbilar') question set excludeCommercialBodyStyles true instead of guessing a bodyStyle, and for a multi-fuel question (e.g. 'petrol or hybrid') use fuelTypes instead of guessing a single filters.fuelType. Use minHorsepower/maxHorsepower for a power requirement — filters has no horsepower field.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -75,8 +76,11 @@ export const analystToolDefinitions: readonly AnalystFunctionTool[] = [
         filters: searchFiltersSchema,
         finalistIds: { type: "array", items: { type: "string", pattern: "^[A-Za-z0-9_-]{1,100}$" }, maxItems: 5 },
         excludeCommercialBodyStyles: { type: "boolean" },
+        fuelTypes: { type: "array", items: { type: "string", enum: fuelTypeValues }, maxItems: fuelTypeValues.length },
+        minHorsepower: nullableInteger(2_000),
+        maxHorsepower: nullableInteger(2_000),
       },
-      required: ["filters", "finalistIds", "excludeCommercialBodyStyles"],
+      required: ["filters", "finalistIds", "excludeCommercialBodyStyles", "fuelTypes", "minHorsepower", "maxHorsepower"],
     },
     strict: true,
   },
