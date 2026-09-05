@@ -159,25 +159,40 @@ export function AnalystLauncher({ initialLocale }: { initialLocale: Locale }) {
   return (
     <>
       {rendered ? (
-        <div
-          className="pop-in fixed bottom-24 right-3 z-50 flex max-h-[calc(100dvh-7rem)] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] flex-col sm:right-6 sm:w-[24rem]"
-          data-closing={closing}
-          style={size ? { width: size.w, height: size.h } : { height: "min(34rem, calc(100dvh - 7rem))" }}
-        >
+        <>
+          {/* Below sm, the panel floats over the page with nothing dimmed
+              behind it, so a tap outside does nothing — closing was only
+              reachable through the header button. This backdrop gives mobile
+              the same tap-outside-to-close behavior as the filters drawer;
+              desktop keeps the borderless floating-widget feel. */}
           <button
-            aria-label={locale === "sv" ? "Ändra storlek" : "Resize"}
-            className="absolute -left-2 -top-2 z-10 hidden size-6 cursor-nwse-resize touch-none place-items-center rounded-full border border-border bg-surface text-ink-subtle shadow-sm transition hover:text-ink sm:grid"
-            onPointerDown={onResizeStart}
+            aria-label={locale === "sv" ? "Stäng Ask Carnalys" : "Close Ask Carnalys"}
+            className="slide-over-backdrop fixed inset-0 z-40 bg-[#101712]/55 sm:hidden"
+            data-closing={closing}
+            onClick={() => setOpen(false)}
+            tabIndex={-1}
             type="button"
+          />
+          <div
+            className="pop-in fixed bottom-24 right-3 z-50 flex max-h-[calc(100dvh-7rem)] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] flex-col sm:right-6 sm:w-[24rem]"
+            data-closing={closing}
+            style={size ? { width: size.w, height: size.h } : { height: "min(34rem, calc(100dvh - 7rem))" }}
           >
-            <svg aria-hidden="true" className="size-3" fill="none" viewBox="0 0 12 12">
-              <path d="M2 8.5 8.5 2M5 9.5 9.5 5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
-            </svg>
-          </button>
-          <Suspense fallback={null}>
-            <AnalystPanel locale={locale} onClose={() => setOpen(false)} />
-          </Suspense>
-        </div>
+            <button
+              aria-label={locale === "sv" ? "Ändra storlek" : "Resize"}
+              className="absolute -left-2 -top-2 z-10 hidden size-6 cursor-nwse-resize touch-none place-items-center rounded-full border border-border bg-surface text-ink-subtle shadow-sm transition hover:text-ink sm:grid"
+              onPointerDown={onResizeStart}
+              type="button"
+            >
+              <svg aria-hidden="true" className="size-3" fill="none" viewBox="0 0 12 12">
+                <path d="M2 8.5 8.5 2M5 9.5 9.5 5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+              </svg>
+            </button>
+            <Suspense fallback={null}>
+              <AnalystPanel locale={locale} onClose={() => setOpen(false)} />
+            </Suspense>
+          </div>
+        </>
       ) : null}
 
       <button

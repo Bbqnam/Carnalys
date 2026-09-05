@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { cookies } from "next/headers";
 import { themeInitScript } from "@/features/search/theme";
@@ -18,6 +18,15 @@ export const metadata: Metadata = {
   title: "Carnalys",
   description:
     "Compare used cars in Sweden by market value, Deal Score, buy confidence and estimated ownership cost.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Without this, an on-screen keyboard overlays fixed-position UI (like the
+  // Ask Carnalys panel) instead of shrinking the viewport — the compose box
+  // ends up hidden behind the keyboard on mobile Safari/Chrome.
+  interactiveWidget: "resizes-content",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
