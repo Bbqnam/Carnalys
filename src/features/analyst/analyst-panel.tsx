@@ -368,7 +368,7 @@ export function AnalystPanel({ locale, onClose }: { locale: Locale; onClose?: ()
           <div className="flex items-end gap-1.5 rounded-[1.1rem] border border-border-strong bg-background p-1 shadow-sm transition duration-200 focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/10">
             <label className="sr-only" htmlFor="analyst-chat-input">{locale === "sv" ? "Fråga Carnalys" : "Ask Carnalys"}</label>
             <textarea
-              className="max-h-[132px] min-h-9 min-w-0 flex-1 resize-none bg-transparent px-3 py-1.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-subtle"
+              className="max-h-[132px] min-h-9 min-w-0 flex-1 resize-none bg-transparent px-3 py-1.5 text-base leading-6 text-ink outline-none placeholder:text-ink-subtle sm:text-sm"
               disabled={running}
               id="analyst-chat-input"
               maxLength={600}
