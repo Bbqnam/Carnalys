@@ -20,6 +20,9 @@ export interface AccountUser {
   locale: "en" | "sv";
   isAdmin: boolean;
   viewMode: "grid" | "list";
+  insuranceAgeBand: string | null;
+  insuranceLicenceYears: number | null;
+  insuranceRegion: string | null;
 }
 
 // Theme is deliberately not part of the account: it's a browser-local choice
@@ -32,6 +35,9 @@ function accountUser(user: {
   locale: string;
   isAdmin: boolean;
   viewMode: string;
+  insuranceAgeBand: string | null;
+  insuranceLicenceYears: number | null;
+  insuranceRegion: string | null;
 }): AccountUser {
   return {
     id: user.id,
@@ -39,6 +45,9 @@ function accountUser(user: {
     locale: user.locale === "sv" ? "sv" : "en",
     isAdmin: user.isAdmin,
     viewMode: user.viewMode === "list" ? "list" : "grid",
+    insuranceAgeBand: user.insuranceAgeBand,
+    insuranceLicenceYears: user.insuranceLicenceYears,
+    insuranceRegion: user.insuranceRegion,
   };
 }
 

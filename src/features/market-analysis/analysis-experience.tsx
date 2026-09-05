@@ -16,6 +16,7 @@ import {
   TrophyIcon,
 } from "@/features/search/icons";
 import { SiteHeader } from "@/features/search/site-header";
+import { SiteFooter } from "@/features/search/site-footer";
 import type { AvailableVehicleFilters } from "@/features/search/types";
 import { useCompare } from "@/features/search/use-compare";
 import { useFavorites } from "@/features/search/use-favorites";
@@ -266,6 +267,8 @@ export function AnalysisExperience({
           </Module>
         </div>
       </main>
+
+      <SiteFooter locale={locale} />
     </div>
   );
 }

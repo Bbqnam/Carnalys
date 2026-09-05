@@ -113,6 +113,13 @@ export function scoreTone(value: number) {
   return "border-negative/50 text-negative";
 }
 
+/** Tailwind background color class for the insurance signal dot on a card. */
+export function insuranceTone(monthlyAmount: number) {
+  if (monthlyAmount < 500) return "bg-positive";
+  if (monthlyAmount < 800) return "bg-gold";
+  return "bg-negative";
+}
+
 /** Text color class for a score factor's impact (positive/neutral/negative). */
 export function factorImpactTone(impact: "positive" | "neutral" | "negative") {
   if (impact === "positive") return "text-positive";

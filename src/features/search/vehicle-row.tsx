@@ -67,6 +67,8 @@ export function VehicleRow({
     dealScoreValue,
     hasDealScore,
     dealScoreTone,
+    insuranceMonthly,
+    insuranceDotTone,
     sellerTypeLabel,
     imageAlt,
   } = deriveVehicleCardData(result, locale, currentLocation);
@@ -137,6 +139,18 @@ export function VehicleRow({
               >
                 {hasDealScore ? dealScoreValue : "–"}
               </span>
+              {/* Same rough insurance-cost signal as the grid card — a plain
+                  colored dot, not a number, so it doesn't compete with Deal
+                  Score. */}
+              {insuranceMonthly !== undefined && insuranceDotTone ? (
+                <span
+                  aria-label={copy.card.insuranceEstimate(moneyFormatter.format(insuranceMonthly))}
+                  className="grid size-6 shrink-0 place-items-center"
+                  title={copy.card.insuranceEstimate(moneyFormatter.format(insuranceMonthly))}
+                >
+                  <span className={`size-2.5 rounded-full ${insuranceDotTone}`} />
+                </span>
+              ) : null}
             </span>
           </div>
 

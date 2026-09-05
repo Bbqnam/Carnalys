@@ -20,6 +20,7 @@ import { signOutAction } from "@/features/auth/actions";
 import { useAccount } from "@/features/auth/account-provider";
 import { ThemeToggle } from "./theme-toggle";
 import { uiCopy, type Locale } from "./copy";
+import { clearSavedSearchState } from "./search-state";
 
 import type { LocationStatus } from "./use-current-location";
 
@@ -67,19 +68,27 @@ export function SiteHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [plateSearchOpen, setPlateSearchOpen] = useState(false);
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery ?? "");
   const menuRef = useRef<HTMLDivElement | null>(null);
   const accountRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const plateSearchRef = useRef<HTMLDivElement | null>(null);
+  const plateInputRef = useRef<HTMLInputElement | null>(null);
   const menuId = useId();
   const accountId = useId();
   const searchId = useId();
+  const plateSearchId = useId();
   const effectiveSearchQuery = searchQuery ?? localSearchQuery;
 
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
+
+  useEffect(() => {
+    if (plateSearchOpen) plateInputRef.current?.focus();
+  }, [plateSearchOpen]);
 
   const locationLabel =
     locationStatus === "locating"
@@ -93,18 +102,20 @@ export function SiteHeader({
             : copy.results.useCurrentLocation;
 
   useEffect(() => {
-    if (!menuOpen && !accountOpen && !searchOpen) return;
+    if (!menuOpen && !accountOpen && !searchOpen && !plateSearchOpen) return;
     function onPointerDown(event: PointerEvent) {
       const target = event.target as Node;
       if (menuOpen && !menuRef.current?.contains(target)) setMenuOpen(false);
       if (accountOpen && !accountRef.current?.contains(target)) setAccountOpen(false);
       if (searchOpen && !searchRef.current?.contains(target)) setSearchOpen(false);
+      if (plateSearchOpen && !plateSearchRef.current?.contains(target)) setPlateSearchOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setMenuOpen(false);
         setAccountOpen(false);
         setSearchOpen(false);
+        setPlateSearchOpen(false);
       }
     }
     window.addEventListener("pointerdown", onPointerDown);
@@ -113,7 +124,7 @@ export function SiteHeader({
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [menuOpen, accountOpen, searchOpen]);
+  }, [menuOpen, accountOpen, searchOpen, plateSearchOpen]);
 
   const navItems = (
     [
@@ -197,21 +208,80 @@ export function SiteHeader({
     </form>
   );
 
-  // Admin-only power tool, deliberately plain rather than matching the
-  // animated search widget — a fixed-width box, no expand/collapse.
-  const plateSearch = onLicensePlateQueryChange ? (
-    <label className="flex h-9 items-center gap-1.5 rounded-full border border-border bg-surface-subtle px-3 text-ink-subtle transition focus-within:border-accent/60">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.06em]">{locale === "sv" ? "Reg.nr" : "Plate"}</span>
+  // Admin-only power tool. Mirrors the main search widget's collapse/expand
+  // behaviour (icon-only trigger, animated width, click-outside/Escape to
+  // close) instead of sitting there permanently open.
+  const plateSearchWidget = (mobile = false) => {
+    if (!onLicensePlateQueryChange) return null;
+    const label = locale === "sv" ? "Reg.nr" : "Plate";
+    const ariaLabel =
+      locale === "sv" ? "Sök på registreringsnummer (admin)" : "Search by license plate (admin)";
+    const input = (
       <input
-        aria-label={locale === "sv" ? "Sök på registreringsnummer (admin)" : "Search by license plate (admin)"}
-        className="w-16 min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
+        aria-label={ariaLabel}
+        className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
+        id={mobile ? undefined : plateSearchId}
         onChange={(event) => onLicensePlateQueryChange(event.target.value)}
-        placeholder="97"
+        onKeyDown={(event) => {
+          if (!mobile && event.key === "Escape") setPlateSearchOpen(false);
+        }}
+        // A real plate, not the "97" substring-match example from the
+        // commit that added this — that was illustration, not guidance.
+        placeholder="ABC123"
+        ref={mobile ? undefined : plateInputRef}
         type="text"
         value={licensePlateQuery ?? ""}
       />
-    </label>
-  ) : null;
+    );
+
+    if (mobile) {
+      return (
+        <label className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface-subtle px-3 text-ink-subtle">
+          <SearchIcon className="size-4 shrink-0" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em]">{label}</span>
+          {input}
+        </label>
+      );
+    }
+
+    return (
+      <div
+        className="h-9 shrink-0 overflow-hidden transition-[width] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+        ref={plateSearchRef}
+        style={{ width: plateSearchOpen ? 176 : 96 }}
+      >
+        {plateSearchOpen ? (
+          <label
+            className="fade-in flex h-9 w-44 items-center gap-1.5 rounded-full border border-accent/60 bg-surface-subtle px-3 text-ink-subtle"
+            key="plate-search-form"
+          >
+            <SearchIcon className="size-4 shrink-0" />
+            {input}
+            <button
+              aria-label={locale === "sv" ? "Stäng regnr-sökning" : "Close plate search"}
+              className="grid size-5 shrink-0 place-items-center rounded-full text-ink-subtle transition hover:bg-surface-muted hover:text-ink"
+              onClick={() => setPlateSearchOpen(false)}
+              type="button"
+            >
+              <CloseIcon className="size-3" />
+            </button>
+          </label>
+        ) : (
+          <button
+            aria-controls={plateSearchId}
+            aria-expanded="false"
+            className="fade-in flex h-9 w-24 items-center gap-1.5 rounded-full border border-border bg-surface-subtle px-3 text-sm font-medium text-ink-subtle transition hover:text-ink"
+            key="plate-search-trigger"
+            onClick={() => setPlateSearchOpen(true)}
+            type="button"
+          >
+            <SearchIcon className="size-4 shrink-0" />
+            {label}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <header className="relative z-30 border-b border-border bg-surface">
@@ -221,6 +291,7 @@ export function SiteHeader({
             aria-label={copy.nav.home}
             className="group flex shrink-0 items-center gap-2.5 rounded-lg"
             href={logoHref}
+            onClick={logoHref === "/" ? clearSavedSearchState : undefined}
           >
             <CarnalysMark className="size-8 text-ink transition-transform duration-300 group-hover:scale-105" />
             <span className="text-[15px] font-semibold uppercase tracking-[0.16em] text-ink max-[360px]:hidden">
@@ -242,6 +313,7 @@ export function SiteHeader({
                 }`}
                 href={href}
                 key={page}
+                onClick={page === "cars" ? clearSavedSearchState : undefined}
               >
                 <Icon className="size-4" />
                 {label}
@@ -276,7 +348,9 @@ export function SiteHeader({
               )}
             </div>
           </nav>
-          {user?.isAdmin && plateSearch ? <div className="hidden xl:block">{plateSearch}</div> : null}
+          {user?.isAdmin && onLicensePlateQueryChange ? (
+            <div className="hidden xl:block">{plateSearchWidget()}</div>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
@@ -452,7 +526,10 @@ export function SiteHeader({
                       }`}
                       href={href}
                       key={page}
-                      onClick={() => setMenuOpen(false)}
+                      onClick={() => {
+                        if (page === "cars") clearSavedSearchState();
+                        setMenuOpen(false);
+                      }}
                       role="menuitem"
                     >
                       <Icon className="size-[18px] shrink-0" />
@@ -470,7 +547,9 @@ export function SiteHeader({
                   ))}
                   <div className="mt-1 border-t border-border pt-1.5">
                     {searchForm(true)}
-                    {user?.isAdmin && plateSearch ? <div className="mt-1.5">{plateSearch}</div> : null}
+                    {user?.isAdmin && onLicensePlateQueryChange ? (
+                      <div className="mt-1.5">{plateSearchWidget(true)}</div>
+                    ) : null}
                   </div>
                   {user ? (
                     <>

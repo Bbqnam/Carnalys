@@ -70,6 +70,21 @@ export const defaultSearchFilters: SearchFilters = {
 export const defaultSearchSort: SearchSort = "newest";
 export const defaultVehiclePageSize: VehiclePageSize = 40;
 
+export const searchStateStorageKey = "carnalys:search-state:v1";
+
+// A returning visit to a bare "/" restores whatever was last searched, which
+// is convenient for someone reopening the tab but wrong for anyone who
+// explicitly clicked "Home": that click means "start over," not "where I left
+// off." Every Home link clears this first so the restore effect has nothing
+// left to replay.
+export function clearSavedSearchState() {
+  try {
+    window.localStorage.removeItem(searchStateStorageKey);
+  } catch {
+    // Nothing to clear if storage is unavailable.
+  }
+}
+
 function first(value: SearchParameterValue) {
   return Array.isArray(value) ? value[0] : value;
 }

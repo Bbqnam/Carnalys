@@ -4,6 +4,7 @@ import {
   estimateFuelConsumptionL100km,
   parseFuelConsumptionValue,
 } from "./fuel-consumption-estimate";
+import { insuranceRiskMultiplier, type InsuranceProfileInput } from "./insurance-risk-multiplier";
 import type { OwnershipCostEstimate, OwnershipCostItem } from "./ownership-cost";
 import type { VehicleSpecification } from "../specifications";
 
@@ -107,12 +108,21 @@ function annualDepreciation(askingPrice: number, age: number, isElectric: boolea
 // only loosely on value — not linearly on price the way a flat percentage
 // implies. A flat base plus a power-based step, with only a capped value
 // component, keeps a budget car and an expensive-but-modest car from being
-// priced as if risk scaled with price alone.
-function annualInsurance(askingPrice: number, horsepowerHp: number | undefined) {
+// priced as if risk scaled with price alone. The base formula alone has no
+// brand signal at all, which is exactly backwards from what buyers actually
+// see (a Tesla and a Mazda at the same price/power are not equally cheap to
+// insure) — `insuranceRiskMultiplier` corrects that; see its module comment.
+function annualInsurance(
+  askingPrice: number,
+  horsepowerHp: number | undefined,
+  make: string,
+  fuelType: VehicleSpecification["powertrain"]["fuelType"],
+  profile: InsuranceProfileInput | undefined,
+) {
   const base = 5_500;
   const powerSurcharge = horsepowerHp ? Math.max(0, horsepowerHp - 150) * 15 : 0;
   const valueComponent = Math.min(askingPrice, 300_000) * 0.01;
-  return base + powerSurcharge + valueComponent;
+  return (base + powerSurcharge + valueComponent) * insuranceRiskMultiplier(make, fuelType, profile);
 }
 
 function annualMaintenance(age: number) {
@@ -137,7 +147,9 @@ export function estimateOwnershipCost(
   specification: VehicleSpecification,
   askingPrice: number,
   modelYear: number,
+  make: string,
   referenceYear = new Date().getFullYear(),
+  insuranceProfile?: InsuranceProfileInput,
 ): OwnershipCostEstimate {
   const age = Math.max(0, referenceYear - modelYear);
   const isElectric = specification.powertrain.fuelType === "electric";
@@ -164,7 +176,13 @@ export function estimateOwnershipCost(
     modelYear,
     referenceYear,
   );
-  const insurance = annualInsurance(costBasisPrice, specification.powertrain.powerHp);
+  const insurance = annualInsurance(
+    costBasisPrice,
+    specification.powertrain.powerHp,
+    make,
+    specification.powertrain.fuelType,
+    insuranceProfile,
+  );
   const maintenance = annualMaintenance(age);
 
   const items: OwnershipCostItem[] = [
@@ -183,7 +201,9 @@ export function estimateOwnershipCost(
     {
       category: "insurance",
       annualCost: money(insurance),
-      explanation: "Uppskattad årlig försäkringskostnad baserat på effekt och pris.",
+      explanation: insuranceProfile
+        ? "Uppskattad årlig försäkringskostnad baserat på effekt, pris, märke och din försäkringsprofil."
+        : "Uppskattad årlig försäkringskostnad baserat på effekt, pris och märke.",
     },
     {
       category: "maintenance",

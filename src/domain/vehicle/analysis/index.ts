@@ -11,6 +11,9 @@ export {
 
 export { estimateOwnershipCost } from "./ownership-cost-estimate";
 
+export type { InsuranceProfileInput } from "./insurance-risk-multiplier";
+export { insuranceRiskMultiplier } from "./insurance-risk-multiplier";
+
 export type {
   AnalysisConfidence,
   BuyConfidenceScore,

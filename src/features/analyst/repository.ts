@@ -119,7 +119,7 @@ function missingFields(row: AnalystListingRow) {
 }
 
 function compactListing(row: CandidateRow): CompactListing {
-  const ownership = estimateOwnershipCost(specification(row), row.priceAmount, row.vehicle.modelYear);
+  const ownership = estimateOwnershipCost(specification(row), row.priceAmount, row.vehicle.modelYear, row.vehicle.make);
   return {
     listingId: row.id,
     name: `${row.vehicle.make} ${row.vehicle.model}`,
@@ -206,7 +206,7 @@ export async function getListingAnalysisEvidence(
       }),
     ]);
     if (!row) throw new Error("LISTING_NOT_FOUND");
-    const ownership = estimateOwnershipCost(specification(row), row.priceAmount, row.vehicle.modelYear);
+    const ownership = estimateOwnershipCost(specification(row), row.priceAmount, row.vehicle.modelYear, row.vehicle.make);
     const history = summarizeExactListingHistory({
       firstSeenAt: row.firstSeenAt,
       lastSeenAt: row.lastSeenAt,

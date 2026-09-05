@@ -313,6 +313,8 @@ export const uiCopy = {
     },
     results: {
       title: "Best buys right now",
+      browsingPath: "Browsing path",
+      allCars: "All cars",
       matchCount: (shown: number, total: number) =>
         `${shown} of ${total} analyzed ${total === 1 ? "car" : "cars"} match`,
       rangeCount: (first: number, last: number, total: number) =>
@@ -361,6 +363,9 @@ export const uiCopy = {
       noResultsBody:
         "Try another make, increase your budget or reset the filters to see every analyzed car.",
       clearFilters: "Clear filters",
+      savedEmptyTitle: "No saved cars yet",
+      savedEmptyBody: "Tap the heart on a listing to save it here for later.",
+      browseCars: "Browse cars",
       mobileTitle: "Refine your search",
       closeFilters: "Close filters",
       paginationLabel: "Vehicle result pages",
@@ -409,6 +414,7 @@ export const uiCopy = {
       viewListing: "View listing",
       scoreOutOf: (label: string, value: number | null) =>
         value === null ? `${label}: not rated` : `${label}: ${value} out of 100`,
+      insuranceEstimate: (amount: string) => `Estimated insurance: ~${amount}/mo`,
     },
     detail: {
       back: "Back to results",
@@ -532,6 +538,14 @@ export const uiCopy = {
     footer: {
       tagline: "A more confident way to choose a car.",
       disclaimer: "Market values and costs are estimates, not guarantees.",
+      readDisclaimer: "Read the full disclaimer",
+      exploreHeading: "Explore",
+      carnalysHeading: "Carnalys",
+      supportHeading: "Support",
+      about: "About",
+      disclaimerLink: "Disclaimer",
+      donate: "Buy me a litre of petrol",
+      donateHint: "If Carnalys saved you from a bad deal.",
     },
   },
   sv: {
@@ -652,6 +666,8 @@ export const uiCopy = {
     },
     results: {
       title: "Bästa köpen just nu",
+      browsingPath: "Sökväg",
+      allCars: "Alla bilar",
       matchCount: (shown: number, total: number) =>
         `${shown} av ${total} analyserade ${total === 1 ? "bil" : "bilar"} matchar`,
       rangeCount: (first: number, last: number, total: number) =>
@@ -700,6 +716,9 @@ export const uiCopy = {
       noResultsBody:
         "Prova ett annat märke, höj maxpriset eller rensa filtren för att se alla analyserade bilar.",
       clearFilters: "Rensa filter",
+      savedEmptyTitle: "Inga sparade bilar än",
+      savedEmptyBody: "Tryck på hjärtat på en annons för att spara den här.",
+      browseCars: "Bläddra bland bilar",
       mobileTitle: "Anpassa din sökning",
       closeFilters: "Stäng filter",
       paginationLabel: "Resultatsidor för bilar",
@@ -748,6 +767,7 @@ export const uiCopy = {
       viewListing: "Visa annons",
       scoreOutOf: (label: string, value: number | null) =>
         value === null ? `${label}: ej bedömt` : `${label}: ${value} av 100`,
+      insuranceEstimate: (amount: string) => `Uppskattad försäkring: ~${amount}/mån`,
     },
     detail: {
       back: "Tillbaka till resultat",
@@ -871,6 +891,14 @@ export const uiCopy = {
     footer: {
       tagline: "Ett tryggare sätt att välja bil.",
       disclaimer: "Marknadsvärden och kostnader är uppskattningar, inte garantier.",
+      readDisclaimer: "Läs hela ansvarsfriskrivningen",
+      exploreHeading: "Utforska",
+      carnalysHeading: "Carnalys",
+      supportHeading: "Stöd",
+      about: "Om Carnalys",
+      disclaimerLink: "Ansvarsfriskrivning",
+      donate: "Bjud mig på en liter bensin",
+      donateHint: "Om Carnalys räddade dig från en dålig affär.",
     },
   },
 } as const;

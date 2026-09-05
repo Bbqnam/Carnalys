@@ -8,6 +8,7 @@ import type {
   BodyStyle,
   Drivetrain,
   FuelType,
+  InsuranceProfileInput,
   ListingStatus,
   ScoreFactor,
   ServiceHistoryStatus,
@@ -313,6 +314,7 @@ function createStoredAnalysis(
   result: StoredListing | CardListing | ComparableListing,
   specification: VehicleSpecification,
   itemised: boolean,
+  insuranceProfile: InsuranceProfileInput | undefined,
 ): VehicleSearchResult["analysis"] {
   // The comparable select omits the analysis row entirely; it reads as absent
   // here, exactly like the card select's missing JSON columns.
@@ -367,15 +369,21 @@ function createStoredAnalysis(
     // Ownership cost depends only on this one car's own price, age and
     // powertrain — never on other listings — so it is computed live here for
     // both the card and the detail page (one formula, no drift), and read from
-    // no stored column. The card gets the total only; the itemised breakdown is
-    // built solely for the caller that will render it.
+    // no stored column. The card gets the total plus the insurance line only
+    // (for its risk-signal dot) — the full itemised breakdown is built solely
+    // for the caller that will render it.
     ownershipCost: (() => {
       const full = estimateOwnershipCost(
         specification,
         askingPrice,
         result.vehicle.modelYear,
+        result.vehicle.make,
+        undefined,
+        insuranceProfile,
       );
-      return itemised ? full : { ...full, items: [], assumptions: [] };
+      if (itemised) return full;
+      const insuranceItem = full.items.find((item) => item.category === "insurance");
+      return { ...full, items: insuranceItem ? [insuranceItem] : [], assumptions: [] };
     })(),
     dealScore: {
       kind: "deal",
@@ -410,7 +418,10 @@ function createStoredAnalysis(
  */
 function mapStoredListing(
   record: StoredListing | CardListing | ComparableListing,
-  { itemisedOwnershipCost = true }: { itemisedOwnershipCost?: boolean } = {},
+  {
+    itemisedOwnershipCost = true,
+    insuranceProfile,
+  }: { itemisedOwnershipCost?: boolean; insuranceProfile?: InsuranceProfileInput } = {},
 ): VehicleSearchResult {
   const detail = record as Partial<StoredListing>;
   const detailVehicle = record.vehicle as Partial<StoredListing["vehicle"]>;
@@ -503,7 +514,7 @@ function mapStoredListing(
       publishedAt: record.publishedAt?.toISOString(),
       observedAt: record.synchronizedAt.toISOString(),
     },
-    analysis: createStoredAnalysis(record, specification, itemisedOwnershipCost),
+    analysis: createStoredAnalysis(record, specification, itemisedOwnershipCost, insuranceProfile),
     relatedSourceListings: detailVehicle.listings
       ?.filter(
         (listing) =>
@@ -776,6 +787,7 @@ async function _getListingSummaryById(
 
 async function _getListingById(
   listingId: string,
+  insuranceProfile?: InsuranceProfileInput,
 ): Promise<VehicleSearchResult | null> {
   await initializeDatabase();
   const record = await prisma.listingRecord.findUnique({
@@ -784,7 +796,10 @@ async function _getListingById(
   });
   if (!record || record.status !== "active") return null;
 
-  const target = mapStoredListing(record);
+  // Personalization only applies to the car being viewed — the comparables
+  // fetched below feed benchmark statistics, not a displayed ownership cost,
+  // so they stay on the universal (brand-only) estimate.
+  const target = mapStoredListing(record, { insuranceProfile });
   const comparableRecords = await prisma.listingRecord.findMany({
     where: {
       status: "active",

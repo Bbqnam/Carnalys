@@ -36,8 +36,10 @@ import {
   MarketAnalysisIcon,
 } from "@/features/search/icons";
 import { setLocaleCookie } from "@/features/search/locale";
+import { clearSavedSearchState } from "@/features/search/search-state";
 import { CompareTray } from "@/features/search/compare-tray";
 import { SiteHeader } from "@/features/search/site-header";
+import { SiteFooter } from "@/features/search/site-footer";
 import { useCompare } from "@/features/search/use-compare";
 import { useCurrentLocation } from "@/features/search/use-current-location";
 import { useFavorites } from "@/features/search/use-favorites";
@@ -293,14 +295,39 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
       />
 
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        <button
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:text-ink"
-          onClick={() => router.back()}
-          type="button"
+        {/* Mirrors the search page's own "Home / All cars / Kia / Ceed" trail
+            rather than a plain back button — a shared/bookmarked listing link
+            has no browser history to go back to, so the path has to be built
+            from this car's own identity instead of `router.back()`. */}
+        <nav
+          aria-label={copy.results.browsingPath}
+          className="flex items-center gap-1.5 text-xs font-medium text-ink-subtle"
         >
-          <ArrowRightIcon className="size-4 rotate-180" />
-          {copy.detail.back}
-        </button>
+          <Link
+            className="transition hover:text-ink hover:underline"
+            href="/"
+            onClick={clearSavedSearchState}
+          >
+            {copy.nav.home}
+          </Link>
+          <span aria-hidden="true">/</span>
+          <Link
+            className="transition hover:text-ink hover:underline"
+            href="/"
+            onClick={clearSavedSearchState}
+          >
+            {copy.results.allCars}
+          </Link>
+          <span aria-hidden="true">/</span>
+          <Link
+            className="transition hover:text-ink hover:underline"
+            href={`/?${new URLSearchParams({ make: identity.make }).toString()}#cars`}
+          >
+            {identity.make}
+          </Link>
+          <span aria-hidden="true">/</span>
+          <span className="truncate text-ink">{identity.model}</span>
+        </nav>
 
         <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:gap-8">
         {/* min-w-0: on mobile this is a single implicit grid track, and without
@@ -811,6 +838,8 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         onClear={clearCompare}
         onRemove={removeCompare}
       />
+
+      <SiteFooter locale={locale} />
 
       {isFullscreen && currentImage ? (
         <div

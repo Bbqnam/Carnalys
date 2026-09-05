@@ -1,13 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSavedListings } from "@/app/actions";
 import { CompareTray } from "@/features/search/compare-tray";
 import { uiCopy, type Locale } from "@/features/search/copy";
-import { ArrowRightIcon } from "@/features/search/icons";
+import { ArrowRightIcon, HeartIcon } from "@/features/search/icons";
 import { useLocaleCookie } from "@/features/search/use-locale-cookie";
 import { SiteHeader } from "@/features/search/site-header";
+import { SiteFooter } from "@/features/search/site-footer";
 import { useCompare } from "@/features/search/use-compare";
 import { useFavorites } from "@/features/search/use-favorites";
 import { VehicleCard } from "@/features/search/vehicle-card";
@@ -73,7 +75,25 @@ export default function SavedPage() {
         {visibleListings === null ? (
           <p className="mt-6 text-sm text-ink-muted">…</p>
         ) : visibleListings.length === 0 ? (
-          <p className="mt-6 text-sm text-ink-muted">{copy.results.noResultsBody}</p>
+          <div className="mt-6 grid place-items-center rounded-[1.6rem] border border-dashed border-border bg-surface p-8 text-center shadow-[0_12px_40px_rgba(26,35,29,0.035)]">
+            <div className="max-w-sm">
+              <span className="mx-auto grid size-14 place-items-center rounded-full bg-surface-muted text-ink-muted">
+                <HeartIcon className="size-6" />
+              </span>
+              <h2 className="mt-5 text-xl font-semibold text-ink">
+                {copy.results.savedEmptyTitle}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-ink-muted">
+                {copy.results.savedEmptyBody}
+              </p>
+              <Link
+                className="mt-5 inline-block rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-surface transition hover:opacity-90"
+                href="/"
+              >
+                {copy.results.browseCars}
+              </Link>
+            </div>
+          </div>
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {visibleListings.map((result) => (
@@ -106,6 +126,8 @@ export default function SavedPage() {
         onClear={clearCompare}
         onRemove={removeCompare}
       />
+
+      <SiteFooter locale={locale} />
     </div>
   );
 }

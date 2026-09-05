@@ -12,6 +12,7 @@ import { createMoneyFormatter, createNumberFormatter } from "@/features/search/f
 import { ArrowRightIcon, CloseIcon, ExternalLinkIcon } from "@/features/search/icons";
 import { useLocaleCookie } from "@/features/search/use-locale-cookie";
 import { SiteHeader } from "@/features/search/site-header";
+import { SiteFooter } from "@/features/search/site-footer";
 import { useCompare } from "@/features/search/use-compare";
 import { useFavorites } from "@/features/search/use-favorites";
 import type { VehicleSearchResult } from "@/features/search/types";
@@ -330,6 +331,8 @@ export default function ComparePage() {
           </div>
         )}
       </div>
+
+      <SiteFooter locale={locale} />
     </div>
   );
 }

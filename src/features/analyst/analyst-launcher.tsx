@@ -1,9 +1,10 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { Locale } from "@/features/search/copy";
 import { readLocaleCookie } from "@/features/search/locale";
+import { useAccount } from "@/features/auth/account-provider";
 import { useAnalystChat } from "./analyst-chat-provider";
 
 // The panel pulls in the whole chat UI. It only renders once the user opens
@@ -37,10 +38,17 @@ const MIN_H = 380;
 
 export function HeroAskButton({ locale }: { locale: Locale }) {
   const { setOpen } = useAnalystChat();
+  const { user } = useAccount();
+  const router = useRouter();
+  const pathname = usePathname();
   return (
     <button
       className="group inline-flex items-center gap-2.5 rounded-full border border-border-strong bg-surface/90 py-2.5 pl-3 pr-4 text-sm font-medium text-ink shadow-sm backdrop-blur-md transition hover:border-accent/50 hover:shadow-md active:scale-[0.98]"
-      onClick={() => setOpen(true)}
+      onClick={() =>
+        user
+          ? setOpen(true)
+          : router.push(`/login?redirectTo=${encodeURIComponent(pathname)}`)
+      }
       type="button"
     >
       <span className="grid size-7 place-items-center rounded-full bg-accent-soft text-accent-strong">
@@ -71,6 +79,8 @@ function readSize(): Size | null {
 
 export function AnalystLauncher({ initialLocale }: { initialLocale: Locale }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useAccount();
   const { open, setOpen, toggle, messages } = useAnalystChat();
   const [locale, setLocale] = useState<Locale>(initialLocale);
   const [size, setSize] = useState<Size | null>(null);
@@ -172,11 +182,17 @@ export function AnalystLauncher({ initialLocale }: { initialLocale: Locale }) {
 
       <button
         aria-expanded={open}
-        aria-label={open
-          ? (locale === "sv" ? "Stäng Ask Carnalys" : "Close Ask Carnalys")
-          : (locale === "sv" ? "Öppna Ask Carnalys" : "Open Ask Carnalys")}
+        aria-label={
+          user
+            ? open
+              ? (locale === "sv" ? "Stäng Ask Carnalys" : "Close Ask Carnalys")
+              : (locale === "sv" ? "Öppna Ask Carnalys" : "Open Ask Carnalys")
+            : (locale === "sv" ? "Logga in för att fråga Carnalys" : "Sign in to ask Carnalys")
+        }
         className="fixed bottom-4 right-3 z-50 grid size-14 place-items-center rounded-full bg-ink text-surface shadow-[0_14px_35px_rgba(26,35,29,0.35)] transition hover:opacity-90 active:scale-95 sm:right-6"
-        onClick={toggle}
+        onClick={() =>
+          user ? toggle() : router.push(`/login?redirectTo=${encodeURIComponent(pathname)}`)
+        }
         type="button"
       >
         {open ? <ChevronDown className="size-6" /> : <LauncherMark className="size-6" />}

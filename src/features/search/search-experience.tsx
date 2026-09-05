@@ -19,9 +19,15 @@ import { QuickFilters } from "./quick-filters";
 import { SearchHero } from "./search-hero";
 import { SingleChoiceDropdown } from "./single-choice-dropdown";
 import { SiteHeader } from "./site-header";
+import { SiteFooter } from "./site-footer";
 import { SaveSearchButton } from "./save-search-button";
 import { SynchronizationButton } from "./synchronization-button";
-import { defaultSearchFilters, vehicleSearchUrl } from "./search-state";
+import {
+  clearSavedSearchState,
+  defaultSearchFilters,
+  searchStateStorageKey,
+  vehicleSearchUrl,
+} from "./search-state";
 import { setLocaleCookie } from "./locale";
 import { useCompare } from "./use-compare";
 import { useCurrentLocation } from "./use-current-location";
@@ -39,8 +45,6 @@ import { HeroAskButton } from "@/features/analyst/analyst-launcher";
 import { useAnalystPageContext } from "@/features/analyst/analyst-chat-provider";
 import { VehicleRow } from "./vehicle-row";
 
-const savedSearchKey = "carnalys:search-state:v1";
-
 /** The saved search is a set of filters and a sort order, never a scroll
  *  position — dropping `page` keeps a returning visitor from landing deep in
  *  pagination (e.g. page 20) on a bare visit to "/". */
@@ -56,7 +60,7 @@ function withoutPageParam(url: string) {
 
 function saveSearchState(url: string) {
   try {
-    window.localStorage.setItem(savedSearchKey, withoutPageParam(url));
+    window.localStorage.setItem(searchStateStorageKey, withoutPageParam(url));
   } catch {
     // Search still works when storage is unavailable or disabled.
   }
@@ -183,6 +187,32 @@ export function SearchExperience({
   const savedSearchName = filters.query.trim()
     || [...filters.brands, ...filters.models].slice(0, 2).join(" ")
     || (locale === "en" ? "My car search" : "Min bilsökning");
+  // A single selected brand (and, under it, a single selected model) reads as
+  // a path — "All cars / Kia / Ceed" — the same way a free-text search reads
+  // as "All cars / kia". Two or more of either has no linear path to show;
+  // that case is left to the filter chips below. `kind` says what clicking a
+  // segment should do, rather than storing the handler itself: the handlers
+  // reach into `changeFilters`/`removeFilter`, which touch a debounce ref,
+  // and building closures over that during render (instead of directly in a
+  // JSX prop) trips the refs-during-render lint rule.
+  type BreadcrumbSegment = { label: string; kind: "allCars" | "brand" | "current" };
+  const breadcrumbPath: BreadcrumbSegment[] = filters.query.trim()
+    ? [
+        { label: copy.results.allCars, kind: "allCars" },
+        { label: filters.query, kind: "current" },
+      ]
+    : filters.brands.length === 1
+      ? [
+          { label: copy.results.allCars, kind: "allCars" },
+          {
+            label: filters.brands[0],
+            kind: filters.models.length === 1 ? "brand" : "current",
+          },
+          ...(filters.models.length === 1
+            ? ([{ label: filters.models[0], kind: "current" }] as const)
+            : []),
+        ]
+      : [];
 
   if (renderedSearchState !== incomingSearchState) {
     setRenderedSearchState(incomingSearchState);
@@ -385,7 +415,7 @@ export function SearchExperience({
     }
 
     try {
-      const savedUrl = window.localStorage.getItem(savedSearchKey);
+      const savedUrl = window.localStorage.getItem(searchStateStorageKey);
       // Sanitize on read: drop `page` (a returning visitor shouldn't land deep
       // in pagination) and the `#cars` hash — a fresh visit restores the
       // filters but stays at the top of the page rather than jumping straight
@@ -766,6 +796,49 @@ export function SearchExperience({
         id="cars"
       >
         <div className="mx-auto max-w-[1800px]">
+          {/* A free-text search or a single brand/model selection has no
+              visible trail back to the unfiltered list — unlike the
+              structured filter chips below, which already show everything
+              active at once. This is that trail: "Home / All cars / kia" for
+              a text search, or "Home / All cars / Kia / Ceed" once a single
+              brand (and optionally model) is selected. Multiple brands/models
+              fall back to the chips instead, since a linear path can't
+              represent a set. */}
+          {breadcrumbPath.length > 0 ? (
+            <nav
+              aria-label={copy.results.browsingPath}
+              className="mb-3 flex items-center gap-1.5 text-xs font-medium text-ink-subtle"
+            >
+              <Link
+                className="transition hover:text-ink hover:underline"
+                href="/"
+                onClick={clearSavedSearchState}
+              >
+                {copy.nav.home}
+              </Link>
+              {breadcrumbPath.map((segment) => (
+                <span className="flex items-center gap-1.5" key={segment.label}>
+                  <span aria-hidden="true">/</span>
+                  {segment.kind === "current" ? (
+                    <span className="truncate text-ink">{segment.label}</span>
+                  ) : (
+                    <button
+                      className="transition hover:text-ink hover:underline"
+                      onClick={() =>
+                        segment.kind === "allCars"
+                          ? changeFilters({ ...filters, query: "", brands: [], models: [] }, 0)
+                          : changeFilters({ ...filters, models: [] }, 0)
+                      }
+                      type="button"
+                    >
+                      {segment.label}
+                    </button>
+                  )}
+                </span>
+              ))}
+            </nav>
+          ) : null}
+
           <div className="mb-4 flex flex-col gap-4 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               {/* The results page had no h1 at all — its outline began at h2, so a
@@ -910,12 +983,7 @@ export function SearchExperience({
         </div>
       </section>
 
-      <footer className="border-t border-border bg-background px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-2 text-xs text-ink-subtle sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 Carnalys. {copy.footer.tagline}</p>
-          <p>{copy.footer.disclaimer}</p>
-        </div>
-      </footer>
+      <SiteFooter locale={locale} />
 
       {showFilters ? (
         <div

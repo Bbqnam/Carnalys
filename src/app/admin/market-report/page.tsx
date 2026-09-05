@@ -178,6 +178,12 @@ export default async function AdminMarketReportPage() {
             </Link>
             <Link
               className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted"
+              href="/admin/insurance"
+            >
+              Insurance data
+            </Link>
+            <Link
+              className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted"
               href="/settings"
             >
               Settings

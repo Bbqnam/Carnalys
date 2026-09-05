@@ -3,6 +3,7 @@ import {
   distanceBetweenKm,
   formatExactListingDate,
   formatRelativeListingDate,
+  insuranceTone,
   scoreTone,
 } from "./format";
 import { listingSource } from "@/infrastructure/marketplaces/source-registry";
@@ -76,6 +77,9 @@ export function deriveVehicleCardData(
   const dealScoreTone = hasDealScore
     ? scoreTone(dealScoreValue)
     : "border-border text-ink-subtle";
+  const insuranceItem = analysis.ownershipCost.items.find((item) => item.category === "insurance");
+  const insuranceMonthly = insuranceItem ? Math.round(insuranceItem.annualCost.amount / 12) : undefined;
+  const insuranceDotTone = insuranceMonthly !== undefined ? insuranceTone(insuranceMonthly) : undefined;
   const sellerTypeLabel =
     listing.seller.type === "dealer"
       ? copy.card.dealerBadge
@@ -113,6 +117,8 @@ export function deriveVehicleCardData(
     dealScoreValue,
     hasDealScore,
     dealScoreTone,
+    insuranceMonthly,
+    insuranceDotTone,
     sellerTypeLabel,
     imageAlt,
   };

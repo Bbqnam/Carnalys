@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { createNumberFormatter } from "@/features/search/format";
 import { defaultLocale, isLocale, localeCookieName } from "@/features/search/locale";
 import { VehicleDetail } from "@/features/vehicle-detail/vehicle-detail";
+import { getCurrentUser } from "@/features/auth/session";
 import {
   getListingById,
   getListingSummaryById,
@@ -62,10 +63,21 @@ export async function generateMetadata({
 export default async function VehiclePage({ params }: VehiclePageProps) {
   await connection();
   const { id } = await params;
-  const [result, localeCookie] = await Promise.all([
-    getListingById(id),
+  const [user, localeCookie] = await Promise.all([
+    getCurrentUser(),
     cookies().then((store) => store.get(localeCookieName)?.value),
   ]);
+  // Personalizes the ownership-cost insurance line for a signed-in viewer
+  // with a profile set; undefined fields fall back to the universal
+  // (brand-only) estimate — see insurance-risk-multiplier.ts.
+  const insuranceProfile = user
+    ? {
+        ageBand: user.insuranceAgeBand,
+        licenceYears: user.insuranceLicenceYears,
+        region: user.insuranceRegion,
+      }
+    : undefined;
+  const result = await getListingById(id, insuranceProfile);
 
   if (!result) notFound();
 

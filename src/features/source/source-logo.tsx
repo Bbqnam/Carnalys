@@ -32,6 +32,14 @@ const MARK_MAX_WIDTH = 60;
  *  height up evens out the visual weight; the width cap still contains it. */
 const MARK_SCALE: Record<string, number> = { bytbil: 1.6 };
 
+/** These wordmarks are drawn in a fixed dark gray/navy (`#4d4d4d`, `#333333`,
+ *  `#0B1F3A`) with no theme-aware variant, so they go nearly invisible on the
+ *  dark surface. Same fix as the manufacturer marks in brand-logo.tsx: a
+ *  light backing chip behind the mark, transparent in light mode (see
+ *  `--brand-chip` in globals.css) so nothing changes there. Blocket's red is
+ *  left alone — it already reads fine on both themes. */
+const NEEDS_DARK_CHIP = new Set(["bytbil", "hedin", "wayke"]);
+
 function Mark({
   provider,
   height = MARK_HEIGHT,
@@ -49,16 +57,23 @@ function Mark({
     );
   }
   const drawnHeight = Math.round(height * (source.logoKey ? MARK_SCALE[source.logoKey] ?? 1 : 1));
-  return (
+  const image = (
     <Image
       alt=""
       aria-hidden="true"
-      className="w-auto max-w-full object-contain object-left"
+      className="relative w-auto max-w-full object-contain object-left"
       height={drawnHeight}
       src={mark}
       style={{ height: drawnHeight, maxWidth: MARK_MAX_WIDTH }}
       width={Math.round((drawnHeight * mark.width) / mark.height)}
     />
+  );
+  if (!source.logoKey || !NEEDS_DARK_CHIP.has(source.logoKey)) return image;
+  return (
+    <span className="relative inline-flex items-center">
+      <span className="absolute -inset-x-1.5 -inset-y-1 rounded-md bg-brand-chip" />
+      {image}
+    </span>
   );
 }
 

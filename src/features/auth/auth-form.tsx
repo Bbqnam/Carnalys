@@ -88,6 +88,52 @@ export function AuthForm({
           />
           {state.fieldErrors?.password ? <span className="mt-1.5 block text-xs text-negative">{state.fieldErrors.password}</span> : null}
         </label>
+        {mode === "register" ? (
+          <div className="rounded-xl border border-border bg-surface-subtle p-4">
+            <p className="text-sm font-semibold text-ink">
+              {en ? "Insurance profile (optional)" : "Försäkringsprofil (valfritt)"}
+            </p>
+            <p className="mt-1 text-xs text-ink-subtle">
+              {en
+                ? "Used only to simulate insurance cost closer to a realistic value for you. Never shared, no personal identifiers."
+                : "Används bara för att simulera försäkringskostnaden närmare ett realistiskt värde för dig. Delas aldrig, inga personuppgifter."}
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <label className="block text-xs font-semibold text-ink">
+                {en ? "Age band" : "Åldersgrupp"}
+                <select
+                  className="mt-1.5 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-accent focus:ring-3 focus:ring-accent-soft"
+                  defaultValue=""
+                  name="insuranceAgeBand"
+                >
+                  <option value="">{en ? "Not set" : "Ej angivet"}</option>
+                  {["18-24", "25-29", "30-39", "40-49", "50-64", "65+"].map((band) => (
+                    <option key={band} value={band}>
+                      {band}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs font-semibold text-ink">
+                {en ? "Licence years" : "År med körkort"}
+                <input
+                  className="mt-1.5 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition placeholder:text-ink-subtle focus:border-accent focus:ring-3 focus:ring-accent-soft"
+                  min={0}
+                  name="insuranceLicenceYears"
+                  type="number"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-ink">
+                {en ? "City" : "Stad"}
+                <input
+                  className="mt-1.5 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition placeholder:text-ink-subtle focus:border-accent focus:ring-3 focus:ring-accent-soft"
+                  name="insuranceRegion"
+                  placeholder={en ? "e.g. Stockholm" : "t.ex. Stockholm"}
+                />
+              </label>
+            </div>
+          </div>
+        ) : null}
         {state.error ? (
           <p className="rounded-xl border border-negative/20 bg-negative-soft px-4 py-3 text-sm text-negative" role="alert">{state.error}</p>
         ) : null}

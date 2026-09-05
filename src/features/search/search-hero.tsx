@@ -35,7 +35,7 @@ export function SearchHero({
         />
       </div>
 
-      <div className="relative mx-auto flex min-h-[500px] max-w-[1800px] items-center px-5 py-12 sm:min-h-[530px] sm:px-8 sm:py-14 lg:px-12">
+      <div className="relative mx-auto flex max-w-[1800px] items-center px-5 py-10 sm:min-h-[530px] sm:px-8 sm:py-14 lg:px-12">
         <div className="w-full max-w-[39rem]">
           <p className="text-xs font-semibold tracking-[-0.01em] text-accent-strong">
             {copy.hero.eyebrow}
@@ -56,17 +56,6 @@ export function SearchHero({
           </p>
 
           <div className="mt-8">{analyst}</div>
-
-          {/* On mobile the photo can't bleed behind the copy without hurting
-              legibility, so it rides along as its own framed band under the
-              hero controls. CSS background (not <Image>) for the same reason as
-              the desktop bleed: a missing file degrades to nothing, not a
-              broken-image box. */}
-          <div
-            aria-hidden="true"
-            className="mt-6 h-40 rounded-2xl border border-border bg-cover bg-[position:70%_center] bg-no-repeat sm:hidden"
-            style={{ backgroundImage: "url(/images/hero.png)" }}
-          />
         </div>
       </div>
     </section>

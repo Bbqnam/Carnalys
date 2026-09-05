@@ -69,6 +69,8 @@ export function VehicleCard({
     dealScoreValue,
     hasDealScore,
     dealScoreTone,
+    insuranceMonthly,
+    insuranceDotTone,
     sellerTypeLabel,
     imageAlt,
   } = deriveVehicleCardData(result, locale, currentLocation);
@@ -157,6 +159,25 @@ export function VehicleCard({
                   : `${copy.card.dealScore}: ${copy.card.notRated}`}
               </span>
             </span>
+            {/* Rough insurance-cost signal, not a precise quote — a plain
+                colored dot rather than a number so it doesn't compete with
+                Deal Score for attention. Green/amber/red at 500/800 kr per
+                month; the actual estimate is in the tooltip. */}
+            {insuranceMonthly !== undefined && insuranceDotTone ? (
+              <span
+                aria-label={copy.card.insuranceEstimate(moneyFormatter.format(insuranceMonthly))}
+                className="group/insurance relative grid size-6 shrink-0 place-items-center"
+                tabIndex={0}
+              >
+                <span className={`size-2.5 rounded-full ${insuranceDotTone}`} />
+                <span
+                  className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-30 w-max translate-y-[-0.2rem] rounded-md bg-ink px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-md transition group-hover/insurance:translate-y-0 group-hover/insurance:opacity-100 group-focus-visible/insurance:translate-y-0 group-focus-visible/insurance:opacity-100"
+                  role="tooltip"
+                >
+                  {copy.card.insuranceEstimate(moneyFormatter.format(insuranceMonthly))}
+                </span>
+              </span>
+            ) : null}
           </span>
         </div>
 

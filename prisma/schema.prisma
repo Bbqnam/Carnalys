@@ -8,9 +8,9 @@ datasource db {
 }
 
 model VehicleRecord {
-  id                   String          @id
-  vin                  String?         @unique
-  registrationNumber   String?         @unique
+  id                   String                      @id
+  vin                  String?                     @unique
+  registrationNumber   String?                     @unique
   make                 String
   model                String
   variant              String?
@@ -34,10 +34,11 @@ model VehicleRecord {
   generation           String?
   trim                 String?
   performanceVariant   String?
-  normalizationVersion Int             @default(0)
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  normalizationVersion Int                         @default(0)
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
   listings             ListingRecord[]
+  insuranceQuotes      InsuranceQuoteObservation[]
 
   @@index([make, model])
   @@index([make, model, bodyStyle, fuelType])
@@ -141,20 +142,27 @@ model ListingRecord {
 /// Lightweight first-party accounts. Usernames are displayed as entered while
 /// usernameNormalized is the case-insensitive identity used at sign-in.
 model User {
-  id                 String            @id @default(uuid())
-  username           String
-  usernameNormalized String            @unique
-  passwordHash       String
-  locale             String            @default("en")
-  theme              String            @default("light")
-  isAdmin            Boolean           @default(false)
-  viewMode           String            @default("grid")
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  sessions           UserSession[]
-  favorites          UserFavorite[]
-  savedSearches      SavedSearch[]
-  analystUsage       AnalystUsageLog[]
+  id                    String            @id @default(uuid())
+  username              String
+  usernameNormalized    String            @unique
+  passwordHash          String
+  locale                String            @default("en")
+  theme                 String            @default("light")
+  isAdmin               Boolean           @default(false)
+  viewMode              String            @default("grid")
+  /// Optional personal insurance-risk inputs (see
+  /// src/domain/vehicle/analysis/insurance-risk-multiplier.ts). Never
+  /// personnummer or exact address — coarse bands only. All three are
+  /// independently optional; an unset field just contributes no adjustment.
+  insuranceAgeBand      String?
+  insuranceLicenceYears Int?
+  insuranceRegion       String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  sessions              UserSession[]
+  favorites             UserFavorite[]
+  savedSearches         SavedSearch[]
+  analystUsage          AnalystUsageLog[]
 }
 
 /// Session cookies contain an opaque random token; only its SHA-256 digest is
@@ -316,6 +324,69 @@ model ListingEquipmentRecord {
   listing   ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@unique([listingId, label])
+}
+
+/// A reusable, anonymous insurance-shopper profile used to hold the driver
+/// side of a quote constant while the vehicle varies. Deliberately holds no
+/// personal data (no name, no personnummer, no exact address) — see
+/// docs/INSURANCE_INTELLIGENCE.md. Coverage level lives on the quote, not
+/// here, since the same profile is often requoted at different coverage
+/// levels.
+model InsuranceProfile {
+  id              String                      @id @default(uuid())
+  label           String
+  ageBand         String
+  licenceYears    Int
+  region          String
+  annualMileageKm Int
+  notes           String?
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  quotes          InsuranceQuoteObservation[]
+}
+
+/// One manually-collected insurance quote for one vehicle, one insurer, one
+/// profile, at one point in time. Never overwritten — a requote of the same
+/// vehicle/insurer/profile pair is a new row, so price movement over time
+/// stays visible (see docs/INSURANCE_INTELLIGENCE.md). Vehicle attributes are
+/// snapshotted onto the row rather than only joined through `vehicleId`, so
+/// the comparable-lookup estimator can query this table directly and survives
+/// the source vehicle later being renormalized or removed.
+model InsuranceQuoteObservation {
+  id                   String                 @id @default(uuid())
+  vehicleId            String?
+  registrationNumber   String?
+  make                 String
+  model                String
+  variant              String?
+  modelYear            Int
+  bodyStyle            String
+  fuelType             String
+  transmission         String
+  drivetrain           String?
+  horsepower           Int?
+  vehicleValueAmount   Int
+  profileId            String
+  insurer              String
+  coverageLevel        InsuranceCoverageLevel
+  monthlyPremiumAmount Int
+  observedAt           DateTime
+  notes                String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  vehicle              VehicleRecord?         @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  profile              InsuranceProfile       @relation(fields: [profileId], references: [id], onDelete: Restrict)
+
+  @@index([make, model])
+  @@index([vehicleId])
+  @@index([profileId])
+  @@index([observedAt])
+}
+
+enum InsuranceCoverageLevel {
+  trafik
+  halv
+  hel
 }
 
 model ImportRun {

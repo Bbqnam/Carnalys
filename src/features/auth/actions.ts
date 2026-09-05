@@ -57,6 +57,30 @@ function validateCredentials(username: string, password: string): AuthActionStat
   return Object.keys(fieldErrors).length ? { fieldErrors } : null;
 }
 
+const ageBands = new Set(["18-24", "25-29", "30-39", "40-49", "50-64", "65+"]);
+
+/** Shared by account creation and the Settings insurance-profile form — same
+ *  three optional fields, same validation, in both places. */
+function parseInsuranceProfileFields(formData: FormData):
+  | { error: string }
+  | { insuranceAgeBand: string | null; insuranceLicenceYears: number | null; insuranceRegion: string | null } {
+  const ageBandRaw = String(formData.get("insuranceAgeBand") ?? "");
+  const licenceYearsRaw = String(formData.get("insuranceLicenceYears") ?? "");
+  const regionRaw = String(formData.get("insuranceRegion") ?? "").trim();
+
+  const insuranceAgeBand = ageBands.has(ageBandRaw) ? ageBandRaw : null;
+  const licenceYearsNumber = licenceYearsRaw === "" ? null : Number(licenceYearsRaw);
+  if (licenceYearsNumber !== null && (!Number.isFinite(licenceYearsNumber) || licenceYearsNumber < 0)) {
+    return { error: "Licence years must be a non-negative number." };
+  }
+
+  return {
+    insuranceAgeBand,
+    insuranceLicenceYears: licenceYearsNumber,
+    insuranceRegion: regionRaw || null,
+  };
+}
+
 export async function signUpAction(
   _state: AuthActionState,
   formData: FormData,
@@ -66,6 +90,9 @@ export async function signUpAction(
   const password = passwordValue(formData.get("password"));
   const validation = validateCredentials(username, password);
   if (validation) return validation;
+
+  const insuranceProfile = parseInsuranceProfileFields(formData);
+  if ("error" in insuranceProfile) return { error: insuranceProfile.error };
 
   if (await prisma.user.findUnique({ where: { usernameNormalized: normalized } })) {
     return { fieldErrors: { username: "That username is already taken." } };
@@ -79,6 +106,7 @@ export async function signUpAction(
         usernameNormalized: normalized,
         passwordHash: await hashPassword(password),
         locale: formData.get("locale") === "sv" ? "sv" : "en",
+        ...insuranceProfile,
       },
       select: { id: true },
     });
@@ -175,6 +203,22 @@ export async function updateSettingsAction(
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
     sameSite: "lax",
+  });
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+export async function updateInsuranceProfileAction(
+  _state: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const user = await requireCurrentUser();
+  const insuranceProfile = parseInsuranceProfileFields(formData);
+  if ("error" in insuranceProfile) return insuranceProfile;
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: insuranceProfile,
   });
   revalidatePath("/", "layout");
   return { success: true };

@@ -2,6 +2,7 @@ export type {
   AnalysisConfidence,
   BuyConfidenceScore,
   DealScore,
+  InsuranceProfileInput,
   MarketValueEstimate,
   OwnershipCostCategory,
   OwnershipCostEstimate,

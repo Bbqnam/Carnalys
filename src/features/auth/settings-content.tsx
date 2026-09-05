@@ -5,18 +5,20 @@ import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   deleteSavedSearchAction,
+  updateInsuranceProfileAction,
   updatePasswordAction,
   updateSettingsAction,
   type SettingsActionState,
 } from "./actions";
 import type { AccountUser } from "./session";
 import { SiteHeader } from "@/features/search/site-header";
+import { SiteFooter } from "@/features/search/site-footer";
 import { useFavorites } from "@/features/search/use-favorites";
 import { useCompare } from "@/features/search/use-compare";
 import { useLocaleCookie } from "@/features/search/use-locale-cookie";
 import { setLocaleCookie } from "@/features/search/locale";
 import { setStoredViewMode } from "@/features/search/use-view-mode";
-import { BookmarkIcon, HeartIcon, SettingsIcon, UserIcon } from "@/features/search/icons";
+import { BookmarkIcon, HeartIcon, SettingsIcon, ShieldIcon, UserIcon } from "@/features/search/icons";
 
 const initialState: SettingsActionState = {};
 
@@ -40,6 +42,10 @@ export function SettingsContent({
   const [locale, writeLocale] = useLocaleCookie();
   const [settingsState, settingsAction, settingsPending] = useActionState(updateSettingsAction, initialState);
   const [passwordState, passwordAction, passwordPending] = useActionState(updatePasswordAction, initialState);
+  const [insuranceState, insuranceAction, insurancePending] = useActionState(
+    updateInsuranceProfileAction,
+    initialState,
+  );
   const en = locale === "en";
 
   useEffect(() => {
@@ -88,6 +94,9 @@ export function SettingsContent({
               </Link>
               <Link className="inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-muted" href="/admin/users">
                 {en ? "Open users" : "Öppna användare"}
+              </Link>
+              <Link className="inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-muted" href="/admin/insurance">
+                {en ? "Open insurance data" : "Öppna försäkringsdata"}
               </Link>
             </div>
           ) : null}
@@ -165,6 +174,63 @@ export function SettingsContent({
         </div>
 
         <section className="mt-6 rounded-[1.5rem] border border-border bg-surface p-6 shadow-[0_12px_40px_rgba(26,35,29,0.045)]">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-accent-soft text-accent-strong"><ShieldIcon className="size-5" /></span>
+            <div>
+              <h2 className="text-lg font-semibold text-ink">{en ? "Insurance profile" : "Försäkringsprofil"}</h2>
+              <p className="text-xs text-ink-subtle">
+                {en
+                  ? "Optional — refines the insurance estimate in ownership cost for cars you view. Never shared, no personal identifiers."
+                  : "Valfritt — förfinar försäkringsuppskattningen i ägandekostnaden för bilar du tittar på. Delas aldrig, inga personuppgifter."}
+              </p>
+            </div>
+          </div>
+          <form action={insuranceAction} className="mt-6 grid gap-5 sm:grid-cols-3" id="insurance-profile-form">
+            <label className="block text-sm font-semibold text-ink">
+              {en ? "Age band" : "Åldersgrupp"}
+              <select className={fieldClass} defaultValue={account.insuranceAgeBand ?? ""} name="insuranceAgeBand">
+                <option value="">{en ? "Not set" : "Ej angivet"}</option>
+                {["18-24", "25-29", "30-39", "40-49", "50-64", "65+"].map((band) => (
+                  <option key={band} value={band}>
+                    {band}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold text-ink">
+              {en ? "Licence years" : "År med körkort"}
+              <input
+                className={fieldClass}
+                defaultValue={account.insuranceLicenceYears ?? ""}
+                min={0}
+                name="insuranceLicenceYears"
+                type="number"
+              />
+            </label>
+            <label className="block text-sm font-semibold text-ink">
+              {en ? "Region" : "Region"}
+              <input
+                className={fieldClass}
+                defaultValue={account.insuranceRegion ?? ""}
+                name="insuranceRegion"
+                placeholder={en ? "e.g. Stockholm" : "t.ex. Stockholm"}
+              />
+            </label>
+            <div className="sm:col-span-3">
+              <button
+                className="h-11 rounded-xl bg-ink px-5 text-sm font-semibold text-surface transition hover:opacity-90 disabled:opacity-60"
+                disabled={insurancePending}
+                type="submit"
+              >
+                {insurancePending ? (en ? "Saving…" : "Sparar…") : en ? "Save insurance profile" : "Spara försäkringsprofil"}
+              </button>
+              {insuranceState.error ? <span className="ml-3 text-sm text-negative">{insuranceState.error}</span> : null}
+              {insuranceState.success ? <span className="ml-3 text-sm text-positive">{en ? "Saved" : "Sparat"}</span> : null}
+            </div>
+          </form>
+        </section>
+
+        <section className="mt-6 rounded-[1.5rem] border border-border bg-surface p-6 shadow-[0_12px_40px_rgba(26,35,29,0.045)]">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-ink">{en ? "Saved searches" : "Sparade sökningar"}</h2>
@@ -200,6 +266,8 @@ export function SettingsContent({
           )}
         </section>
       </main>
+
+      <SiteFooter locale={locale} />
     </div>
   );
 }
