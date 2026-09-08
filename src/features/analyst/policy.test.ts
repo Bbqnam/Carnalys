@@ -7,7 +7,7 @@ import { untrustedMarketplaceText } from "./safety";
 import { analystInstructions } from "./prompt";
 import { withAbortAndTimeout } from "./async-control";
 
-test("tool and turn budgets cannot exceed three model turns and five tool calls", () => {
+test("the default analyst budget stops at three model turns and five tool calls", () => {
   const budget = new AnalystBudget();
   assert.equal(budget.startTurn(), true);
   assert.equal(budget.startTurn(), true);

@@ -1,4 +1,4 @@
-import type { BodyStyle, FuelType, SellerType, TransmissionType } from "@/domain/vehicle";
+import type { BodyStyle, Drivetrain, FuelType, SellerType, TransmissionType } from "@/domain/vehicle";
 import { defaultSearchFilters } from "@/features/search/search-state";
 import type { SearchFilters } from "@/features/search/types";
 import type {
@@ -25,6 +25,7 @@ const fuels = new Set<FuelType>([
   "plug_in_hybrid", "self_charging_hybrid", "other",
 ]);
 const transmissions = new Set<TransmissionType>(["automatic", "manual", "other"]);
+const drivetrains = new Set<Drivetrain>(["all_wheel_drive", "front_wheel_drive", "rear_wheel_drive", "other"]);
 const bodyStyles = new Set<BodyStyle>([
   "convertible", "coupe", "estate", "hatchback", "minivan", "pickup",
   "sedan", "suv", "van", "other",
@@ -165,8 +166,8 @@ function parseContext(value: unknown): AnalystContext {
 
 function parseConversation(value: unknown): AnalystConversationMessage[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value) || value.length > 4) {
-    throw new AnalystValidationError("Conversation must contain at most four recent messages.");
+  if (!Array.isArray(value) || value.length > 12) {
+    throw new AnalystValidationError("Conversation must contain at most twelve recent messages.");
   }
   return value.map((entry) => {
     const message = object(entry);
@@ -194,7 +195,7 @@ export function parseAnalystRequest(value: unknown): AnalystRequest {
 export type ValidatedToolArguments =
   | { name: "get_listing_analysis"; arguments: { listingId: string; includeDescription: boolean } }
   | { name: "analyse_listing_market"; arguments: { listingId: string } }
-  | { name: "search_inventory"; arguments: { filters: SearchFilters; finalistIds: string[]; excludeCommercialBodyStyles: boolean; fuelTypes: FuelType[]; minHorsepower: number | null; maxHorsepower: number | null } }
+  | { name: "search_inventory"; arguments: { filters: SearchFilters; finalistIds: string[]; excludeCommercialBodyStyles: boolean; fuelTypes: FuelType[]; targetPrice: number | null; drivetrain: Drivetrain | ""; minHorsepower: number | null; maxHorsepower: number | null } }
   | { name: "compare_listings"; arguments: { listingIds: string[] } };
 
 export function validateToolArguments(name: string, value: unknown): ValidatedToolArguments {
@@ -212,16 +213,19 @@ export function validateToolArguments(name: string, value: unknown): ValidatedTo
     return { name, arguments: { listingId: listingId(input.listingId) } };
   }
   if (name === "search_inventory") {
-    onlyKeys(input, ["filters", "finalistIds", "excludeCommercialBodyStyles", "fuelTypes", "minHorsepower", "maxHorsepower"]);
+    onlyKeys(input, ["filters", "finalistIds", "excludeCommercialBodyStyles", "fuelTypes", "targetPrice", "drivetrain", "minHorsepower", "maxHorsepower"]);
     const finalistIds = stringList(input.finalistIds, "finalistIds", 5).map(listingId);
     const excludeCommercialBodyStyles = input.excludeCommercialBodyStyles === true;
     const fuelTypes = fuelTypeList(input.fuelTypes);
+    const targetPrice = nullableInteger(input.targetPrice, "targetPrice", 10_000_000);
+    const drivetrain = input.drivetrain === undefined ? "" : text(input.drivetrain, "drivetrain", 40, true);
+    if (drivetrain && !drivetrains.has(drivetrain as Drivetrain)) throw new AnalystValidationError("Invalid drivetrain.");
     const minHorsepower = nullableInteger(input.minHorsepower, "minHorsepower", 2_000);
     const maxHorsepower = nullableInteger(input.maxHorsepower, "maxHorsepower", 2_000);
     if (minHorsepower !== null && maxHorsepower !== null && minHorsepower > maxHorsepower) {
       throw new AnalystValidationError("minHorsepower cannot exceed maxHorsepower.");
     }
-    return { name, arguments: { filters: parseAnalystSearchFilters(input.filters), finalistIds, excludeCommercialBodyStyles, fuelTypes, minHorsepower, maxHorsepower } };
+    return { name, arguments: { filters: parseAnalystSearchFilters(input.filters), finalistIds, excludeCommercialBodyStyles, fuelTypes, targetPrice, drivetrain: drivetrain as Drivetrain | "", minHorsepower, maxHorsepower } };
   }
   onlyKeys(input, ["listingIds"]);
   const ids = stringList(input.listingIds, "listingIds", 3).map(listingId);

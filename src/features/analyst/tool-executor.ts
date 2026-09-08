@@ -36,6 +36,8 @@ export function mergeTrustedSearchFilters(trusted: SearchFilters, requested: Sea
 export class AnalystToolSession {
   private readonly allowedListingIds = new Set<string>();
   private readonly detailedListingIds = new Set<string>();
+  /** The filters of the most recent search_inventory call, carried to the next turn. */
+  lastSearchFilters: SearchFilters | null = null;
 
   constructor(private readonly options: ToolExecutionOptions) {
     if (options.context.surface === "listing") this.allowedListingIds.add(options.context.listingId);
@@ -76,10 +78,13 @@ export class AnalystToolSession {
       const filters = this.options.context.surface === "search"
         ? mergeTrustedSearchFilters(this.options.context.filters, call.arguments.filters)
         : call.arguments.filters;
+      this.lastSearchFilters = filters;
       work = searchInventoryEvidence(filters, {
         finalistIds: call.arguments.finalistIds,
         excludeCommercialBodyStyles: call.arguments.excludeCommercialBodyStyles,
         fuelTypes: call.arguments.fuelTypes,
+        targetPrice: call.arguments.targetPrice,
+        drivetrain: call.arguments.drivetrain,
         minHorsepower: call.arguments.minHorsepower,
         maxHorsepower: call.arguments.maxHorsepower,
       });

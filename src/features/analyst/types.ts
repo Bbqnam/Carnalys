@@ -70,6 +70,8 @@ export interface AnalystStreamEvent {
   answer?: string;
   evidence?: readonly AnalystEvidence[];
   truncated?: boolean;
+  /** On `done`: the filters the last inventory search ran with, for the next question to inherit. */
+  appliedFilters?: SearchFilters;
   requestId?: string;
 }
 

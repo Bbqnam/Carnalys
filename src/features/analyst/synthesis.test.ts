@@ -91,7 +91,7 @@ test("synthesizeAnswer degrades to the canned notice only when the model returns
   });
 
   assert.equal(result.truncated, true);
-  assert.match(result.answer, /reached the analysis limit/);
+  assert.match(result.answer, /pulled together so far/);
   assert.equal(result.answer.includes("[E1]"), true);
 });
 

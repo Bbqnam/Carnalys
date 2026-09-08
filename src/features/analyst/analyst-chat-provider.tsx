@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { defaultSearchFilters } from "@/features/search/search-state";
 import type { Locale } from "@/features/search/copy";
+import type { SearchFilters } from "@/features/search/types";
 import { readLocaleCookie } from "@/features/search/locale";
 import type { AnalystContext, AnalystConversationMessage, AnalystEvidence, AnalystStreamEvent } from "./types";
 
@@ -98,6 +99,9 @@ function openingLine(context: AnalystContext, label: string | null, locale: Loca
   return funStatus(locale);
 }
 
+// Five exchanges of context. The Analyst has no server-side memory, so this
+// window is all it knows about the conversation so far — enough to keep
+// honoring a budget or "automatic only" stated several turns back.
 function recentPairs(messages: readonly ThreadMessage[]): AnalystConversationMessage[] {
   const pairs: AnalystConversationMessage[] = [];
   for (let index = 0; index < messages.length; index += 1) {
@@ -107,7 +111,7 @@ function recentPairs(messages: readonly ThreadMessage[]): AnalystConversationMes
       pairs.push({ role: "user", content: message.content }, { role: "assistant", content: next.content });
     }
   }
-  return pairs.slice(-4);
+  return pairs.slice(-10);
 }
 
 export function AnalystChatProvider({ children, initialLocale }: { children: React.ReactNode; initialLocale: Locale }) {
@@ -121,6 +125,10 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
   const messagesRef = useRef<readonly ThreadMessage[]>([]);
   const pageContextRef = useRef<AnalystContext | null>(null);
   const pageLabelRef = useRef<string | null>(null);
+  // Filters the assistant's last inventory search ran with. Carried into the
+  // next question on a search surface so "under 15000 mil" keeps the budget the
+  // user set two turns ago. Cleared on reset or when the surface changes.
+  const carriedFiltersRef = useRef<SearchFilters | null>(null);
   const idRef = useRef(0);
   const localeRef = useRef<Locale>(initialLocale);
 
@@ -134,6 +142,8 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
   const setPageContext = useCallback((context: AnalystContext | null, label?: string | null) => {
     pageContextRef.current = context;
     pageLabelRef.current = label ?? null;
+    // A carried search only makes sense while we stay on a search surface.
+    if ((context?.surface ?? "search") !== "search") carriedFiltersRef.current = null;
     setPageSurface(context?.surface ?? "search");
     setPageLabel(label ?? null);
   }, []);
@@ -175,6 +185,7 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
   const reset = useCallback(() => {
     controllerRef.current?.abort();
     controllerRef.current = null;
+    carriedFiltersRef.current = null;
     setMessages([]);
     setRunning(false);
   }, []);
@@ -190,7 +201,12 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
     controllerRef.current = controller;
     const assistantId = `m${(idRef.current += 1)}`;
     const conversation = recentPairs(messagesRef.current);
-    const context = pageContextRef.current ?? inventoryContext;
+    const pageContext = pageContextRef.current ?? inventoryContext;
+    // On a search surface, prefer the filters the assistant last searched with
+    // so constraints from earlier in the thread aren't silently dropped.
+    const context: AnalystContext = pageContext.surface === "search" && carriedFiltersRef.current
+      ? { surface: "search", filters: carriedFiltersRef.current }
+      : pageContext;
     // Shown immediately, held for the whole answer — the server's status pings
     // just keep it alive, they never re-roll it.
     const workingLine = openingLine(context, pageLabelRef.current, locale);
@@ -242,6 +258,9 @@ export function AnalystChatProvider({ children, initialLocale }: { children: Rea
             }
             if (event.type === "evidence") {
               patch((current) => ({ ...current, evidence: [...(event.evidence ?? [])], truncated: event.truncated }));
+            }
+            if (event.type === "done" && event.appliedFilters) {
+              carriedFiltersRef.current = event.appliedFilters;
             }
             if (event.type === "error") throw new Error(event.message ?? (locale === "sv" ? "Analysen misslyckades." : "Analysis failed."));
           }
