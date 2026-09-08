@@ -20,6 +20,7 @@ import {
   estimateOwnershipCost,
   generateVehicleInsights,
 } from "@/domain/vehicle";
+import { resolveBrandAlias } from "@/domain/vehicle/taxonomy/brand-search";
 import type {
   AvailableVehicleFilters,
   SearchFilters,
@@ -562,8 +563,13 @@ function buildListingWhere(
   if (filters.maxPrice !== null) priceFilter.lte = filters.maxPrice;
 
   const vehicleFilter: Prisma.VehicleRecordWhereInput = {};
-  if (filters.brands.length > 0)
-    vehicleFilter.make = { in: [...filters.brands] };
+  if (filters.brands.length > 0) {
+    // A brand chip may arrive as "VW" or a typo ("WV") from a typed URL, the
+    // API, or the Analyst; stored makes are canonical, so resolve first.
+    vehicleFilter.make = {
+      in: [...new Set(filters.brands.map((brand) => resolveBrandAlias(brand) ?? brand))],
+    };
+  }
   if (filters.models.length > 0)
     vehicleFilter.model = { in: [...filters.models] };
   if (filters.fuelType) vehicleFilter.fuelType = filters.fuelType;
@@ -592,9 +598,18 @@ function buildListingWhere(
   // whole catalogue. Lowercasing the token lets this stay a plain `contains`
   // (LIKE) rather than `mode: "insensitive"` (ILIKE), which is what the GIN
   // trigram index on the column is built for.
-  const andConditions: Prisma.ListingRecordWhereInput[] = queryTokens.map((token) => ({
-    searchText: { contains: token.toLowerCase() },
-  }));
+  // A token that reads as a brand alias or a near-miss typo ("vw", "wv",
+  // "mercedez") also matches the canonical brand text `searchText` actually
+  // holds ("volkswagen", "mercedes-benz"). The OR only widens a token's reach;
+  // an unrelated word just resolves to null and stays a plain contains.
+  const andConditions: Prisma.ListingRecordWhereInput[] = queryTokens.map((rawToken) => {
+    const token = rawToken.toLowerCase();
+    const canonicalBrand = resolveBrandAlias(token);
+    const canonical = canonicalBrand?.toLowerCase();
+    return canonical && canonical !== token
+      ? { OR: [{ searchText: { contains: token } }, { searchText: { contains: canonical } }] }
+      : { searchText: { contains: token } };
+  });
 
   if (filters.postedWithin) {
     const cutoff = postedWithinCutoff(filters.postedWithin);

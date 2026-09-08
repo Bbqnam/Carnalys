@@ -29,6 +29,8 @@ export interface ModelRequest {
   safetyIdentifier: string;
   /** Falls back to CARNALYS_ANALYST_REASONING_EFFORT when omitted. */
   reasoningEffort?: string;
+  /** Output verbosity hint ("low" | "medium" | "high"); defaults to "low". */
+  verbosity?: string;
 }
 
 /**
@@ -202,8 +204,8 @@ export class OpenAIResponsesProvider implements AnalystModelProvider {
         input: request.input,
         ...toolFields,
         reasoning: { effort: request.reasoningEffort ?? process.env.CARNALYS_ANALYST_REASONING_EFFORT ?? "low" },
-        text: { verbosity: "low" },
-        max_output_tokens: 1_200,
+        text: { verbosity: request.verbosity ?? "low" },
+        max_output_tokens: 1_500,
         store: false,
         stream: Boolean(stream),
         safety_identifier: request.safetyIdentifier,

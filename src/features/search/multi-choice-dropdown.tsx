@@ -40,6 +40,9 @@ interface MultiChoiceDropdownProps {
   searchable?: boolean;
   searchPlaceholder?: string;
   menuHeight?: number;
+  /** Extra match test for the search box beyond a label substring — e.g. brand
+   *  aliases and typos ("vw", "wv" → Volkswagen). Given the normalized query. */
+  matchExtra?: (normalizedQuery: string, option: MultiChoiceOption) => boolean;
 }
 
 interface MenuPosition {
@@ -66,6 +69,7 @@ export function MultiChoiceDropdown({
   searchable = false,
   searchPlaceholder,
   menuHeight = 360,
+  matchExtra,
 }: MultiChoiceDropdownProps) {
   const listboxId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -81,10 +85,12 @@ export function MultiChoiceDropdown({
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("sv-SE");
     if (!normalizedQuery) return options;
-    return options.filter((option) =>
-      option.label.toLocaleLowerCase("sv-SE").includes(normalizedQuery),
+    return options.filter(
+      (option) =>
+        option.label.toLocaleLowerCase("sv-SE").includes(normalizedQuery) ||
+        (matchExtra?.(normalizedQuery, option) ?? false),
     );
-  }, [options, query]);
+  }, [options, query, matchExtra]);
 
   const selectedLabel = useMemo(() => {
     if (values.length === 0) return placeholder;

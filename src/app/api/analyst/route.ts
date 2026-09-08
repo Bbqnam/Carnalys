@@ -87,7 +87,7 @@ export async function POST(request: Request) {
           send({ type: "delta", delta: telemetry.answer, requestId, replace: true });
         }
         send({ type: "evidence", evidence: telemetry.evidence, truncated: telemetry.truncated, requestId });
-        send({ type: "done", requestId });
+        send({ type: "done", requestId, appliedFilters: telemetry.appliedSearchFilters });
         status = "completed";
       } catch (error) {
         if (!request.signal.aborted) {

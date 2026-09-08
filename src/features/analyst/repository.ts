@@ -5,6 +5,7 @@ import { estimateOwnershipCost } from "@/domain/vehicle/analysis/ownership-cost-
 import { valueVehicle } from "@/domain/vehicle/analysis/comparable-valuation";
 import { assessAskingPrice } from "@/domain/vehicle/analysis/price-plausibility";
 import { minimumPlausibleAskingPrice } from "@/domain/vehicle/pricing";
+import { resolveBrandAlias } from "@/domain/vehicle/taxonomy/brand-search";
 import type { SearchFilters } from "@/features/search/types";
 import { Prisma } from "@/generated/prisma/client";
 import { initializeDatabase, prisma } from "@/infrastructure/database/prisma";
@@ -533,14 +534,46 @@ export interface AnalystSearchOptions {
   finalistIds?: readonly string[];
   excludeCommercialBodyStyles?: boolean;
   fuelTypes?: readonly FuelType[];
+  /** The user's rough budget: rank by closeness to it, not just "under it". */
+  targetPrice?: number | null;
+  drivetrain?: Drivetrain | "" | null;
   minHorsepower?: number | null;
   maxHorsepower?: number | null;
+}
+
+/**
+ * Turn whatever budget signal we have into a single figure to rank around, plus
+ * a soft band to keep the cheap tail from dominating the pool. "around 200k"
+ * (targetPrice) centres on 200k; a bare ceiling centres a bit below it rather
+ * than on the cheapest thing that clears it; a floor centres just above it.
+ */
+export function resolveBudgetFocus(
+  minPrice: number | null,
+  maxPrice: number | null,
+  targetPrice: number | null | undefined,
+): { target: number | null; low: number | null; high: number | null } {
+  if (targetPrice && targetPrice > 0) {
+    return { target: targetPrice, low: Math.round(targetPrice * 0.8), high: Math.round(targetPrice * 1.2) };
+  }
+  if (minPrice !== null && maxPrice !== null) {
+    return { target: Math.round((minPrice + maxPrice) / 2), low: minPrice, high: maxPrice };
+  }
+  if (maxPrice !== null) {
+    return { target: Math.round(maxPrice * 0.88), low: Math.round(maxPrice * 0.5), high: maxPrice };
+  }
+  if (minPrice !== null) {
+    return { target: Math.round(minPrice * 1.25), low: minPrice, high: null };
+  }
+  return { target: null, low: null, high: null };
 }
 
 function searchWhere(filters: SearchFilters, options: AnalystSearchOptions): Prisma.ListingRecordWhereInput {
   const tokens = filters.query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const fuelTypes = options.fuelTypes ?? [];
   const { minHorsepower, maxHorsepower } = options;
+  const drivetrain = options.drivetrain || "";
+  // "VW", "wv" and the like resolve to the canonical make the catalogue stores.
+  const brands = [...new Set(filters.brands.map((brand) => resolveBrandAlias(brand) ?? brand))];
   return {
     status: "active",
     isVehicleRepresentative: true,
@@ -549,12 +582,18 @@ function searchWhere(filters: SearchFilters, options: AnalystSearchOptions): Pri
     ...(filters.minPrice !== null || filters.maxPrice !== null ? { priceAmount: { ...(filters.minPrice !== null ? { gte: filters.minPrice } : {}), ...(filters.maxPrice !== null ? { lte: filters.maxPrice } : {}) } } : {}),
     ...(filters.minMileageMil !== null || filters.maxMileageMil !== null ? { mileageKm: { ...(filters.minMileageMil !== null ? { gte: filters.minMileageMil * 10 } : {}), ...(filters.maxMileageMil !== null ? { lte: filters.maxMileageMil * 10 } : {}) } } : {}),
     ...(postedCutoff(filters.postedWithin) ? { listedAt: { gte: postedCutoff(filters.postedWithin) } } : {}),
-    ...(tokens.length ? { AND: tokens.map((token) => ({ searchText: { contains: token } })) } : {}),
+    ...(tokens.length ? { AND: tokens.map((token) => {
+      const canonical = resolveBrandAlias(token)?.toLowerCase();
+      return canonical && canonical !== token
+        ? { OR: [{ searchText: { contains: token } }, { searchText: { contains: canonical } }] }
+        : { searchText: { contains: token } };
+    }) } : {}),
     vehicle: { is: {
-      ...(filters.brands.length ? { make: { in: [...filters.brands] } } : {}),
+      ...(brands.length ? { make: { in: brands } } : {}),
       ...(filters.models.length ? { model: { in: [...filters.models] } } : {}),
       ...(filters.fuelType ? { fuelType: filters.fuelType } : fuelTypes.length ? { fuelType: { in: [...fuelTypes] } } : {}),
       ...(filters.transmission ? { transmission: filters.transmission } : {}),
+      ...(drivetrain ? { drivetrain } : {}),
       ...(filters.bodyStyle ? { bodyStyle: filters.bodyStyle } : options.excludeCommercialBodyStyles ? { bodyStyle: { notIn: [...commercialBodyStyles] } } : {}),
       ...(filters.minYear !== null || filters.maxYear !== null ? { modelYear: { ...(filters.minYear !== null ? { gte: filters.minYear } : {}), ...(filters.maxYear !== null ? { lte: filters.maxYear } : {}) } } : {}),
       ...(minHorsepower != null || maxHorsepower != null ? { horsepower: { ...(minHorsepower != null ? { gte: minHorsepower } : {}), ...(maxHorsepower != null ? { lte: maxHorsepower } : {}) } } : {}),
@@ -562,53 +601,109 @@ function searchWhere(filters: SearchFilters, options: AnalystSearchOptions): Pri
   };
 }
 
-async function inLanes<T, R>(items: readonly T[], concurrency: number, run: (item: T) => Promise<R>) {
+async function inLanes<T, R>(items: readonly T[], concurrency: number, run: (item: T, index: number) => Promise<R>) {
   const results = new Array<R>(items.length);
   let cursor = 0;
   async function lane() {
     while (cursor < items.length) {
       const index = cursor++;
-      results[index] = await run(items[index]);
+      results[index] = await run(items[index], index);
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, lane));
   return results;
 }
 
+// Swedish cars average roughly 1,500 mil (15,000 km) a year; a listing well
+// under that rate for its age scores better than one well over it, which is
+// what "low mileage" actually means once age is accounted for.
+const NORMAL_KM_PER_YEAR = 15_000;
+
+// One physical vehicle can be advertised on two sources at once. Keep the more
+// useful advert: the one Carnalys has already analysed, then the cheaper, then
+// a stable id tie-break.
+function preferListingOfSameVehicle(
+  candidate: CandidateRow,
+  incumbent: CandidateRow,
+): boolean {
+  const scored = (row: CandidateRow) => (row.analysis ? 1 : 0);
+  if (scored(candidate) !== scored(incumbent)) return scored(candidate) > scored(incumbent);
+  if (candidate.priceAmount !== incumbent.priceAmount) return candidate.priceAmount < incumbent.priceAmount;
+  return candidate.id < incumbent.id;
+}
+
 export async function searchInventoryEvidence(
   filters: SearchFilters,
   options: AnalystSearchOptions = {},
 ): Promise<AnalystToolResult> {
-  const { finalistIds = [], excludeCommercialBodyStyles = false, fuelTypes = [], minHorsepower = null, maxHorsepower = null } = options;
+  const {
+    finalistIds = [], excludeCommercialBodyStyles = false, fuelTypes = [],
+    targetPrice = null, drivetrain = "", minHorsepower = null, maxHorsepower = null,
+  } = options;
   await initializeDatabase();
   const freshness = await getCatalogFreshness();
   const freshnessKey = freshness?.lastSynchronizedAt?.toISOString() ?? "unknown";
-  const cacheKey = `search:${freshnessKey}:${JSON.stringify(filters)}:${finalistIds.join(",")}:${excludeCommercialBodyStyles ? 1 : 0}:${[...fuelTypes].sort().join(",")}:${minHorsepower ?? ""}:${maxHorsepower ?? ""}`;
+  const cacheKey = `search:${freshnessKey}:${JSON.stringify(filters)}:${finalistIds.join(",")}:${excludeCommercialBodyStyles ? 1 : 0}:${[...fuelTypes].sort().join(",")}:${targetPrice ?? ""}:${drivetrain || ""}:${minHorsepower ?? ""}:${maxHorsepower ?? ""}`;
   return analystEvidenceCache.get(cacheKey, 3 * 60_000, async () => {
-    const where = searchWhere(filters, { excludeCommercialBodyStyles, fuelTypes, minHorsepower, maxHorsepower });
+    const where = searchWhere(filters, { excludeCommercialBodyStyles, fuelTypes, drivetrain, minHorsepower, maxHorsepower });
+    const budget = resolveBudgetFocus(filters.minPrice, filters.maxPrice, targetPrice);
+    // No extra band pass when the user already gave a hard min AND max — the
+    // `where` clause is that band.
+    const hardBand = filters.minPrice !== null && filters.maxPrice !== null;
+    const bandWhere = !hardBand && budget.target !== null && (budget.low !== null || budget.high !== null)
+      ? {
+          ...where,
+          priceAmount: {
+            ...(budget.low !== null ? { gte: budget.low } : {}),
+            ...(budget.high !== null ? { lte: budget.high } : {}),
+          },
+        } satisfies Prisma.ListingRecordWhereInput
+      : null;
     const views: Prisma.ListingRecordOrderByWithRelationInput[][] = [
       [{ analysis: { dealScore: { sort: "desc", nulls: "last" } } }, { id: "asc" }],
       [{ priceAmount: "asc" }, { id: "asc" }],
       [{ mileageKm: "asc" }, { id: "asc" }],
       [{ vehicle: { modelYear: "desc" } }, { id: "asc" }],
     ];
-    const [total, batches] = await Promise.all([
+    const [total, bandTotal, batches] = await Promise.all([
       prisma.listingRecord.count({ where }),
+      bandWhere ? prisma.listingRecord.count({ where: bandWhere }) : Promise.resolve<number | null>(null),
       // The views are independent reads; run them all at once rather than two
-      // at a time so search latency is one round-trip, not three.
-      inLanes(views, views.length, (orderBy) => prisma.listingRecord.findMany({ where, select: candidateSelect, orderBy, take: 75 })),
+      // at a time so search latency is one round-trip, not three. When a budget
+      // focus is known, pull the price-ascending view from inside the band so a
+      // "~200k" question doesn't hand the ranker 75 rows of 10k bangers.
+      inLanes(views, views.length, (orderBy, index) =>
+        prisma.listingRecord.findMany({
+          where: index === 1 && bandWhere ? bandWhere : where,
+          select: candidateSelect,
+          orderBy,
+          take: 75,
+        })),
     ]);
+    const currentYear = new Date().getFullYear();
+    // De-duplicate: first by listing id across the views, then to one advert
+    // per physical vehicle.
+    const byId = [...new Map(batches.flat().map((row) => [row.id, row])).values()];
+    const byVehicle = new Map<string, CandidateRow>();
+    for (const row of byId) {
+      const incumbent = byVehicle.get(row.vehicleId);
+      if (!incumbent || preferListingOfSameVehicle(row, incumbent)) byVehicle.set(row.vehicleId, row);
+    }
     // Roughly 5% of the catalogue advertises a leasing monthly rate or a
     // "call for price" placeholder in priceAmount, not the car's price. Drop
     // anything below the age-relative plausibility floor so those do not top
     // the ranking as impossibly cheap. Mirrors analyse_listing_market.
-    const currentYear = new Date().getFullYear();
-    const rows = [...new Map(batches.flat().map((row) => [row.id, row])).values()]
-      .filter((row) => row.priceAmount >= minimumPlausibleAskingPrice(row.vehicle.modelYear, currentYear))
-      .slice(0, 300);
+    const plausible = [...byVehicle.values()]
+      .filter((row) => row.priceAmount >= minimumPlausibleAskingPrice(row.vehicle.modelYear, currentYear));
+    // Prefer the in-band rows for ranking, but fall back to the whole set if
+    // the band is too thin to choose from.
+    const inBudgetBand = (price: number) =>
+      (budget.low === null || price >= budget.low) && (budget.high === null || price <= budget.high);
+    const banded = budget.target !== null ? plausible.filter((row) => inBudgetBand(row.priceAmount)) : plausible;
+    const rows = (banded.length >= 8 ? banded : plausible).slice(0, 300);
     const mapped = rows.map(compactListing);
     const years = mapped.map((row) => row.modelYear);
-    const mileages = mapped.map((row) => row.mileageKm);
+    const usageRates = mapped.map((row) => row.mileageKm / Math.max(1, currentYear - row.modelYear) / NORMAL_KM_PER_YEAR);
     const costs = mapped.map((row) => row.ownership.annualCostAmount);
     const scale = (value: number, values: readonly number[], invert = false) => {
       const min = Math.min(...values);
@@ -616,37 +711,61 @@ export async function searchInventoryEvidence(
       const normalized = max === min ? 0.5 : (value - min) / (max - min);
       return invert ? 1 - normalized : normalized;
     };
-    const ranked = mapped.map((listing) => {
-      const marketRatio = listing.storedAnalysis.marketValueAmount
-        ? listing.priceAmount / listing.storedAnalysis.marketValueAmount
-        : 1;
-      const independentPricePosition = Math.max(0, Math.min(1, 1.5 - marketRatio));
-      const dataConfidence = listing.storedAnalysis.dataConfidence === "high" ? 1 : listing.storedAnalysis.dataConfidence === "medium" ? 0.65 : 0.3;
+    const ranked = mapped.map((listing, index) => {
+      const marketValue = listing.storedAnalysis.marketValueAmount;
+      const marketRatio = marketValue ? listing.priceAmount / marketValue : null;
+      // Credit for being up to 25% under market value; nothing extra beyond
+      // that, and weighted down when the valuation itself is shaky.
+      const valuationConfidence = marketValue == null ? 0
+        : listing.storedAnalysis.dataConfidence === "high" ? 1
+          : listing.storedAnalysis.dataConfidence === "medium" ? 0.7 : 0.4;
+      const dealDiscount = marketRatio === null ? 0 : Math.max(0, Math.min(1, (1 - marketRatio) / 0.25));
+      // More than ~40% under market usually means bad data or a bad car — ramp
+      // a penalty in rather than rewarding it.
+      const tooCheap = marketRatio !== null && marketRatio < 0.6 ? Math.min(1, (0.6 - marketRatio) / 0.35) : 0;
+      const budgetFit = budget.target
+        ? Math.max(0, 1 - Math.abs(listing.priceAmount - budget.target) / budget.target)
+        : 0.5;
+      const confidenceScore = listing.storedAnalysis.dataConfidence === "high" ? 1 : listing.storedAnalysis.dataConfidence === "medium" ? 0.65 : 0.3;
       const freshnessScore = Math.max(0, 1 - (Date.now() - new Date(listing.freshness.lastSeenAt).valueOf()) / (30 * 86_400_000));
-      const score = independentPricePosition * 0.28
-        + scale(listing.mileageKm, mileages, true) * 0.17
-        + scale(listing.modelYear, years) * 0.15
-        + scale(listing.ownership.annualCostAmount, costs, true) * 0.15
-        + dataConfidence * 0.12
-        + freshnessScore * 0.08
-        + ((listing.storedAnalysis.dealScore ?? 50) / 100) * 0.05;
-      return { ...listing, deterministicRankScore: Math.round(score * 100), marketPriceRatio: Number(marketRatio.toFixed(3)) };
+      const score = dealDiscount * valuationConfidence * 0.16
+        + budgetFit * 0.20
+        + scale(usageRates[index], usageRates, true) * 0.15
+        + scale(listing.modelYear, years) * 0.12
+        + scale(listing.ownership.annualCostAmount, costs, true) * 0.10
+        + confidenceScore * 0.10
+        + freshnessScore * 0.07
+        + ((listing.storedAnalysis.dealScore ?? 50) / 100) * 0.10
+        - tooCheap * 0.18;
+      return {
+        ...listing,
+        deterministicRankScore: Math.round(score * 100),
+        marketPriceRatio: marketRatio === null ? null : Number(marketRatio.toFixed(3)),
+        priceLooksTooLow: tooCheap > 0.25,
+      };
     }).toSorted((a, b) => b.deterministicRankScore - a.deterministicRankScore || a.listingId.localeCompare(b.listingId));
     const finalists = await inLanes(finalistIds.slice(0, 5), 2, (id) => getListingAnalysisEvidence(id, false));
     const asOf = freshness?.lastSynchronizedAt?.toISOString() ?? new Date().toISOString();
+    const budgetFocus = budget.target === null
+      ? null
+      : { targetAmount: budget.target, bandLowAmount: budget.low, bandHighAmount: budget.high, matchesInBand: bandTotal };
     return {
       tool: "search_inventory",
       data: {
         filters,
         totalMatches: total,
+        budgetFocus,
         rankedPoolSize: rows.length,
         candidates: ranked.slice(0, 20),
         finalists: finalists.map((result) => result.data),
         warnings: [
           ...(total > rows.length ? [`The database matched ${total} listings; deterministic multi-view ranking evaluated up to 300 and returned 20.`] : []),
+          ...(budgetFocus ? [`Ranking was centred on ${budget.target!.toLocaleString("en-US")} SEK (band ${budget.low?.toLocaleString("en-US") ?? "0"}–${budget.high?.toLocaleString("en-US") ?? "∞"} SEK); ${bandTotal ?? 0} listings fall inside it and were preferred over cheaper matches. totalMatches counts every match, not the sensible budget range.`] : []),
           ...(excludeCommercialBodyStyles ? ["Vans and pickups were excluded as commercial body styles."] : []),
           ...(fuelTypes.length ? [`Restricted to fuel types: ${fuelTypes.join(", ")}.`] : []),
+          ...(drivetrain ? [`Restricted to ${drivetrain.replace(/_/g, " ")}.`] : []),
           ...(minHorsepower != null || maxHorsepower != null ? [`Restricted to horsepower ${minHorsepower ?? "any"}–${maxHorsepower ?? "any"}.`] : []),
+          "Any candidate flagged priceLooksTooLow is likely mispriced data or a problem car — verify before recommending it as a deal.",
           "Market price ratios use stored Carnalys valuations for ranking only; request analyse_listing_market for an independent cohort check.",
         ],
       },

@@ -35,7 +35,7 @@ test("request validation caps session conversation and keeps trusted search filt
     message: "test",
     locale: "en",
     context: { surface: "listing", listingId: "a" },
-    conversation: Array.from({ length: 5 }, () => ({ role: "user", content: "x" })),
+    conversation: Array.from({ length: 13 }, () => ({ role: "user", content: "x" })),
   }), AnalystValidationError);
 });
 

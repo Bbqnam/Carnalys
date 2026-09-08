@@ -4,6 +4,7 @@ import type {
   SellerType,
   TransmissionType,
 } from "@/domain/vehicle";
+import { resolveBrandAlias } from "@/domain/vehicle/taxonomy/brand-search";
 import {
   type PostedWithin,
   type SearchFilters,
@@ -151,7 +152,9 @@ export function parseVehicleSearchOptions(
           ? minimumPrice
           : null,
       maxPrice: maximumPrice,
-      brands: stringValues(parameters.make),
+      // "VW", "vw", or a transposed typo ("WV") in a shared link or typed URL
+      // resolves to the canonical brand the catalogue is indexed under.
+      brands: [...new Set(stringValues(parameters.make).map((brand) => resolveBrandAlias(brand) ?? brand))],
       models: stringValues(parameters.model),
       sources: stringValues(parameters.source, 50),
       fuelType: enumValue(parameters.fuel, fuelTypes),

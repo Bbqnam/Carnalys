@@ -1,5 +1,10 @@
 import { EvidenceRegistry } from "./evidence";
-import { selectAnalystModel, selectAnalystReasoningEffort } from "./models";
+import {
+  selectAnalystModel,
+  selectAnalystReasoningEffort,
+  selectAnalystTurnBudget,
+  selectAnalystVerbosity,
+} from "./models";
 import { analystInstructions, initialModelInput } from "./prompt";
 import type { AnalystModelProvider, ModelUsage } from "./provider";
 import { OpenAIResponsesProvider } from "./provider";
@@ -15,10 +20,12 @@ import { AnalystToolSession } from "./tool-executor";
 import type { AnalystRequest } from "./types";
 import { AnalystBudget } from "./budget";
 
+// Defaults for a plain lookup. A weigh-the-options question gets a wider budget
+// (see selectAnalystTurnBudget): a search, a finalist deep-dive, and an
+// independent market check should all fit without forcing a truncated synthesis.
+// The prompt tells the model how to spend these (compare_listings once, not
+// per-car).
 export const MAX_MODEL_TURNS = 3;
-// A search plus a finalist deep-dive plus an independent market check should
-// all fit without forcing a truncated synthesis. The prompt tells the model
-// how to spend these (compare_listings once, not per-car).
 export const MAX_TOOL_CALLS = 5;
 
 export type { AnalystRunResult };
@@ -47,18 +54,26 @@ function parseArguments(value: string) {
 }
 
 export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRunResult> {
+  const { message, context, conversation } = options.request;
   const provider = options.provider ?? new OpenAIResponsesProvider();
-  const model = selectAnalystModel(options.request.message);
-  const reasoningEffort = selectAnalystReasoningEffort(options.request.message, options.request.context.surface);
+  const model = selectAnalystModel(message);
+  const reasoningEffort = selectAnalystReasoningEffort(message, context.surface, conversation);
+  const verbosity = selectAnalystVerbosity(message, context.surface, conversation);
+  const { maxTurns, maxToolCalls } = selectAnalystTurnBudget(message, context.surface, conversation);
   const input: unknown[] = [...initialModelInput(options.request)];
   const registry = new EvidenceRegistry();
   const tools = new AnalystToolSession({ context: options.request.context, signal: options.signal });
   const usage: ModelUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 };
-  const budget = new AnalystBudget(MAX_MODEL_TURNS, MAX_TOOL_CALLS);
+  const budget = new AnalystBudget(maxTurns, maxToolCalls);
 
   const stream = options.onAnswerDelta
     ? { onTextDelta: options.onAnswerDelta }
     : undefined;
+
+  const withFilters = (result: AnalystRunResult): AnalystRunResult => ({
+    ...result,
+    appliedSearchFilters: tools.lastSearchFilters ?? undefined,
+  });
 
   const synthesize = () => synthesizeAnswer({
     provider,
@@ -71,9 +86,10 @@ export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRun
     userId: options.userId,
     signal: options.signal,
     stream,
-  });
+    verbosity,
+  }).then(withFilters);
 
-  for (let turn = 0; turn < MAX_MODEL_TURNS; turn += 1) {
+  for (let turn = 0; turn < maxTurns; turn += 1) {
     if (!budget.startTurn()) break;
     options.signal.throwIfAborted();
     options.onStatus?.(turn === 0
@@ -86,15 +102,16 @@ export async function runAnalyst(options: AnalystRunOptions): Promise<AnalystRun
       tools: analystToolDefinitions,
       safetyIdentifier: safeIdentifier(options.userId),
       reasoningEffort,
+      verbosity,
     }, options.signal, stream);
     addUsage(usage, response.usage);
 
     if (response.toolCalls.length === 0) {
       if (!response.outputText.trim()) throw new Error("MODEL_EMPTY_RESPONSE");
-      return finalizeTextAnswer({ text: response.outputText, registry, request: options.request, model, budget, usage, truncated: false });
+      return withFilters(finalizeTextAnswer({ text: response.outputText, registry, request: options.request, model, budget, usage, truncated: false }));
     }
 
-    if (!budget.reserveToolCalls(response.toolCalls.length) || turn === MAX_MODEL_TURNS - 1) {
+    if (!budget.reserveToolCalls(response.toolCalls.length) || turn === maxTurns - 1) {
       return synthesize();
     }
 

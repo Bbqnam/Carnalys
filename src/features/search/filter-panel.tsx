@@ -1,4 +1,5 @@
 import type { BodyStyle, FuelType, SellerType, TransmissionType } from "@/domain/vehicle";
+import { brandOptionMatchesQuery } from "@/domain/vehicle/taxonomy/brand-search";
 import { listingSources } from "@/infrastructure/marketplaces/source-registry";
 import { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "./brand-logo";
@@ -451,6 +452,7 @@ export function FilterPanel({
             label={copy.make}
             menuHeight={430}
             noResultsLabel={copy.noMatches}
+            matchExtra={(searchQuery, option) => brandOptionMatchesQuery(option.value, searchQuery)}
             onChange={(brands) => onChange({ ...filters, brands, models: [] })}
             options={brandOptions}
             placeholder={copy.allMakes}

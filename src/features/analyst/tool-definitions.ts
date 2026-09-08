@@ -68,7 +68,7 @@ export const analystToolDefinitions: readonly AnalystFunctionTool[] = [
   {
     type: "function",
     name: "search_inventory",
-    description: "Filter all active representative Carnalys inventory using normalized filters, deterministically rank at most 300 matches from several views, and return at most twenty candidates. finalistIds may request details for up to five ids already returned by an earlier search. filters.fuelType and filters.bodyStyle only accept one value each — for a passenger-cars-only ('personbilar') question set excludeCommercialBodyStyles true instead of guessing a bodyStyle, and for a multi-fuel question (e.g. 'petrol or hybrid') use fuelTypes instead of guessing a single filters.fuelType. Use minHorsepower/maxHorsepower for a power requirement — filters has no horsepower field.",
+    description: "Filter all active representative Carnalys inventory using normalized filters, deterministically rank at most 300 matches from several views, and return at most twenty candidates. finalistIds may request details for up to five ids already returned by an earlier search. filters.fuelType and filters.bodyStyle only accept one value each — for a passenger-cars-only ('personbilar') question set excludeCommercialBodyStyles true instead of guessing a bodyStyle, and for a multi-fuel question (e.g. 'petrol or hybrid') use fuelTypes instead of guessing a single filters.fuelType. Use minHorsepower/maxHorsepower for a power requirement — filters has no horsepower field. Use drivetrain for an all-wheel-drive / 4x4 request. Set targetPrice to the user's rough budget whenever they say 'around', 'about', '~', 'X-ish', or give one bare figure ('I have 200 000'): ranking then favours cars close to that figure rather than the cheapest thing under it. filters.maxPrice is a hard ceiling ('under X', 'max X') and filters.minPrice a hard floor — targetPrice is neither, and can be set alongside a wide min/max or on its own.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -77,10 +77,12 @@ export const analystToolDefinitions: readonly AnalystFunctionTool[] = [
         finalistIds: { type: "array", items: { type: "string", pattern: "^[A-Za-z0-9_-]{1,100}$" }, maxItems: 5 },
         excludeCommercialBodyStyles: { type: "boolean" },
         fuelTypes: { type: "array", items: { type: "string", enum: fuelTypeValues }, maxItems: fuelTypeValues.length },
+        targetPrice: nullableInteger(10_000_000),
+        drivetrain: { type: "string", enum: ["", "all_wheel_drive", "front_wheel_drive", "rear_wheel_drive", "other"] },
         minHorsepower: nullableInteger(2_000),
         maxHorsepower: nullableInteger(2_000),
       },
-      required: ["filters", "finalistIds", "excludeCommercialBodyStyles", "fuelTypes", "minHorsepower", "maxHorsepower"],
+      required: ["filters", "finalistIds", "excludeCommercialBodyStyles", "fuelTypes", "targetPrice", "drivetrain", "minHorsepower", "maxHorsepower"],
     },
     strict: true,
   },
