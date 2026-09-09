@@ -9,8 +9,20 @@ import {
   computeBuyConfidence,
   computeDealScore,
   conditionScores,
-  priceValueScore,
+  v11VehicleScores,
 } from "@/domain/vehicle/analysis/deal-score";
+import { assessEquipment } from "@/domain/vehicle/analysis/equipment-score";
+import {
+  assessDefects,
+  assessMileage,
+  classifyVehicleKind,
+  defectModifier,
+  sellerProtectionScore,
+  serviceHistoryModifier,
+  transparencyScore,
+  type MileageStatus,
+  type VehicleKind,
+} from "@/domain/vehicle/analysis/listing-assessment";
 import {
   valueVehicle,
   type ValuationComparable,
@@ -29,10 +41,16 @@ interface AnalysisTarget {
   monthlyCostAmount: number | null;
   title: string | null;
   description: string | null;
+  sellerType: string;
   synchronizedAt: Date;
+  equipment: { label: string }[];
   vehicle: {
+    registrationNumber: string | null;
+    vin: string | null;
     make: string;
     model: string;
+    variant: string | null;
+    generation: string | null;
     fuelType: string;
     transmission: string;
     bodyStyle: string;
@@ -43,9 +61,13 @@ interface AnalysisTarget {
 
 interface MarketComparableRow {
   id: string;
+  provider: string;
   vehicleId: string;
   make: string;
   model: string;
+  title: string | null;
+  variant: string | null;
+  generation: string | null;
   fuelType: string;
   transmission: string;
   bodyStyle: string;
@@ -55,14 +77,7 @@ interface MarketComparableRow {
   priceAmount: number;
 }
 
-interface SegmentComparableRow {
-  id: string;
-  vehicleId: string;
-  make: string;
-  modelYear: number;
-  mileageKm: number;
-  priceAmount: number;
-}
+type SegmentComparableRow = MarketComparableRow;
 
 // 11.0: canonical taxonomy — cohorts key on the canonical model *family* and
 // gate on bodyStyle (when known) + fuelType (now also in the wide tier) +
@@ -70,6 +85,7 @@ interface SegmentComparableRow {
 // tier before the same-make segment fallback. Bumping this re-analyses every
 // stored listing on the next sweep.
 const methodologyVersion = "canonical-taxonomy-cohorts-11.0";
+const scoringVersion = "deal-score-11.0";
 
 const SERVICE_HISTORY_VALUES: ReadonlySet<ServiceHistoryStatus> = new Set([
   "complete",
@@ -122,7 +138,16 @@ async function loadTargets(
         : {
             OR: [
               { analysis: { is: null } },
-              { analysis: { is: { methodologyVersion: { not: methodologyVersion } } } },
+              {
+                analysis: {
+                  is: {
+                    OR: [
+                      { methodologyVersion: { not: methodologyVersion } },
+                      { scoringVersion: { not: scoringVersion } },
+                    ],
+                  },
+                },
+              },
             ],
           }),
     },
@@ -136,11 +161,17 @@ async function loadTargets(
       monthlyCostAmount: true,
       title: true,
       description: true,
+      sellerType: true,
       synchronizedAt: true,
+      equipment: { select: { label: true } },
       vehicle: {
         select: {
+          registrationNumber: true,
+          vin: true,
           make: true,
           model: true,
+          variant: true,
+          generation: true,
           fuelType: true,
           transmission: true,
           bodyStyle: true,
@@ -181,9 +212,13 @@ export async function refreshStoredListingAnalyses(
     )
     SELECT DISTINCT ON (listing."vehicleId")
       listing."id" AS "id",
+      listing."provider" AS "provider",
       listing."vehicleId" AS "vehicleId",
       vehicle."make" AS "make",
       vehicle."model" AS "model",
+      listing."title" AS "title",
+      vehicle."variant" AS "variant",
+      vehicle."generation" AS "generation",
       vehicle."fuelType" AS "fuelType",
       vehicle."transmission" AS "transmission",
       vehicle."bodyStyle" AS "bodyStyle",
@@ -232,55 +267,68 @@ export async function refreshStoredListingAnalyses(
     a === "other" || b === "other" || a === b;
   const performanceMatches = (target: string | null, comparable: string | null) =>
     !target || comparable === target;
+  const kindOf = (row: {
+    title?: string | null;
+    model?: string | null;
+    variant?: string | null;
+    bodyStyle?: string | null;
+  }) => classifyVehicleKind(row);
+  const compatibleKind = (target: VehicleKind, comparable: VehicleKind) =>
+    target === comparable ||
+    (target === "passenger_car" && comparable === "unknown") ||
+    (target === "unknown" && comparable === "passenger_car");
 
   /** Exact cohort: same model family, body (when known), gearbox, fuel and
    *  performance variant (when the target has one), within 3 model years and
    *  120,000 km. */
-  function tier1Comparables(target: AnalysisTarget): ValuationComparable[] {
+  function tier1Comparables(target: AnalysisTarget): MarketComparableRow[] {
+    const targetKind = kindOf({ ...target.vehicle, title: target.title });
     return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
       .filter(
         (comparable) =>
           comparable.id !== target.id &&
           comparable.vehicleId !== target.vehicleId &&
+          compatibleKind(targetKind, kindOf(comparable)) &&
           comparable.fuelType === target.vehicle.fuelType &&
           comparable.transmission === target.vehicle.transmission &&
           bodyMatches(comparable.bodyStyle, target.vehicle.bodyStyle) &&
           performanceMatches(target.vehicle.performanceVariant, comparable.performanceVariant) &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 3 &&
           Math.abs(Number(comparable.mileageKm) - target.mileageKm) <= 120_000,
-      )
-      .map(toComparable);
+      );
   }
 
   /** Same model family and fuel, wider year band, gearbox ignored — a rare car
    *  still valued against its own powertrain, never against a different one. */
-  function tier1WideComparables(target: AnalysisTarget): ValuationComparable[] {
+  function tier1WideComparables(target: AnalysisTarget): MarketComparableRow[] {
+    const targetKind = kindOf({ ...target.vehicle, title: target.title });
     return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
       .filter(
         (comparable) =>
           comparable.id !== target.id &&
           comparable.vehicleId !== target.vehicleId &&
+          compatibleKind(targetKind, kindOf(comparable)) &&
           comparable.fuelType === target.vehicle.fuelType &&
           bodyMatches(comparable.bodyStyle, target.vehicle.bodyStyle) &&
           performanceMatches(target.vehicle.performanceVariant, comparable.performanceVariant) &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 8,
-      )
-      .map(toComparable);
+      );
   }
 
   /** Same model family and fuel only — body, gearbox and performance ignored.
    *  Catches family-PHEV cars (e.g. a Ceed SW plug-in hybrid) that used to
    *  starve every tighter tier and fall straight to the whole-make segment. */
-  function tier1FuelComparables(target: AnalysisTarget): ValuationComparable[] {
+  function tier1FuelComparables(target: AnalysisTarget): MarketComparableRow[] {
+    const targetKind = kindOf({ ...target.vehicle, title: target.title });
     return (comparablesByModel.get(modelKey(target.vehicle)) ?? [])
       .filter(
         (comparable) =>
           comparable.id !== target.id &&
           comparable.vehicleId !== target.vehicleId &&
+          compatibleKind(targetKind, kindOf(comparable)) &&
           comparable.fuelType === target.vehicle.fuelType &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 8,
-      )
-      .map(toComparable);
+      );
   }
 
   // Only vehicles with no usable same-family pool fall through to same-make.
@@ -297,8 +345,17 @@ export async function refreshStoredListingAnalyses(
     ? await prisma.$queryRaw<SegmentComparableRow[]>(Prisma.sql`
         SELECT DISTINCT ON (listing."vehicleId")
           listing."id" AS "id",
+          listing."provider" AS "provider",
           listing."vehicleId" AS "vehicleId",
           vehicle."make" AS "make",
+          vehicle."model" AS "model",
+          listing."title" AS "title",
+          vehicle."variant" AS "variant",
+          vehicle."generation" AS "generation",
+          vehicle."fuelType" AS "fuelType",
+          vehicle."transmission" AS "transmission",
+          vehicle."bodyStyle" AS "bodyStyle",
+          vehicle."performanceVariant" AS "performanceVariant",
           vehicle."modelYear" AS "modelYear",
           listing."mileageKm" AS "mileageKm",
           listing."priceAmount" AS "priceAmount"
@@ -325,7 +382,8 @@ export async function refreshStoredListingAnalyses(
     comparablesBySegment.set(key, rows);
   }
 
-  function tier2Comparables(target: AnalysisTarget): ValuationComparable[] {
+  function tier2Comparables(target: AnalysisTarget): SegmentComparableRow[] {
+    const targetKind = kindOf({ ...target.vehicle, title: target.title });
     const minimumPrice = target.priceAmount * 0.6;
     const maximumPrice = target.priceAmount * 1.4;
     return (comparablesBySegment.get(segmentKey(target.vehicle)) ?? [])
@@ -333,37 +391,87 @@ export async function refreshStoredListingAnalyses(
         (comparable) =>
           comparable.id !== target.id &&
           comparable.vehicleId !== target.vehicleId &&
+          compatibleKind(targetKind, kindOf(comparable)) &&
           Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 5 &&
           Number(comparable.priceAmount) >= minimumPrice &&
           Number(comparable.priceAmount) <= maximumPrice,
-      )
-      .map(toComparable);
+      );
   }
+
+  type CohortTier = "exact" | "wide" | "same_fuel" | "segment" | "none";
+  const contexts = targets.map((target) => {
+    const exact = tier1Comparables(target);
+    let tier: CohortTier = "exact";
+    let cohort = exact;
+    if (cohort.length < 3) {
+      const wide = tier1WideComparables(target);
+      const sameFuel = tier1FuelComparables(target);
+      const segment = tier2Comparables(target);
+      if (wide.length >= 3) {
+        tier = "wide";
+        cohort = wide;
+      } else if (sameFuel.length >= 3) {
+        tier = "same_fuel";
+        cohort = sameFuel;
+      } else if (segment.length >= 3) {
+        tier = "segment";
+        cohort = segment;
+      } else {
+        tier = "none";
+        cohort = [];
+      }
+    }
+    const ageYears = Math.max(0, analysisYear - target.vehicle.modelYear);
+    const valuation = valueVehicle(
+      { ageYears, mileageKm: target.mileageKm },
+      cohort.map(toComparable),
+    );
+    const equipmentCohort = [...cohort]
+      .sort(
+        (a, b) =>
+          Math.abs(a.modelYear - target.vehicle.modelYear) * 60_000 +
+          Math.abs(Number(a.mileageKm) - target.mileageKm) -
+          (Math.abs(b.modelYear - target.vehicle.modelYear) * 60_000 +
+            Math.abs(Number(b.mileageKm) - target.mileageKm)),
+      )
+      .slice(0, 40);
+    return { target, tier, cohort, equipmentCohort, ageYears, valuation };
+  });
+
+  const equipmentListingIds = [
+    ...new Set(contexts.flatMap(({ equipmentCohort }) => equipmentCohort.map(({ id }) => id))),
+  ];
+  const equipmentRows = equipmentListingIds.length
+    ? await prisma.listingEquipmentRecord.findMany({
+        where: { listingId: { in: equipmentListingIds } },
+        select: { listingId: true, label: true },
+      })
+    : [];
+  const equipmentByListing = new Map<string, string[]>();
+  for (const row of equipmentRows) {
+    const labels = equipmentByListing.get(row.listingId) ?? [];
+    labels.push(row.label);
+    equipmentByListing.set(row.listingId, labels);
+  }
+
+  const mileageStatusCode: Record<MileageStatus, number> = {
+    verified: 3,
+    plausible: 2,
+    unknown: 1,
+    suspicious: 0,
+  };
+  const defectCategoryCode = {
+    none: 0,
+    minor_cosmetic: 1,
+    minor_mechanical: 2,
+    significant_mechanical: 3,
+    major_defect: 4,
+    repair_object: 5,
+  } as const;
 
   const calculatedAt = new Date();
   await prisma.$transaction(
-    targets.map((target) => {
-      const tier1 = tier1Comparables(target);
-      const usedFallbackTier = tier1.length < 3;
-      const cohort =
-        tier1.length >= 3
-          ? tier1
-          : (() => {
-              const wide = tier1WideComparables(target);
-              if (wide.length >= 3) return wide;
-              const sameFuel = tier1FuelComparables(target);
-              if (sameFuel.length >= 3) return sameFuel;
-              const segment = tier2Comparables(target);
-              return segment.length >= 3 ? segment : [];
-            })();
-
-      const valuation = valueVehicle(
-        {
-          ageYears: analysisYear - target.vehicle.modelYear,
-          mileageKm: target.mileageKm,
-        },
-        cohort,
-      );
+    contexts.map(({ target, tier, cohort, equipmentCohort, ageYears, valuation }) => {
 
       const assessment = assessAskingPrice({
         askingPrice: target.priceAmount,
@@ -381,44 +489,123 @@ export async function refreshStoredListingAnalyses(
         ? (valuation.marketValue! - target.priceAmount) / valuation.marketValue!
         : 0;
 
+      const serviceHistory = normalizeServiceHistory(target.serviceHistory);
+      const text = `${target.title ?? ""} ${target.description ?? ""}`;
+      const mileageStatus = assessMileage(target.mileageKm, ageYears, text);
+      const vehicleScores = v11VehicleScores({
+        ageYears,
+        mileageKm: target.mileageKm,
+        mileageKnown: mileageStatus === "verified" || mileageStatus === "plausible",
+        ownerCount: target.ownerCount,
+      });
+      const equipment = assessEquipment(
+        target.equipment.map(({ label }) => label),
+        equipmentCohort.map(({ id }) => equipmentByListing.get(id) ?? []),
+      );
+      const defectCategory = assessDefects(target.title, target.description);
+      const serviceModifier = serviceHistoryModifier(serviceHistory);
+      const knownDefectModifier = defectModifier(defectCategory);
+      const listingTransparencyScore = transparencyScore({
+        registrationNumber: Boolean(target.vehicle.registrationNumber),
+        vin: Boolean(target.vehicle.vin),
+        description: target.description,
+        serviceHistory,
+        ownerCount: target.ownerCount,
+        defectCategory,
+      });
+      const protectionScore = sellerProtectionScore({
+        sellerType: target.sellerType,
+        title: target.title,
+        description: target.description,
+      });
+      const targetKind = kindOf({ ...target.vehicle, title: target.title });
       const dealResult = computeDealScore({
         priceDelta,
         canComparePrice,
         comparableCount: valuation.comparableCount,
+        mileageScore: vehicleScores.mileageScore,
+        ageScore: vehicleScores.ageScore,
+        ownerScore: vehicleScores.ownerScore,
+        equipmentScore: equipment.score,
+        transparencyScore: listingTransparencyScore,
+        sellerProtectionScore: protectionScore,
+        serviceModifier,
+        defectModifier: knownDefectModifier,
+        eligibleForRanking: mileageStatus !== "suspicious",
       });
 
       const condition = conditionScores({
-        ageYears: analysisYear - target.vehicle.modelYear,
+        ageYears,
         mileageKm: target.mileageKm,
         ownerCount: target.ownerCount,
-        serviceHistory: normalizeServiceHistory(target.serviceHistory),
+        serviceHistory,
       });
       const buyConfidenceScore = computeBuyConfidence({ ...condition });
 
-      // Data Confidence: how much the *valuation* can be trusted. Independent of
-      // whether the price was rated (that is carried by dealScore === null).
-      const confidence: "low" | "medium" | "high" =
-        valuation.marketValue === null
-          ? "low"
-          : assessment.cautious ||
-              usedFallbackTier ||
-              valuation.method === "raw_median"
-            ? "low"
-            : valuation.comparableCount >= 15
-              ? "high"
-              : valuation.comparableCount >= 8
-                ? "medium"
-                : "low";
+      const providers = new Set(cohort.map(({ provider }) => provider)).size;
+      const generationMatches = target.vehicle.generation
+        ? cohort.filter(({ generation }) => generation === target.vehicle.generation).length /
+          Math.max(1, cohort.length)
+        : 0.5;
+      const dispersion =
+        valuation.marketValue && valuation.rangeLow && valuation.rangeHigh
+          ? (valuation.rangeHigh - valuation.rangeLow) / valuation.marketValue
+          : 1;
+      const tierPoints: Record<CohortTier, number> = {
+        exact: 24,
+        wide: 16,
+        same_fuel: 10,
+        segment: 0,
+        none: -20,
+      };
+      let confidenceScore =
+        Math.min(25, valuation.comparableCount * 2) +
+        tierPoints[tier] +
+        (valuation.method === "adjusted" ? 16 : valuation.method === "raw_median" ? 7 : -20) +
+        (generationMatches >= 0.75 ? 8 : generationMatches < 0.25 ? -5 : 2) +
+        (providers >= 2 ? 5 : 0) +
+        (dispersion <= 0.3 ? 10 : dispersion > 0.65 ? -10 : 2) +
+        (equipment.coverage === "known" ? 4 : -4) +
+        (mileageStatus === "suspicious" ? -30 : mileageStatus === "unknown" ? -12 : 5) +
+        (targetKind === "unknown" ? -8 : 4) +
+        (assessment.cautious ? -20 : 0);
+      confidenceScore = Math.max(0, Math.min(100, confidenceScore));
+      const confidence: "unrated" | "low" | "medium" | "high" =
+        !canComparePrice
+          ? "unrated"
+          : confidenceScore >= 72
+            ? "high"
+            : confidenceScore >= 52
+              ? "medium"
+              : "low";
+      const confidenceRank =
+        dealResult.value === null
+          ? 0
+          : confidence === "high"
+            ? 3
+            : confidence === "medium"
+              ? 2
+              : confidence === "low"
+                ? 1
+                : 0;
 
       const factorInputs = {
         hasMarketEstimate: canComparePrice,
         priceDelta: canComparePrice ? priceDelta : 0,
-        priceValueScore: priceValueScore(priceDelta),
+        priceValueScore: dealResult.priceValueScore,
         priceReasonCode: assessment.reasonCode,
-        ageScore: condition.ageScore,
-        mileageScore: condition.mileageScore,
+        ageScore: vehicleScores.ageScore,
+        mileageScore: vehicleScores.mileageScore,
         serviceHistoryScore: condition.serviceHistoryScore,
-        ownerScore: condition.ownerScore,
+        ownerScore: vehicleScores.ownerScore,
+        equipmentScore: equipment.score,
+        transparencyScore: listingTransparencyScore,
+        sellerProtectionScore: protectionScore,
+        serviceModifier,
+        defectModifier: knownDefectModifier,
+        mileageStatusCode: mileageStatusCode[mileageStatus],
+        equipmentCoverageCode: equipment.coverage === "known" ? 1 : 0,
+        defectCategoryCode: defectCategoryCode[defectCategory],
         hasServiceHistory: condition.hasServiceHistory,
         ownerCount: target.ownerCount ?? undefined,
         age: Math.max(0, analysisYear - target.vehicle.modelYear),
@@ -446,13 +633,19 @@ export async function refreshStoredListingAnalyses(
         comparableCount: valuation.comparableCount,
         comparablePrices: sampledPrices,
         confidence,
+        confidenceRank,
         dealScore: dealResult.value,
         dealScoreFactors: buildDealScoreFactors(
           factorInputs,
         ) as unknown as Prisma.InputJsonValue,
         buyConfidenceScore,
         buyConfidenceFactors: buildBuyConfidenceFactors(
-          factorInputs,
+          {
+            ...factorInputs,
+            ageScore: condition.ageScore,
+            mileageScore: condition.mileageScore,
+            ownerScore: condition.ownerScore,
+          },
         ) as unknown as Prisma.InputJsonValue,
         annualOwnershipCost,
         ownershipCostItems: buildOwnershipCostItems({
@@ -461,6 +654,7 @@ export async function refreshStoredListingAnalyses(
           age: Math.max(0, analysisYear - target.vehicle.modelYear),
         }) as unknown as Prisma.InputJsonValue,
         methodologyVersion,
+        scoringVersion,
         calculatedAt,
         sourceSynchronizedAt: target.synchronizedAt,
       };

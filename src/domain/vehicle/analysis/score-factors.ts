@@ -13,6 +13,14 @@ export interface ScoreFactorInputs {
   mileageScore: number;
   serviceHistoryScore: number;
   ownerScore: number;
+  equipmentScore: number;
+  transparencyScore: number;
+  sellerProtectionScore: number;
+  serviceModifier: number;
+  defectModifier: number | null;
+  mileageStatusCode: number;
+  equipmentCoverageCode: number;
+  defectCategoryCode: number;
   hasServiceHistory: boolean;
   ownerCount?: number;
   age: number;
@@ -27,8 +35,8 @@ function classify(score: number): ScoreFactorImpact {
 }
 
 /**
- * The one and only Deal Score factor: price against the market. When the price
- * was not rated it carries the reason code instead of a percentage, so the UI
+ * The price component of Deal Score. When the price was not rated it carries
+ * the reason code instead of a percentage, so the UI
  * can explain *why* there is no score rather than showing a silent 50.
  */
 function priceVsMarketFactor(inputs: ScoreFactorInputs): ScoreFactor {
@@ -82,14 +90,54 @@ function ownershipHistoryFactor(inputs: ScoreFactorInputs): ScoreFactor {
   };
 }
 
+function componentFactor(
+  key: "vehicle_age" | "mileage" | "equipment" | "listing_transparency" | "seller_protection",
+  score: number,
+  params: Record<string, number> = {},
+): ScoreFactor {
+  return { key, impact: classify(score), score, params };
+}
+
+function modifierFactor(
+  key: "service_history_modifier" | "known_defects_modifier",
+  modifier: number | null,
+  params: Record<string, number> = {},
+): ScoreFactor {
+  return {
+    key,
+    impact: modifier === null || modifier < 0 ? "negative" : modifier > 0 ? "positive" : "neutral",
+    score: modifier === null ? 10 : Math.max(10, Math.min(95, 50 + modifier * 5)),
+    params: { ...params, modifier: modifier ?? -99 },
+  };
+}
+
 /**
- * Philosophy A: the Deal Score is the price comparison, so that is its only
- * factor. Age, mileage and price bracket are not listed here because they do
- * not move the score — they are already inside the market value it is measured
- * against.
+ * Persist every v11 component and modifier. These are compact numeric records,
+ * localized only when read, so diagnostics can explain an old calculation
+ * without rerunning it or storing duplicated prose.
  */
 export function buildDealScoreFactors(inputs: ScoreFactorInputs): ScoreFactor[] {
-  return [priceVsMarketFactor(inputs)];
+  return [
+    priceVsMarketFactor(inputs),
+    componentFactor("mileage", inputs.mileageScore, {
+      mileageKm: inputs.mileageKm,
+      statusCode: inputs.mileageStatusCode,
+    }),
+    componentFactor("vehicle_age", inputs.ageScore, {
+      age: inputs.age,
+      modelYear: inputs.modelYear,
+    }),
+    ownershipHistoryFactor(inputs),
+    componentFactor("equipment", inputs.equipmentScore, {
+      coverageCode: inputs.equipmentCoverageCode,
+    }),
+    componentFactor("listing_transparency", inputs.transparencyScore),
+    componentFactor("seller_protection", inputs.sellerProtectionScore),
+    modifierFactor("service_history_modifier", inputs.serviceModifier),
+    modifierFactor("known_defects_modifier", inputs.defectModifier, {
+      categoryCode: inputs.defectCategoryCode,
+    }),
+  ];
 }
 
 export function buildBuyConfidenceFactors(inputs: ScoreFactorInputs): ScoreFactor[] {
