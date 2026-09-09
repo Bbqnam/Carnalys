@@ -1,4 +1,4 @@
-export type AnalysisConfidence = "low" | "medium" | "high";
+export type AnalysisConfidence = "unrated" | "low" | "medium" | "high";
 
 export type ScoreFactorImpact = "positive" | "neutral" | "negative";
 
@@ -11,6 +11,11 @@ export type ScoreFactorKey =
   | "price_vs_market"
   | "vehicle_age"
   | "mileage"
+  | "equipment"
+  | "listing_transparency"
+  | "seller_protection"
+  | "service_history_modifier"
+  | "known_defects_modifier"
   | "affordability"
   | "condition"
   | "ownership_history";
@@ -31,8 +36,9 @@ interface ExplainableScoreBase {
 }
 
 /**
- * How good the asking price is, relative to this car's own age- and
- * mileage-adjusted market value — and nothing else.
+ * How good the complete car is for the asking price. Deal Score v11 combines
+ * price value with vehicle and listing characteristics while keeping the
+ * separate market-value estimate as its price anchor.
  *
  * `value` is `null` when the asking price could not be rated: no comparable
  * market value, or the price was quarantined as a monthly rate / deposit /

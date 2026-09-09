@@ -28,6 +28,7 @@ export interface VehicleAnalysis {
   vehicleId: VehicleId;
   listingId: ListingId;
   methodologyVersion: string;
+  scoringVersion: string;
   calculatedAt: ISODateTime;
   marketValue: MarketValueEstimate;
   ownershipCost: OwnershipCostEstimate;

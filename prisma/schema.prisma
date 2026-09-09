@@ -279,6 +279,8 @@ model ListingAnalysisRecord {
   comparableCount      Int
   comparablePrices     Int[]         @default([])
   confidence           String
+  /// Numeric companion for database sorting: unrated 0, low 1, medium 2, high 3.
+  confidenceRank       Int           @default(0)
   // Null = unrated: no comparable market value, or the asking price was
   // quarantined (monthly rate / deposit / placeholder / typo). Never 50.
   dealScore            Int?
@@ -288,12 +290,15 @@ model ListingAnalysisRecord {
   annualOwnershipCost  Int
   ownershipCostItems   Json          @default("[]")
   methodologyVersion   String
+  /// Deal Score semantics are versioned independently from market valuation.
+  scoringVersion       String        @default("legacy")
   calculatedAt         DateTime
   sourceSynchronizedAt DateTime
   listing              ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@index([calculatedAt])
   @@index([dealScore])
+  @@index([confidenceRank, dealScore])
   @@index([buyConfidenceScore])
 }
 

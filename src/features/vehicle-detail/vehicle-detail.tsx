@@ -57,14 +57,22 @@ function ScoreCard({
   title,
   value,
   factors,
+  confidence,
+  version,
   locale,
 }: {
   title: string;
   value: number | null;
   factors: readonly ScoreFactor[];
+  confidence: string;
+  version?: string;
   locale: Locale;
 }) {
   const copy = uiCopy[locale];
+  const confidenceText =
+    locale === "en"
+      ? confidence
+      : ({ unrated: "obedömd", low: "låg", medium: "medel", high: "hög" } as Record<string, string>)[confidence] ?? confidence;
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-end justify-between gap-3">
@@ -80,6 +88,10 @@ function ScoreCard({
           </p>
         )}
       </div>
+      <p className="mt-2 text-[11px] text-ink-subtle">
+        {locale === "en" ? "Data confidence" : "Datatillit"}: {confidenceText}
+        {version ? ` · ${version}` : ""}
+      </p>
       {factors.length > 0 ? (
         <ul className="mt-3 grid gap-2 border-t border-border pt-3">
           {factors.map((factor) => {
@@ -710,12 +722,15 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
 
         <div className="max-w-[480px] space-y-2.5 sm:space-y-3">
           <ScoreCard
+            confidence={analysis.dealScore.confidence}
             factors={analysis.dealScore.factors}
             locale={locale}
             title={copy.detail.dealScoreTitle}
             value={analysis.dealScore.value}
+            version={analysis.scoringVersion}
           />
           <ScoreCard
+            confidence={analysis.buyConfidenceScore.confidence}
             factors={analysis.buyConfidenceScore.factors}
             locale={locale}
             title={copy.detail.buyConfidenceTitle}

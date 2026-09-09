@@ -54,6 +54,11 @@ export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
       price_vs_market: "Price vs market",
       vehicle_age: "Vehicle age",
       mileage: "Mileage",
+      equipment: "Equipment",
+      listing_transparency: "Listing transparency",
+      seller_protection: "Buyer protection",
+      service_history_modifier: "Service history",
+      known_defects_modifier: "Known defects",
       affordability: "Price bracket",
       condition: "Condition and reliability",
       ownership_history: "Ownership history",
@@ -62,6 +67,11 @@ export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
       price_vs_market: "Pris jämfört med marknaden",
       vehicle_age: "Fordonets ålder",
       mileage: "Miltal",
+      equipment: "Utrustning",
+      listing_transparency: "Annonsens tydlighet",
+      seller_protection: "Köparskydd",
+      service_history_modifier: "Servicehistorik",
+      known_defects_modifier: "Kända fel",
       affordability: "Prisklass",
       condition: "Skick och tillförlitlighet",
       ownership_history: "Ägarhistorik",
@@ -110,6 +120,72 @@ export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
         Math.round(value("mileageKm") / 10).toLocaleString(numberLocale),
       );
       break;
+    case "equipment":
+      explanation =
+        value("coverageCode") === 0
+          ? locale === "en"
+            ? "Equipment data is missing, so this component stays neutral."
+            : "Utrustningsdata saknas, så denna del är neutral."
+          : factor.impact === "positive"
+            ? locale === "en"
+              ? "Better equipped than comparable listings."
+              : "Bättre utrustad än jämförbara annonser."
+            : factor.impact === "negative"
+              ? locale === "en"
+                ? "More basic than comparable listings."
+                : "Mer grundutrustad än jämförbara annonser."
+              : locale === "en"
+                ? "Typical equipment for comparable cars."
+                : "Typisk utrustningsnivå för jämförbara bilar.";
+      break;
+    case "listing_transparency":
+      explanation =
+        locale === "en"
+          ? "Measures how much useful, verifiable information the listing provides."
+          : "Mäter hur mycket användbar och verifierbar information annonsen ger.";
+      break;
+    case "seller_protection":
+      explanation =
+        factor.impact === "positive"
+          ? locale === "en"
+            ? "The listing states meaningful warranty or approved used protection."
+            : "Annonsen anger ett tydligt garanti eller trygghetsskydd."
+          : locale === "en"
+            ? "No extra buyer protection was verified, so this remains neutral."
+            : "Inget extra köparskydd kunde verifieras, så denna del är neutral.";
+      break;
+    case "service_history_modifier": {
+      const modifier = value("modifier");
+      explanation =
+        modifier > 0
+          ? locale === "en"
+            ? `Documented service history adds ${modifier} points.`
+            : `Dokumenterad servicehistorik ger ${modifier} poäng.`
+          : modifier < 0
+            ? locale === "en"
+              ? `Explicitly poor or missing service history removes ${Math.abs(modifier)} points.`
+              : `Uttryckligen bristande servicehistorik drar av ${Math.abs(modifier)} poäng.`
+            : locale === "en"
+              ? "Unknown service history does not change the score."
+              : "Okänd servicehistorik påverkar inte poängen.";
+      break;
+    }
+    case "known_defects_modifier": {
+      const modifier = value("modifier");
+      explanation =
+        modifier === -99
+          ? locale === "en"
+            ? "A major current defect prevents normal Deal Score ranking."
+            : "Ett allvarligt aktuellt fel stoppar normal Deal Score rankning."
+          : modifier < 0
+            ? locale === "en"
+              ? `A disclosed mechanical issue removes ${Math.abs(modifier)} points.`
+              : `Ett angivet mekaniskt fel drar av ${Math.abs(modifier)} poäng.`
+            : locale === "en"
+              ? "No score reducing current defect was detected."
+              : "Inget aktuellt fel som sänker poängen upptäcktes.";
+      break;
+    }
     case "affordability":
       explanation =
         locale === "en"
@@ -180,8 +256,8 @@ export function marketValueExplanationText(locale: Locale, comparableCount: numb
 export function dealScoreSummaryText(locale: Locale, comparableCount: number) {
   if (comparableCount >= 3) {
     return locale === "en"
-      ? "Price is compared against similar active listings."
-      : "Priset jämförs med liknande aktiva annonser.";
+      ? "Overall value based on price, vehicle characteristics and listing evidence."
+      : "Helhetsvärde baserat på pris, bilens egenskaper och annonsens underlag.";
   }
   return locale === "en"
     ? "Too few comparable listings for a reliable price assessment."
