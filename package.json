@@ -37,6 +37,7 @@
     "data:sync:autohero:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=autohero",
     "data:sync:autohero:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=autohero",
     "data:analyze": "tsx src/scripts/analyze-vehicle-listings.ts",
+    "data:audit:deal-score-v11": "tsx src/scripts/audit-deal-score-v11.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "report:smoke": "tsx scripts/verify-daily-market-report.ts",
     "blocket:probe": "tsx scripts/probe-blocket-availability.ts",

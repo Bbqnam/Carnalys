@@ -82,10 +82,10 @@ test("REGRESSION: a high-mileage car is valued below the cohort median, not at i
   const dealNew = computeDealScore({ priceDelta: deltaNew, canComparePrice: true, comparableCount: v.comparableCount }).value!;
   assert.ok(Math.abs(dealNew - 50) <= 10, `new deal ${dealNew} should be ~neutral`);
 
-  // Deal Score if we had (wrongly) used the raw cohort median: ~85.
+  // With the wrong market value the price component would still inflate v11.
   const deltaOld = (cohortMedian - fairPriceFor200k) / cohortMedian;
   const dealOld = computeDealScore({ priceDelta: deltaOld, canComparePrice: true, comparableCount: v.comparableCount }).value!;
-  assert.ok(dealOld >= 80, `old-style deal would have been ${dealOld}`);
+  assert.ok(dealOld >= 64, `wrong valuation would inflate the deal to ${dealOld}`);
 });
 
 test("a low-mileage car is valued above the cohort median", () => {
@@ -127,9 +127,9 @@ test("genuine bargain and overpriced cars land in the right bands", () => {
   const mv = v.marketValue!;
   const dealAt = (ask: number) =>
     computeDealScore({ priceDelta: (mv - ask) / mv, canComparePrice: true, comparableCount: v.comparableCount }).value!;
-  assert.ok(dealAt(mv * 0.78) >= 75, `22% under => ${dealAt(mv * 0.78)}`);
-  assert.ok(dealAt(mv * 1.12) <= 42 && dealAt(mv * 1.12) >= 28, `12% over => ${dealAt(mv * 1.12)}`);
-  assert.ok(dealAt(mv * 1.3) <= 22, `30% over => ${dealAt(mv * 1.3)}`);
+  assert.ok(dealAt(mv * 0.78) >= 60, `22% under => ${dealAt(mv * 0.78)}`);
+  assert.ok(dealAt(mv * 1.12) <= 45 && dealAt(mv * 1.12) >= 35, `12% over => ${dealAt(mv * 1.12)}`);
+  assert.ok(dealAt(mv * 1.3) <= 35, `30% over => ${dealAt(mv * 1.3)}`);
 });
 
 test("thin cohort -> insufficient; dense cohort -> a real estimate", () => {

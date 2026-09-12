@@ -103,6 +103,7 @@ const storedListingSelect = {
       comparableCount: true,
       comparablePrices: true,
       confidence: true,
+      confidenceRank: true,
       dealScore: true,
       dealScoreFactors: true,
       buyConfidenceScore: true,
@@ -110,6 +111,7 @@ const storedListingSelect = {
       annualOwnershipCost: true,
       ownershipCostItems: true,
       methodologyVersion: true,
+      scoringVersion: true,
       calculatedAt: true,
     },
   },
@@ -182,12 +184,14 @@ const cardListingSelect = {
       marketValueMaximum: true,
       comparableCount: true,
       confidence: true,
+      confidenceRank: true,
       dealScore: true,
       // Kept because the results page sorts on it client-side; the factor
       // lists behind both scores are detail-page material.
       buyConfidenceScore: true,
       annualOwnershipCost: true,
       methodologyVersion: true,
+      scoringVersion: true,
       calculatedAt: true,
     },
   },
@@ -290,6 +294,7 @@ const serviceHistories = new Set<ServiceHistoryStatus>([
   "unknown",
 ]);
 const analysisConfidences = new Set<AnalysisConfidence>([
+  "unrated",
   "low",
   "medium",
   "high",
@@ -339,6 +344,7 @@ function createStoredAnalysis(
     vehicleId: result.vehicleId,
     listingId: result.id,
     methodologyVersion: stored?.methodologyVersion ?? "stored-neutral-1.0",
+    scoringVersion: stored?.scoringVersion ?? "legacy",
     calculatedAt: (
       stored?.calculatedAt ?? result.synchronizedAt
     ).toISOString(),
@@ -398,7 +404,7 @@ function createStoredAnalysis(
         stored?.dealScore == null
           ? "Priset kunde inte bedömas mot marknaden."
           : comparableCount >= 3
-            ? "Priset jämförs med liknande aktiva annonser."
+            ? "Helhetsvärde för priset, bilen och annonsens underlag."
             : "För få jämförbara annonser för en säker prisbedömning.",
       factors: (narrow.dealScoreFactors as ScoreFactor[] | undefined) ?? [],
     },
@@ -700,6 +706,7 @@ function listingOrder(
       // Unrated listings (dealScore IS NULL) sort last, not first — a missing
       // score is not the best deal on the page.
       return [
+        { analysis: { confidenceRank: "desc" } },
         { analysis: { dealScore: { sort: "desc", nulls: "last" } } },
         { id: "asc" },
       ];

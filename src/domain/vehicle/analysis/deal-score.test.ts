@@ -6,6 +6,7 @@ import {
   conditionScores,
   priceValueScore,
   shrinkTowardNeutral,
+  v11VehicleScores,
   NEUTRAL_SCORE,
 } from "./deal-score";
 
@@ -20,27 +21,55 @@ test("priced at market scores about 50", () => {
   assert.ok(value !== null && Math.abs(value - 50) <= 2, `got ${value}`);
 });
 
-test("Philosophy A: the curve is roughly symmetric and matches the target bands", () => {
-  const at = (delta: number) =>
-    computeDealScore({ priceDelta: delta, canComparePrice: true, comparableCount: dense }).value!;
-  // below market -> better score
-  assert.ok(at(0.1) >= 58 && at(0.1) <= 66, `10% below => ${at(0.1)}`);
-  assert.ok(at(0.2) >= 68 && at(0.2) <= 80, `20% below => ${at(0.2)}`);
-  assert.ok(at(0.3) >= 80 && at(0.3) <= 92, `30% below => ${at(0.3)}`);
-  // above market -> worse score, roughly mirrored
-  assert.ok(at(-0.1) >= 34 && at(-0.1) <= 42, `10% above => ${at(-0.1)}`);
-  assert.ok(at(-0.2) >= 20 && at(-0.2) <= 32, `20% above => ${at(-0.2)}`);
-  assert.ok(at(-0.3) <= 20, `30% above => ${at(-0.3)}`);
-  // symmetry: below and above by the same amount should be about equidistant from 50
-  assert.ok(Math.abs((at(0.15) - 50) + (at(-0.15) - 50)) <= 6, "asymmetric");
+test("v11 price curve matches the requested points and flattens after 30 percent", () => {
+  assert.equal(priceValueScore(-0.3), 10);
+  assert.equal(priceValueScore(-0.2), 22);
+  assert.equal(priceValueScore(-0.1), 36);
+  assert.equal(priceValueScore(0), 50);
+  assert.equal(priceValueScore(0.1), 64);
+  assert.equal(priceValueScore(0.2), 77);
+  assert.equal(priceValueScore(0.3), 86);
+  assert.equal(priceValueScore(0.4), 89);
+  assert.equal(priceValueScore(0.5), 91);
 });
 
-test("age, mileage and absolute price do NOT enter the Deal Score", () => {
-  // computeDealScore's signature has no such inputs; a fixed delta must give a
-  // fixed score regardless of what kind of car it is.
-  const a = computeDealScore({ priceDelta: 0.05, canComparePrice: true, comparableCount: dense }).value;
-  const b = computeDealScore({ priceDelta: 0.05, canComparePrice: true, comparableCount: dense }).value;
-  assert.equal(a, b);
+test("the centered v11 weights make a neutral complete car score 50", () => {
+  const value = computeDealScore({
+    priceDelta: 0,
+    canComparePrice: true,
+    comparableCount: dense,
+    mileageScore: 50,
+    ageScore: 50,
+    ownerScore: 50,
+    equipmentScore: 50,
+    transparencyScore: 50,
+    sellerProtectionScore: 50,
+    serviceModifier: 0,
+    defectModifier: 0,
+  }).value;
+  assert.equal(value, 50);
+});
+
+test("a better equipped otherwise identical car scores higher", () => {
+  const score = (equipmentScore: number) => computeDealScore({
+    priceDelta: 0.1,
+    canComparePrice: true,
+    comparableCount: dense,
+    equipmentScore,
+  }).value!;
+  assert.ok(score(80) > score(35));
+});
+
+test("the same mileage scores much better on an old car than a young car", () => {
+  const young = v11VehicleScores({ ageYears: 3, mileageKm: 150_000, mileageKnown: true, ownerCount: 2 });
+  const old = v11VehicleScores({ ageYears: 14, mileageKm: 150_000, mileageKnown: true, ownerCount: 2 });
+  assert.ok(old.mileageScore > young.mileageScore + 20, `${old.mileageScore} vs ${young.mileageScore}`);
+});
+
+test("the same owner count scores worse on a young car than an old car", () => {
+  const young = v11VehicleScores({ ageYears: 2, mileageKm: 20_000, mileageKnown: true, ownerCount: 4 });
+  const old = v11VehicleScores({ ageYears: 14, mileageKm: 150_000, mileageKnown: true, ownerCount: 4 });
+  assert.ok(old.ownerScore > young.ownerScore + 10, `${old.ownerScore} vs ${young.ownerScore}`);
 });
 
 test("thin cohorts are pulled toward neutral; dense cohorts are not", () => {
@@ -48,7 +77,7 @@ test("thin cohorts are pulled toward neutral; dense cohorts are not", () => {
   const rich = computeDealScore({ priceDelta: 0.3, canComparePrice: true, comparableCount: 60 }).value!;
   assert.ok(thin < rich, `thin ${thin} should be < dense ${rich}`);
   assert.ok(Math.abs(thin - 50) < Math.abs(rich - 50));
-  assert.ok(rich >= 82, `dense 30%-below deal should be strong, got ${rich}`);
+  assert.ok(rich >= 65, `dense 30%-below deal should be strong, got ${rich}`);
 });
 
 test("no defensible price comparison => null, never 50", () => {
@@ -65,8 +94,23 @@ test("shrinkTowardNeutral maths", () => {
 
 test("priceValueScore is centred on 50 and clamped 10..95", () => {
   assert.equal(priceValueScore(0), 50);
-  assert.equal(priceValueScore(5), 95);
+  assert.equal(priceValueScore(5), 91);
   assert.equal(priceValueScore(-5), 10);
+});
+
+test("a major defect or ranking quarantine produces unrated", () => {
+  assert.equal(computeDealScore({
+    priceDelta: 0.3,
+    canComparePrice: true,
+    comparableCount: dense,
+    defectModifier: null,
+  }).value, null);
+  assert.equal(computeDealScore({
+    priceDelta: 0.3,
+    canComparePrice: true,
+    comparableCount: dense,
+    eligibleForRanking: false,
+  }).value, null);
 });
 
 // ---- Buy Confidence ----

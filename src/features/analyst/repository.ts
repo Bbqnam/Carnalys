@@ -146,7 +146,7 @@ function compactListing(row: CandidateRow): CompactListing {
     ownership: {
       annualCostAmount: ownership.annualCost.amount,
       monthlyCostAmount: Math.round(ownership.annualCost.amount / 12),
-      confidence: ownership.confidence,
+      confidence: ownership.confidence === "unrated" ? "low" : ownership.confidence,
     },
     freshness: {
       firstSeenAt: row.firstSeenAt.toISOString(),

@@ -26,10 +26,10 @@ function HowItWorksEn() {
 
       <h2 className={sectionHeading}>Deal Score</h2>
       <p className={paragraph}>
-        A 0 to 100 score for how good the asking price is compared with similar cars: same
-        model, similar age, similar mileage. High means the price looks genuinely good. Low
-        means you are probably paying a premium for something. A car with too few comparable
-        listings shows as unrated rather than a made up number.
+        A 0 to 100 score for how good the complete car is for the asking price. Half comes from
+        price versus estimated market value. Mileage, age, ownership, equipment, listing
+        transparency and buyer protection make up the rest. Documented service history and
+        known faults can adjust the result. Weak or unsafe evidence is shown as unrated.
       </p>
 
       <h2 className={sectionHeading}>Market value</h2>
@@ -125,10 +125,10 @@ function HowItWorksSv() {
 
       <h2 className={sectionHeading}>Deal Score</h2>
       <p className={paragraph}>
-        Ett betyg från 0 till 100 för hur bra det begärda priset är jämfört med liknande bilar:
-        samma modell, liknande ålder, liknande miltal. Högt betyg betyder att priset ser
-        genuint bra ut. Lågt betyder att du troligen betalar för mycket. En bil med för få
-        jämförbara annonser visas som obedömd i stället för att få en påhittad siffra.
+        Ett betyg från 0 till 100 för hur bra hela bilen är för det begärda priset. Hälften
+        kommer från priset jämfört med uppskattat marknadsvärde. Miltal, ålder, ägarhistorik,
+        utrustning, annonsens tydlighet och köparskydd utgör resten. Dokumenterad service och
+        kända fel kan justera resultatet. Svagt eller osäkert underlag visas som obedömt.
       </p>
 
       <h2 className={sectionHeading}>Marknadsvärde</h2>

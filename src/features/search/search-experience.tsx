@@ -222,12 +222,21 @@ export function SearchExperience({
 
   const results = useMemo(() => {
     if (sort === "deal_score") {
-      // Unrated (null) sorts last, mirroring the server's `nulls: "last"`.
-      return listings.toSorted(
-        (left, right) =>
+      // Match the database ordering: trustworthy scores rank ahead of low
+      // confidence headline bargains, and unrated entries remain last.
+      const rank = { unrated: 0, low: 1, medium: 2, high: 3 } as const;
+      return listings.toSorted((left, right) => {
+        const confidenceDifference =
+          (right.analysis.dealScore.value === null
+            ? 0
+            : rank[right.analysis.dealScore.confidence]) -
+          (left.analysis.dealScore.value === null
+            ? 0
+            : rank[left.analysis.dealScore.confidence]);
+        return confidenceDifference ||
           (right.analysis.dealScore.value ?? -1) -
-          (left.analysis.dealScore.value ?? -1),
-      );
+            (left.analysis.dealScore.value ?? -1);
+      });
     }
     if (sort === "buy_confidence") {
       return listings.toSorted(
