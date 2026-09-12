@@ -1,8 +1,6 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
 import { BrandLogo } from "./brand-logo";
 import { type Locale } from "./copy";
 import {
@@ -15,6 +13,7 @@ import {
 } from "./icons";
 import type { VehicleSearchResult } from "./types";
 import { deriveVehicleCardData } from "./vehicle-card-data";
+import { VehicleImageCarousel } from "./vehicle-image-carousel";
 import { SourceLogo } from "@/features/source/source-logo";
 
 interface VehicleRowProps {
@@ -29,9 +28,6 @@ interface VehicleRowProps {
   onToggleCompare: () => void;
 }
 
-const imagePlaceholder =
-  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjUiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjUiIGZpbGw9IiNlN2U3ZTIiLz48L3N2Zz4=";
-
 export function VehicleRow({
   result,
   currentLocation,
@@ -43,7 +39,6 @@ export function VehicleRow({
   onToggleFavorite,
   onToggleCompare,
 }: VehicleRowProps) {
-  const [imageFailed, setImageFailed] = useState(false);
   const {
     listing,
     identity,
@@ -56,7 +51,6 @@ export function VehicleRow({
     priceDifference,
     marketDifferencePercent,
     financingOffer,
-    image,
     priceReduction,
     mileage,
     sellerLocation,
@@ -76,28 +70,18 @@ export function VehicleRow({
   return (
     <article className="group">
       <div className="relative flex gap-4 overflow-hidden rounded-2xl border border-border bg-surface p-3 shadow-[0_1px_2px_rgba(26,35,29,0.03),0_6px_18px_rgba(26,35,29,0.04)] transition-[border-color,box-shadow] duration-200 group-hover:border-border-strong group-hover:shadow-[0_12px_32px_rgba(26,35,29,0.08)] group-focus-within:border-accent/40 sm:gap-5 sm:p-4">
-        <div className="relative aspect-[4/3] w-32 shrink-0 self-start overflow-hidden rounded-xl bg-surface-muted sm:w-52">
-          {image && !imageFailed ? (
-            <Image
-              alt={imageAlt}
-              blurDataURL={imagePlaceholder}
-              className="object-cover"
-              fill
-              onError={() => setImageFailed(true)}
-              placeholder="blur"
-              preload={priority}
-              sizes="(max-width: 640px) 33vw, 220px"
-              src={image.url}
-            />
-          ) : (
-            /* Static local SVG — a plain <img> skips the loader/srcset work. */
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt={copy.card.missingImage}
-              className="absolute inset-0 size-full object-cover"
-              src="/images/vehicle-fallback.svg"
-            />
-          )}
+        <div className="vehicle-gallery relative aspect-[4/3] w-32 shrink-0 self-start overflow-hidden rounded-xl bg-surface-muted sm:w-52">
+          <VehicleImageCarousel
+            compact
+            fallbackLabel={copy.card.missingImage}
+            imageAlt={imageAlt}
+            images={listing.images}
+            nextLabel={copy.card.nextPhoto}
+            positionLabel={copy.card.photoPosition}
+            previousLabel={copy.card.previousPhoto}
+            priority={priority}
+            sizes="(max-width: 640px) 33vw, 220px"
+          />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">

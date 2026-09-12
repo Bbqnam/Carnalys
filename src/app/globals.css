@@ -31,6 +31,12 @@
   --gold: #b3924a;
   /* Readable weight of --gold, for text on a gold chip. */
   --gold-strong: #6b5320;
+  --filter-electric: #487d91;
+  --filter-plug-in: #47796d;
+  --filter-hybrid: #5d7e55;
+  --filter-petrol: #8a6948;
+  --filter-diesel: #596b7b;
+  --filter-manual: #6b665b;
   --shimmer-from: #e8e8e3;
   --shimmer-to: #f4f4ef;
   --selection: #cbdacf;
@@ -107,6 +113,12 @@
     --negative-soft: #3a2320;
     --gold: #cfae6e;
     --gold-strong: #e3c88f;
+    --filter-electric: #82b8cb;
+    --filter-plug-in: #7fb9a9;
+    --filter-hybrid: #91b77d;
+    --filter-petrol: #d0a272;
+    --filter-diesel: #91abc0;
+    --filter-manual: #b4aa99;
     --shimmer-from: #1c231d;
     --shimmer-to: #242e26;
     --selection: #2c4636;
@@ -156,6 +168,12 @@
   --negative-soft: #3a2320;
   --gold: #cfae6e;
   --gold-strong: #e3c88f;
+  --filter-electric: #82b8cb;
+  --filter-plug-in: #7fb9a9;
+  --filter-hybrid: #91b77d;
+  --filter-petrol: #d0a272;
+  --filter-diesel: #91abc0;
+  --filter-manual: #b4aa99;
   --shimmer-from: #1c231d;
   --shimmer-to: #242e26;
   --selection: #2c4636;
@@ -204,12 +222,34 @@
   --color-negative-soft: var(--negative-soft);
   --color-gold: var(--gold);
   --color-gold-strong: var(--gold-strong);
+  --color-filter-electric: var(--filter-electric);
+  --color-filter-plug-in: var(--filter-plug-in);
+  --color-filter-hybrid: var(--filter-hybrid);
+  --color-filter-petrol: var(--filter-petrol);
+  --color-filter-diesel: var(--filter-diesel);
+  --color-filter-manual: var(--filter-manual);
   --color-brand-chip: var(--brand-chip);
 
   --color-viz-buy-great: var(--viz-buy-great);
   --color-viz-buy-good: var(--viz-buy-good);
   --color-viz-buy-neutral: var(--viz-buy-neutral);
   --color-viz-buy-expensive: var(--viz-buy-expensive);
+}
+
+/* Keep result-card photography clean on pointer devices. Keyboard focus still
+   reveals the control, while touch devices keep it visible because they have
+   no hover state through which to discover the arrows. */
+@media (hover: hover) and (pointer: fine) {
+  .vehicle-gallery .vehicle-gallery-arrow {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .vehicle-gallery:hover .vehicle-gallery-arrow,
+  .vehicle-gallery .vehicle-gallery-arrow:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 html {

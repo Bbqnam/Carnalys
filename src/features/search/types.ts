@@ -36,6 +36,10 @@ export interface SearchFilters {
   bodyStyle: BodyStyle | "";
   sellerType: SellerType | "";
   postedWithin: PostedWithin | "";
+  /** `null` means "any distance" — all three are set together or not at all. */
+  maxDistanceKm: number | null;
+  originLatitude: number | null;
+  originLongitude: number | null;
   /** Admin-only substring lookup against the vehicle's registration number.
    *  Never surfaced to, or settable by, the Carnalys Analyst. */
   licensePlate: string;

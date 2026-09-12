@@ -364,10 +364,14 @@ export function OdometerIcon(props: IconProps) {
 export function AllOptionsIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>
-      <rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor" opacity="0.1" stroke="none" />
-      <path d="M6 8h12M6 16h12" />
-      <circle cx="10" cy="8" r="2" fill="currentColor" stroke="none" />
-      <circle cx="15" cy="16" r="2" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="7" r="2.25" fill="currentColor" opacity="0.16" />
+      <circle cx="17" cy="7" r="2.25" fill="currentColor" opacity="0.16" />
+      <circle cx="7" cy="17" r="2.25" fill="currentColor" opacity="0.16" />
+      <circle cx="17" cy="17" r="2.25" fill="currentColor" opacity="0.16" />
+      <circle cx="7" cy="7" r="2.25" />
+      <circle cx="17" cy="7" r="2.25" />
+      <circle cx="7" cy="17" r="2.25" />
+      <circle cx="17" cy="17" r="2.25" />
     </svg>
   );
 }
@@ -375,10 +379,11 @@ export function AllOptionsIcon(props: IconProps) {
 export function ElectricFuelIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>
-      <rect x="3.5" y="3" width="17" height="18" rx="5" fill="currentColor" opacity="0.1" stroke="none" />
-      <path d="M8 5.5h8M9 18.5h6" />
-      <path d="m13.2 7.2-4 6.2h3.2l-.8 4.1 3.8-6.1h-3.1l.9-4.2Z" fill="currentColor" opacity="0.2" />
-      <path d="m13.2 7.2-4 6.2h3.2l-.8 4.1 3.8-6.1h-3.1l.9-4.2Z" />
+      <rect x="2.8" y="6.2" width="16.2" height="11.6" rx="2.8" fill="currentColor" opacity="0.1" />
+      <rect x="2.8" y="6.2" width="16.2" height="11.6" rx="2.8" />
+      <path d="M19 10h2.2v4H19" />
+      <path d="m12.5 7.9-4.1 5.3h3.2l-.7 3.1 4.1-5.4h-3.2l.7-3Z" fill="currentColor" opacity="0.18" />
+      <path d="m12.5 7.9-4.1 5.3h3.2l-.7 3.1 4.1-5.4h-3.2l.7-3Z" />
     </svg>
   );
 }
@@ -386,10 +391,10 @@ export function ElectricFuelIcon(props: IconProps) {
 export function PlugInFuelIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>
-      <path d="M5 3.5h9a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-10Z" fill="currentColor" opacity="0.1" stroke="none" />
-      <path d="M8 4.5v4M13 4.5v4M6.5 8.5h8v1.8a3.8 3.8 0 0 1-3.8 3.8H10v3.4a3 3 0 0 0 3 3h3.5" />
-      <path d="m18.2 10.5-2.1 3.2h2l-1.2 3.3" fill="currentColor" opacity="0.2" />
-      <path d="m18.2 10.5-2.1 3.2h2l-1.2 3.3" />
+      <path d="M5.2 3.5v4M10.2 3.5v4M3.8 7.5h7.8v1.6a3.9 3.9 0 0 1-3.9 3.9v2.2a5.3 5.3 0 0 0 5.3 5.3h.4" />
+      <path d="M20.6 8.2c-4.8.2-7.5 2.2-7.5 5.2 0 2 1.4 3.2 3.2 3.2 3 0 4.5-3.2 4.3-8.4Z" fill="currentColor" opacity="0.12" />
+      <path d="M20.6 8.2c-4.8.2-7.5 2.2-7.5 5.2 0 2 1.4 3.2 3.2 3.2 3 0 4.5-3.2 4.3-8.4Z" />
+      <path d="M13.8 18.6c1-2.6 2.8-4.5 5.3-5.7" />
     </svg>
   );
 }
@@ -397,10 +402,10 @@ export function PlugInFuelIcon(props: IconProps) {
 export function HybridFuelIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>
-      <path d="M20 4.2C12 4.6 7.2 8 7.2 12.8c0 3 2.2 5 5.1 5 5 0 7.7-5.4 7.7-13.6Z" fill="currentColor" opacity="0.12" stroke="none" />
-      <path d="M20 4.2C12 4.6 7.2 8 7.2 12.8c0 3 2.2 5 5.1 5 5 0 7.7-5.4 7.7-13.6Z" />
-      <path d="M4.5 20c2.2-5.5 6.2-9 12.1-10.8" />
-      <path d="m8.2 6.4-2.4 3.7h2.1l-1.2 3.3" />
+      <path d="M20.5 4.1C12.4 4.4 7.7 7.6 7.7 12.3c0 3 2.1 5 5 5 4.9 0 7.6-5.2 7.8-13.2Z" fill="currentColor" opacity="0.12" />
+      <path d="M20.5 4.1C12.4 4.4 7.7 7.6 7.7 12.3c0 3 2.1 5 5 5 4.9 0 7.6-5.2 7.8-13.2Z" />
+      <path d="M3.5 20.5c2.5-6 6.6-9.6 13-11.5" />
+      <path d="m7.1 6.5-3 4h2.5l-1 3.5" />
     </svg>
   );
 }
@@ -408,10 +413,11 @@ export function HybridFuelIcon(props: IconProps) {
 export function PetrolFuelIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>
-      <rect x="4" y="3" width="12" height="18" rx="3" fill="currentColor" opacity="0.1" stroke="none" />
-      <path d="M5 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h15" />
-      <path d="M7.2 6h6.6v5H7.2z" fill="currentColor" opacity="0.14" />
-      <path d="M16 7h1.5l2 2.5V17a1.5 1.5 0 0 0 3 0v-5.5L20 9" />
+      <rect x="3.5" y="3" width="12.5" height="18" rx="2.5" fill="currentColor" opacity="0.1" />
+      <path d="M4.5 21V5.5A2.5 2.5 0 0 1 7 3h6.5A2.5 2.5 0 0 1 16 5.5V21M2.8 21h15" />
+      <rect x="7" y="6.2" width="6.5" height="4.8" rx=".8" />
+      <path d="M16 7h1.8l2.1 2.6v7.5a1.6 1.6 0 0 0 3.2 0v-5.6l-2.8-2.8" />
+      <path d="M10.2 13.6s-1.8 2-1.8 3.3a1.8 1.8 0 0 0 3.6 0c0-1.3-1.8-3.3-1.8-3.3Z" fill="currentColor" opacity="0.18" />
     </svg>
   );
 }
@@ -419,10 +425,11 @@ export function PetrolFuelIcon(props: IconProps) {
 export function DieselFuelIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>
-      <path d="M12 2.5S6.2 9 6.2 14.1a5.8 5.8 0 0 0 11.6 0C17.8 9 12 2.5 12 2.5Z" fill="currentColor" opacity="0.1" stroke="none" />
-      <path d="M12 2.5S6.2 9 6.2 14.1a5.8 5.8 0 0 0 11.6 0C17.8 9 12 2.5 12 2.5Z" />
-      <path d="M9.3 12.2h5.4M9.3 15h5.4M10.5 17.8h3" />
-      <circle cx="12" cy="8.6" r="1.1" fill="currentColor" stroke="none" />
+      <rect x="3.5" y="3" width="12.5" height="18" rx="2.5" fill="currentColor" opacity="0.1" />
+      <path d="M4.5 21V5.5A2.5 2.5 0 0 1 7 3h6.5A2.5 2.5 0 0 1 16 5.5V21M2.8 21h15" />
+      <rect x="7" y="6.2" width="6.5" height="4.8" rx=".8" />
+      <path d="M16 7h1.8l2.1 2.6v7.5a1.6 1.6 0 0 0 3.2 0v-5.6l-2.8-2.8" />
+      <path d="M8 13.8h2a2.2 2.2 0 0 1 0 4.4H8Z" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -430,10 +437,9 @@ export function DieselFuelIcon(props: IconProps) {
 export function AutomaticTransmissionIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>
-      <circle cx="12" cy="12" r="9" fill="currentColor" opacity="0.1" stroke="none" />
-      <circle cx="12" cy="12" r="8.2" />
-      <path d="m8.7 16 3.3-9 3.3 9M10.1 12.5h3.8" />
-      <path d="M17.3 7.2v3.3H14" />
+      <path d="M8.8 3.5h6.4a4 4 0 0 1 4 4v9a4 4 0 0 1-4 4H8.8a4 4 0 0 1-4-4v-9a4 4 0 0 1 4-4Z" fill="currentColor" opacity="0.1" />
+      <path d="M8.8 3.5h6.4a4 4 0 0 1 4 4v9a4 4 0 0 1-4 4H8.8a4 4 0 0 1-4-4v-9a4 4 0 0 1 4-4Z" />
+      <path d="m8.6 16.5 3.4-9 3.4 9M10 12.8h4" />
     </svg>
   );
 }
@@ -441,11 +447,11 @@ export function AutomaticTransmissionIcon(props: IconProps) {
 export function ManualTransmissionIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" {...iconDefaults} {...props}>
-      <rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor" opacity="0.1" stroke="none" />
-      <path d="M6.5 7v10M12 7v10M17.5 7v10M6.5 12h11" />
-      <circle cx="6.5" cy="6.5" r="1.7" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="17.5" r="1.7" fill="currentColor" stroke="none" />
-      <circle cx="17.5" cy="6.5" r="1.7" fill="currentColor" stroke="none" />
+      <rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="currentColor" opacity="0.08" stroke="none" />
+      <path d="M6 5v14M12 5v14M18 5v14M6 12h12" />
+      <circle cx="6" cy="5" r="2" fill="currentColor" />
+      <circle cx="12" cy="19" r="2" fill="currentColor" />
+      <circle cx="18" cy="5" r="2" fill="currentColor" />
     </svg>
   );
 }

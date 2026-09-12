@@ -3,7 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { BrandLogo } from "@/features/search/brand-logo";
 import { PriceDistribution } from "./price-distribution";
 import {
@@ -111,7 +117,7 @@ function ScoreCard({
                     : locale === "en"
                       ? "Moderate wear risk"
                       : "Måttlig risk för slitage"
-                : factorText.explanation.replace(/\.$/, "");
+                : (factorText.explanation ?? "").replace(/\.$/, "");
             const verdict =
               factor.impact === "positive"
                 ? locale === "en"
@@ -159,6 +165,12 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const activeThumbnail = useRef<HTMLButtonElement | null>(null);
   const fullscreenCloseButton = useRef<HTMLButtonElement | null>(null);
+  const swipeStart = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const lastSwipeAt = useRef(0);
   const [showAllEquipment, setShowAllEquipment] = useState(false);
   const { favorites, toggle } = useFavorites();
   const {
@@ -206,6 +218,45 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
       ),
     [imageCount],
   );
+
+  function startImageSwipe(event: ReactPointerEvent<HTMLElement>) {
+    if (event.pointerType !== "touch" || !event.isPrimary || imageCount < 2) {
+      return;
+    }
+    swipeStart.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function finishImageSwipe(event: ReactPointerEvent<HTMLElement>) {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || start.pointerId !== event.pointerId) return;
+
+    const horizontalDistance = event.clientX - start.x;
+    const verticalDistance = event.clientY - start.y;
+    const isHorizontalSwipe =
+      Math.abs(horizontalDistance) >= 42 &&
+      Math.abs(horizontalDistance) > Math.abs(verticalDistance) * 1.2;
+    if (!isHorizontalSwipe) return;
+
+    lastSwipeAt.current = Date.now();
+    stepImage(horizontalDistance < 0 ? 1 : -1);
+  }
+
+  function cancelImageSwipe() {
+    swipeStart.current = null;
+  }
+
+  function openFullscreenFromGallery() {
+    // Touch browsers commonly emit a click after pointerup. Ignore that click
+    // after a swipe so changing photos never unexpectedly opens the viewer.
+    if (Date.now() - lastSwipeAt.current < 500) return;
+    setIsFullscreen(true);
+  }
   const equipmentItems = listing.equipment.filter((item) => !item.startsWith("*"));
   const equipmentPreviewCount = 18;
   const visibleEquipment = showAllEquipment
@@ -380,8 +431,11 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             {currentImage ? (
               <button
                 aria-label={copy.detail.openFullscreen}
-                className="absolute inset-0 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
-                onClick={() => setIsFullscreen(true)}
+                className="absolute inset-0 touch-pan-y cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                onClick={openFullscreenFromGallery}
+                onPointerCancel={cancelImageSwipe}
+                onPointerDown={startImageSwipe}
+                onPointerUp={finishImageSwipe}
                 type="button"
               />
             ) : null}
@@ -547,6 +601,12 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 <dt className="text-ink-subtle">{copy.filters.body}</dt>
                 <dd className="font-medium text-ink">
                   {copy.filters.bodies[specification.bodyStyle]}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-ink-subtle">{copy.detail.mileage}</dt>
+                <dd className="font-medium text-ink">
+                  {numberFormatter.format(listing.mileageKm / 10)} {copy.card.mileageUnit}
                 </dd>
               </div>
               <div>
@@ -867,8 +927,12 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             alt={currentImage.alt ?? listing.title}
-            className="max-h-[88vh] max-w-[94vw] select-none object-contain"
+            className="max-h-[88vh] max-w-[94vw] touch-pan-y select-none object-contain"
+            draggable={false}
             onClick={(event) => event.stopPropagation()}
+            onPointerCancel={cancelImageSwipe}
+            onPointerDown={startImageSwipe}
+            onPointerUp={finishImageSwipe}
             src={currentImage.url}
           />
 

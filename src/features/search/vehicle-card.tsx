@@ -1,8 +1,6 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
 import { BrandLogo } from "./brand-logo";
 import { type Locale } from "./copy";
 import {
@@ -15,6 +13,7 @@ import {
 } from "./icons";
 import type { VehicleSearchResult } from "./types";
 import { deriveVehicleCardData } from "./vehicle-card-data";
+import { VehicleImageCarousel } from "./vehicle-image-carousel";
 import { SourceLogo } from "@/features/source/source-logo";
 
 interface VehicleCardProps {
@@ -29,9 +28,6 @@ interface VehicleCardProps {
   onToggleCompare: () => void;
 }
 
-const imagePlaceholder =
-  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjUiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjUiIGZpbGw9IiNlN2U3ZTIiLz48L3N2Zz4=";
-
 export function VehicleCard({
   result,
   currentLocation,
@@ -43,7 +39,6 @@ export function VehicleCard({
   onToggleFavorite,
   onToggleCompare,
 }: VehicleCardProps) {
-  const [imageFailed, setImageFailed] = useState(false);
   const {
     listing,
     identity,
@@ -57,7 +52,6 @@ export function VehicleCard({
     priceDifference,
     marketDifferencePercent,
     financingOffer,
-    image,
     source,
     priceReduction,
     mileage,
@@ -85,29 +79,18 @@ export function VehicleCard({
        inner card vacates is still inside it. */
     <article className="group h-full">
       <div className="relative flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border bg-surface shadow-[0_2px_3px_rgba(26,35,29,0.025),0_10px_28px_rgba(26,35,29,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-out group-hover:-translate-y-1 group-hover:border-border-strong group-hover:shadow-[0_18px_48px_rgba(26,35,29,0.1)] group-focus-within:border-accent/40 group-focus-within:shadow-[0_18px_45px_rgba(26,35,29,0.09)]">
-        <div className="relative aspect-[4/3] overflow-hidden bg-surface-muted">
-          {image && !imageFailed ? (
-            <Image
-              alt={imageAlt}
-              blurDataURL={imagePlaceholder}
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
-              fill
-              onError={() => setImageFailed(true)}
-              placeholder="blur"
-              preload={priority}
-              sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 23rem"
-              src={image.url}
-            />
-          ) : (
-            /* Static local SVG — a plain <img> skips the loader/srcset work
-               next/image would do for a single unoptimizable asset. */
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt={copy.card.missingImage}
-              className="absolute inset-0 size-full object-cover"
-              src="/images/vehicle-fallback.svg"
-            />
-          )}
+        <div className="vehicle-gallery relative aspect-[4/3] overflow-hidden bg-surface-muted">
+          <VehicleImageCarousel
+            fallbackLabel={copy.card.missingImage}
+            imageAlt={imageAlt}
+            imageClassName="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
+            images={listing.images}
+            nextLabel={copy.card.nextPhoto}
+            positionLabel={copy.card.photoPosition}
+            previousLabel={copy.card.previousPhoto}
+            priority={priority}
+            sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, (max-width: 1600px) 33vw, 23rem"
+          />
         </div>
 
       <div className="flex flex-1 flex-col p-3.5 sm:p-4">

@@ -65,8 +65,29 @@ export const defaultSearchFilters: SearchFilters = {
   bodyStyle: "",
   sellerType: "",
   postedWithin: "",
+  maxDistanceKm: null,
+  originLatitude: null,
+  originLongitude: null,
   licensePlate: "",
 };
+
+const maximumDistanceKm = 1_000;
+
+/** Two decimal places (~1.1 km resolution) — enough for a radius filter
+ *  without putting the user's precise GPS fix in a bookmarkable/shareable URL. */
+function roundedCoordinate(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function latitude(value: SearchParameterValue) {
+  const parsed = Number.parseFloat(first(value) ?? "");
+  return Number.isFinite(parsed) && parsed >= -90 && parsed <= 90 ? parsed : null;
+}
+
+function longitude(value: SearchParameterValue) {
+  const parsed = Number.parseFloat(first(value) ?? "");
+  return Number.isFinite(parsed) && parsed >= -180 && parsed <= 180 ? parsed : null;
+}
 
 export const defaultSearchSort: SearchSort = "newest";
 export const defaultVehiclePageSize: VehiclePageSize = 40;
@@ -139,6 +160,12 @@ export function parseVehicleSearchOptions(
   const maximumYear = positiveInteger(parameters.maxYear);
   const minimumMileage = positiveInteger(parameters.minMileage);
   const maximumMileage = positiveInteger(parameters.maxMileage ?? parameters.mileage);
+  const requestedDistanceKm = positiveInteger(parameters.distance);
+  const originLatitude = latitude(parameters.lat);
+  const originLongitude = longitude(parameters.lng);
+  // A distance filter without a usable origin is meaningless — drop it rather
+  // than silently filtering nothing.
+  const hasOrigin = originLatitude !== null && originLongitude !== null;
   return {
     page: positiveInteger(parameters.page) ?? 1,
     pageSize: defaultVehiclePageSize,
@@ -175,6 +202,12 @@ export function parseVehicleSearchOptions(
       bodyStyle: enumValue(parameters.body, bodyStyles),
       sellerType: enumValue(parameters.seller, sellerTypes),
       postedWithin: enumValue(parameters.posted, postedWithinValues),
+      maxDistanceKm:
+        hasOrigin && requestedDistanceKm !== null
+          ? Math.min(requestedDistanceKm, maximumDistanceKm)
+          : null,
+      originLatitude: hasOrigin ? originLatitude : null,
+      originLongitude: hasOrigin ? originLongitude : null,
       // Parsed unconditionally — the admin check that decides whether this
       // actually reaches the database happens once, server-side, in page.tsx.
       licensePlate: stringValue(parameters.plate).slice(0, 20),
@@ -204,6 +237,15 @@ export function vehicleSearchUrl({ filters, sort, page }: VehicleSearchOptions) 
   if (filters.bodyStyle) parameters.set("body", filters.bodyStyle);
   if (filters.sellerType) parameters.set("seller", filters.sellerType);
   if (filters.postedWithin) parameters.set("posted", filters.postedWithin);
+  if (
+    filters.maxDistanceKm !== null &&
+    filters.originLatitude !== null &&
+    filters.originLongitude !== null
+  ) {
+    parameters.set("distance", filters.maxDistanceKm.toString());
+    parameters.set("lat", roundedCoordinate(filters.originLatitude).toString());
+    parameters.set("lng", roundedCoordinate(filters.originLongitude).toString());
+  }
   if (filters.licensePlate.trim()) parameters.set("plate", filters.licensePlate.trim());
   if (sort !== defaultSearchSort) parameters.set("sort", sort);
   if (page > 1) parameters.set("page", page.toString());

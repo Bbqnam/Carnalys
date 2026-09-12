@@ -154,9 +154,14 @@ export function scoreFactorText(locale: Locale, factor: ScoreFactor) {
                   : `${ownerCount} tidigare ägare.`;
       break;
     }
+    default:
+      // A stored factor from a methodology version whose keys have since
+      // changed (or a not-yet-reanalyzed row) — render something rather than
+      // crash the page on an unrecognized key.
+      explanation = "";
   }
 
-  return { label: labels[locale][factor.key], explanation };
+  return { label: labels[locale][factor.key] ?? factor.key, explanation };
 }
 
 /**
@@ -272,6 +277,10 @@ export const uiCopy = {
       anyYear: "Any year",
       mileage: "Mileage range",
       anyMileage: "Any mileage",
+      distance: "Distance",
+      anyDistance: "Any distance",
+      withinKm: (km: number) => `Within ${km} km`,
+      enableLocationToFilter: "Turn on location to filter by distance",
       body: "Body style",
       seller: "Seller",
       sellerTypes: { dealer: "Dealer", private: "Private" },
@@ -408,6 +417,9 @@ export const uiCopy = {
       perMonth: "/mo",
       dealerBadge: "Dealer",
       privateSellerBadge: "Private",
+      previousPhoto: "Previous photo",
+      nextPhoto: "Next photo",
+      photoPosition: (index: number, total: number) => `Photo ${index} of ${total}`,
       posted: "Posted",
       firstSeen: "First seen",
       distanceAway: (distanceKm: number) => `${distanceKm} km away`,
@@ -446,6 +458,7 @@ export const uiCopy = {
       equipmentShowAll: (count: number) => `Show all ${count}`,
       equipmentShowLess: "Show less",
       specificationsTitle: "Specifications",
+      mileage: "Mileage",
       engine: "Engine",
       horsepower: "Horsepower",
       fuelConsumption: "Fuel consumption",
@@ -625,6 +638,10 @@ export const uiCopy = {
       anyYear: "Alla år",
       mileage: "Miltalsintervall",
       anyMileage: "Alla miltal",
+      distance: "Avstånd",
+      anyDistance: "Alla avstånd",
+      withinKm: (km: number) => `Inom ${km} km`,
+      enableLocationToFilter: "Aktivera plats för att filtrera på avstånd",
       body: "Karosstyp",
       seller: "Säljare",
       sellerTypes: { dealer: "Handlare", private: "Privat" },
@@ -761,6 +778,9 @@ export const uiCopy = {
       perMonth: "/mån",
       dealerBadge: "Handlare",
       privateSellerBadge: "Privat",
+      previousPhoto: "Föregående bild",
+      nextPhoto: "Nästa bild",
+      photoPosition: (index: number, total: number) => `Bild ${index} av ${total}`,
       posted: "Publicerad",
       firstSeen: "Först sedd",
       distanceAway: (distanceKm: number) => `${distanceKm} km bort`,
@@ -799,6 +819,7 @@ export const uiCopy = {
       equipmentShowAll: (count: number) => `Visa alla ${count}`,
       equipmentShowLess: "Visa färre",
       specificationsTitle: "Specifikationer",
+      mileage: "Miltal",
       engine: "Motor",
       horsepower: "Effekt",
       fuelConsumption: "Bränsleförbrukning",

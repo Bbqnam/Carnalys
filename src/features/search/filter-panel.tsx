@@ -1,4 +1,4 @@
-import type { BodyStyle, FuelType, SellerType, TransmissionType } from "@/domain/vehicle";
+import type { FuelType, SellerType, TransmissionType } from "@/domain/vehicle";
 import { brandOptionMatchesQuery } from "@/domain/vehicle/taxonomy/brand-search";
 import { listingSources } from "@/infrastructure/marketplaces/source-registry";
 import { useEffect, useRef, useState } from "react";
@@ -9,21 +9,19 @@ import {
   AutomaticTransmissionIcon,
   DieselFuelIcon,
   ElectricFuelIcon,
-  EstateBodyIcon,
-  HatchbackBodyIcon,
   HybridFuelIcon,
   ManualTransmissionIcon,
   ManufacturerIcon,
   PetrolFuelIcon,
   PlugInFuelIcon,
-  SedanBodyIcon,
-  SuvBodyIcon,
   VehicleModelIcon,
   ChevronDownIcon,
+  MapPinIcon,
 } from "./icons";
 import { MultiChoiceDropdown } from "./multi-choice-dropdown";
 import { SourceMark } from "@/features/source/source-logo";
 import type { SearchFilters, VehicleFilterOption } from "./types";
+import type { LocationStatus, UserLocation } from "./use-current-location";
 
 /**
  * A budget field you can actually finish typing in.
@@ -111,6 +109,22 @@ interface FilterPanelProps {
   resultCount: number;
   onChange: (filters: SearchFilters) => void;
   onReset: () => void;
+  currentLocation?: UserLocation;
+  locationStatus?: LocationStatus;
+  onRequestLocation?: () => void;
+}
+
+const minimumDistanceKm = 100;
+const maximumDistanceKm = 1_000;
+const distanceStepKm = 50;
+const distanceSliderMaximum = (maximumDistanceKm - minimumDistanceKm) / distanceStepKm;
+
+function distanceForSliderPosition(position: number) {
+  return minimumDistanceKm + position * distanceStepKm;
+}
+
+function sliderPositionForDistance(km: number) {
+  return Math.round((km - minimumDistanceKm) / distanceStepKm);
 }
 
 const fuels = [
@@ -129,7 +143,6 @@ const sourceOptions = Object.values(listingSources).map((source) => ({
   value: source.key,
   label: source.displayName,
 }));
-const bodyStyles = ["estate", "suv", "sedan", "hatchback"] as const satisfies readonly BodyStyle[];
 const budgetSliderMaximum = 1_000;
 const maximumBudget = 500_000;
 const maximumMileageMil = 30_000;
@@ -198,16 +211,15 @@ function IconChoiceButton({
     <button
       aria-label={label}
       aria-pressed={selected}
-      className={`group relative grid min-h-10 min-w-0 place-items-center rounded-xl border transition duration-200 focus-visible:outline-none ${isSelected(selected)} ${selected ? "" : tone}`}
+      className={`group relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 text-center transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/10 ${isSelected(selected)} ${selected ? "" : tone}`}
       onClick={onClick}
       title={label}
       type="button"
     >
-      {children}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-ink px-2 py-1 text-[10px] font-semibold text-surface opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-      >
+      <span aria-hidden="true" className="grid h-7 place-items-center">
+        {children}
+      </span>
+      <span className="min-w-0 max-w-full truncate text-[10px] font-bold leading-tight">
         {label}
       </span>
     </button>
@@ -215,7 +227,7 @@ function IconChoiceButton({
 }
 
 function FuelChoiceIcon({ fuel }: { fuel: (typeof fuels)[number] }) {
-  const className = "size-5";
+  const className = "size-6";
 
   switch (fuel) {
     case "electric":
@@ -234,15 +246,15 @@ function FuelChoiceIcon({ fuel }: { fuel: (typeof fuels)[number] }) {
 function fuelIconTone(fuel: (typeof fuels)[number]) {
   switch (fuel) {
     case "electric":
-      return "text-[#487d91]";
+      return "text-filter-electric";
     case "plug_in_hybrid":
-      return "text-[#47796d]";
+      return "text-filter-plug-in";
     case "self_charging_hybrid":
-      return "text-[#5d7e55]";
+      return "text-filter-hybrid";
     case "petrol":
-      return "text-[#8a6948]";
+      return "text-filter-petrol";
     case "diesel":
-      return "text-[#596b7b]";
+      return "text-filter-diesel";
   }
 }
 
@@ -258,21 +270,6 @@ function TransmissionChoiceIcon({
   );
 }
 
-function BodyChoiceIcon({ bodyStyle }: { bodyStyle: (typeof bodyStyles)[number] }) {
-  const className = "h-7 w-11";
-
-  switch (bodyStyle) {
-    case "estate":
-      return <EstateBodyIcon className={className} />;
-    case "suv":
-      return <SuvBodyIcon className={className} />;
-    case "sedan":
-      return <SedanBodyIcon className={className} />;
-    case "hatchback":
-      return <HatchbackBodyIcon className={className} />;
-  }
-}
-
 export function FilterPanel({
   locale,
   filters,
@@ -282,12 +279,15 @@ export function FilterPanel({
   resultCount,
   onChange,
   onReset,
+  currentLocation,
+  locationStatus,
+  onRequestLocation,
 }: FilterPanelProps) {
   const copy = uiCopy[locale].filters;
+  const locationCopy = uiCopy[locale].results;
   const advancedFilterCount = [
     filters.fuelType,
     filters.transmission,
-    filters.bodyStyle,
   ].filter(Boolean).length;
   const advancedFiltersActive = advancedFilterCount > 0;
   const [showMoreFilters, setShowMoreFilters] = useState(advancedFiltersActive);
@@ -346,6 +346,20 @@ export function FilterPanel({
     : new Date().getFullYear();
   const selectedMinimumYear = Math.max(filters.minYear ?? earliestYear, earliestYear);
   const selectedMaximumYear = filters.maxYear ?? latestYear;
+  const distancePosition =
+    filters.maxDistanceKm === null
+      ? distanceSliderMaximum
+      : Math.min(distanceSliderMaximum, Math.max(0, sliderPositionForDistance(filters.maxDistanceKm)));
+  const distanceLabel =
+    filters.maxDistanceKm === null ? copy.anyDistance : copy.withinKm(filters.maxDistanceKm);
+  const locationLabel =
+    locationStatus === "locating"
+      ? locationCopy.locating
+      : locationStatus === "denied"
+        ? locationCopy.locationDenied
+        : locationStatus === "unavailable"
+          ? locationCopy.locationUnavailable
+          : locationCopy.useCurrentLocation;
 
   return (
     <div>
@@ -538,7 +552,7 @@ export function FilterPanel({
         </button>
 
         <FilterGroup className={`order-7 ${showMoreFilters ? "" : "hidden"}`} label={copy.fuel}>
-          <div className="grid grid-cols-6 gap-1">
+          <div className="grid grid-cols-3 gap-1.5">
             <IconChoiceButton
               label={copy.any}
               selected={!filters.fuelType}
@@ -574,7 +588,11 @@ export function FilterPanel({
                 key={transmission}
                 label={copy.transmissions[transmission]}
                 selected={filters.transmission === transmission}
-                tone={transmission === "automatic" ? "text-[#52768a]" : "text-[#6b665b]"}
+                tone={
+                  transmission === "automatic"
+                    ? "text-filter-electric"
+                    : "text-filter-manual"
+                }
                 onClick={() => onChange({ ...filters, transmission })}
               >
                 <TransmissionChoiceIcon transmission={transmission} />
@@ -641,26 +659,53 @@ export function FilterPanel({
           </div>
         </FilterGroup>
 
-        <FilterGroup className={`order-6 ${showMoreFilters ? "" : "hidden"}`} label={copy.body}>
-          <div className="grid grid-cols-4 gap-1.5">
-            {bodyStyles.map((bodyStyle) => (
-              <IconChoiceButton
-                key={bodyStyle}
-                label={copy.bodies[bodyStyle]}
-                selected={filters.bodyStyle === bodyStyle}
-                tone="text-[#536e5e]"
-                onClick={() =>
-                  onChange({
-                    ...filters,
-                    bodyStyle: filters.bodyStyle === bodyStyle ? "" : bodyStyle,
-                  })
-                }
+        <FilterGroup className="order-6" label={copy.distance}>
+          <div className="rounded-xl border border-border bg-surface-muted px-3 py-2">
+            {currentLocation ? (
+              <>
+                <div
+                  className="budget-range"
+                  style={{ "--budget-start": "0%", "--budget-end": `${(distancePosition / distanceSliderMaximum) * 100}%` } as React.CSSProperties}
+                >
+                  <span aria-hidden="true" className="budget-range-track" />
+                  <input
+                    aria-label={copy.distance}
+                    aria-valuetext={distanceLabel}
+                    max={distanceSliderMaximum}
+                    min={0}
+                    onChange={(event) => {
+                      const position = Number(event.target.value);
+                      const atMaximum = position >= distanceSliderMaximum;
+                      onChange({
+                        ...filters,
+                        maxDistanceKm: atMaximum ? null : distanceForSliderPosition(position),
+                        originLatitude: atMaximum ? null : currentLocation.latitude,
+                        originLongitude: atMaximum ? null : currentLocation.longitude,
+                      });
+                    }}
+                    step={1}
+                    type="range"
+                    value={distancePosition}
+                  />
+                </div>
+                <div className="mt-1 text-xs font-semibold tabular-nums text-ink-muted">
+                  {distanceLabel}
+                </div>
+              </>
+            ) : (
+              <button
+                className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-surface text-xs font-semibold text-ink-muted transition hover:border-border-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={!onRequestLocation || locationStatus === "locating"}
+                onClick={onRequestLocation}
+                type="button"
               >
-                <BodyChoiceIcon bodyStyle={bodyStyle} />
-              </IconChoiceButton>
-            ))}
+                <MapPinIcon className="size-3.5" />
+                {locationStatus === "locating" ? locationLabel : copy.enableLocationToFilter}
+              </button>
+            )}
           </div>
         </FilterGroup>
+
       </div>
     </div>
   );

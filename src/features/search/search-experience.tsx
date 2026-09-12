@@ -1029,11 +1029,14 @@ export function SearchExperience({
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 [-webkit-overflow-scrolling:touch]">
                 <FilterPanel
                   brands={availableFilters.brands}
+                  currentLocation={userLocation}
                   filters={filters}
                   locale={locale}
+                  locationStatus={locationStatus}
                   models={availableFilters.models}
                   onChange={changeFilters}
                   onReset={resetFilters}
+                  onRequestLocation={requestCurrentLocation}
                   resultCount={pagination.totalListings}
                   years={availableFilters.years}
                 />
