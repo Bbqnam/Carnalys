@@ -236,17 +236,30 @@
   --color-viz-buy-expensive: var(--viz-buy-expensive);
 }
 
-/* Keep result-card photography clean on pointer devices. Keyboard focus still
-   reveals the control, while touch devices keep it visible because they have
-   no hover state through which to discover the arrows. */
+/* Keep result-card photography clean on pointer devices: the arrows and the
+   "N / total" position pill only appear on hover. Keyboard focus still
+   reveals the arrows (the pill isn't a focusable control), while touch
+   devices keep everything visible because they have no hover state through
+   which to discover it.
+
+   Triggered off the card's `.group` hover, not `.vehicle-gallery:hover`: the
+   card-wide clickable-link overlay (`before:absolute before:inset-0` on the
+   link in the content area) is a sibling of `.vehicle-gallery`, later in DOM
+   order, so at the same (auto/0) stack level it paints above the photo and
+   permanently steals the gallery's own hover state — these controls would
+   then only be revealed by hovering their own already-invisible hit area.
+   The card-level `.group` hover (which the lift/zoom effect also uses)
+   already fires reliably; the controls still sit above that overlay once
+   visible, since their z-20 is compared as a real stacking level regardless
+   of DOM order. */
 @media (hover: hover) and (pointer: fine) {
-  .vehicle-gallery .vehicle-gallery-arrow {
+  .vehicle-gallery .vehicle-gallery-hover-control {
     opacity: 0;
     pointer-events: none;
   }
 
-  .vehicle-gallery:hover .vehicle-gallery-arrow,
-  .vehicle-gallery .vehicle-gallery-arrow:focus-visible {
+  .group:hover .vehicle-gallery .vehicle-gallery-hover-control,
+  .vehicle-gallery .vehicle-gallery-hover-control:focus-visible {
     opacity: 1;
     pointer-events: auto;
   }

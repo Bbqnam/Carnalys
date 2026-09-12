@@ -3,7 +3,6 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { after } from "next/server";
 import { synchronizeAllSourcesIncrementally } from "@/application/ingestion/incremental-all-sources";
-import { getCurrentUser } from "@/features/auth/session";
 import { getActiveSynchronization } from "@/infrastructure/database/synchronization-state-repository";
 import { marketAnalysisCacheTag } from "@/infrastructure/database/market-analysis-repository";
 import {
@@ -19,8 +18,7 @@ export interface ManualSynchronizationState {
     | "completed"
     | "warning"
     | "busy"
-    | "failed"
-    | "unauthorized";
+    | "failed";
   createdCount?: number;
   updatedCount?: number;
   unchangedCount?: number;
@@ -33,13 +31,6 @@ export async function synchronizeLatestListings(
   _previousState: ManualSynchronizationState,
 ): Promise<ManualSynchronizationState> {
   void _previousState;
-
-  // The trigger walks four sources and rebuilds analyses/facets — real work
-  // that shouldn't be startable by an anonymous drive-by. A signed-in account
-  // is the bar for now; tighten to an admin role when the user base grows.
-  if (!(await getCurrentUser())) {
-    return { outcome: "unauthorized" };
-  }
 
   // A manual sync walks four sources and then rebuilds analyses, facets and the
   // whole-catalogue representative flags. Awaiting all of that inside the action

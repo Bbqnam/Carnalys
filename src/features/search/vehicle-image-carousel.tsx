@@ -53,24 +53,23 @@ export function VehicleImageCarousel({
     setActiveImage((index) => (index + delta + imageCount) % imageCount);
   }
 
+  // Stepping used to swap the whole <Image> on a `key` change, so every click
+  // unmounted the previous photo and mounted a fresh one — a blank/placeholder
+  // flash while it re-fetched, even for a slide already shown seconds earlier.
+  // The active slide plus its immediate neighbours instead stay mounted (each
+  // keyed by its own URL, never by index) and are cross-faded with opacity: a
+  // neighbour is already decoded by the time its turn comes, so stepping one
+  // at a time is instant. Jumping further than a neighbour (rare — only via
+  // the thumbnail rail on the detail page, which this component isn't used
+  // for) still pays a one-time fetch.
+  const preloadIndices =
+    imageCount <= 3
+      ? Array.from({ length: imageCount }, (_, index) => index)
+      : [...new Set([-1, 0, 1].map((offset) => (activeIndex + offset + imageCount) % imageCount))];
+
   return (
     <>
-      {currentImage && !failedImages.has(currentImage.url) ? (
-        <Image
-          alt={currentImage.alt ?? imageAlt}
-          blurDataURL={imagePlaceholder}
-          className={imageClassName}
-          fill
-          key={`${activeIndex}-${currentImage.url}`}
-          onError={() =>
-            setFailedImages((failed) => new Set(failed).add(currentImage.url))
-          }
-          placeholder="blur"
-          preload={priority && activeIndex === 0}
-          sizes={sizes}
-          src={currentImage.url}
-        />
-      ) : (
+      {!currentImage || failedImages.has(currentImage.url) ? (
         /* Static local SVG — a plain <img> skips loader/srcset work for a
            single fallback asset. */
         // eslint-disable-next-line @next/next/no-img-element
@@ -79,13 +78,34 @@ export function VehicleImageCarousel({
           className="absolute inset-0 size-full object-cover"
           src="/images/vehicle-fallback.svg"
         />
-      )}
+      ) : null}
+      {preloadIndices.map((index) => {
+        const image = images[index];
+        if (!image || failedImages.has(image.url)) return null;
+        const isActive = index === activeIndex;
+        return (
+          <Image
+            alt={image.alt ?? imageAlt}
+            blurDataURL={imagePlaceholder}
+            className={`${imageClassName} [transition:opacity_250ms_ease-out,transform_700ms_ease-out] ${isActive ? "opacity-100" : "pointer-events-none opacity-0"}`}
+            fill
+            key={image.url}
+            onError={() =>
+              setFailedImages((failed) => new Set(failed).add(image.url))
+            }
+            placeholder="blur"
+            preload={priority && index === 0}
+            sizes={sizes}
+            src={image.url}
+          />
+        );
+      })}
 
       {imageCount > 1 ? (
         <>
           <button
             aria-label={previousLabel}
-            className={`vehicle-gallery-arrow absolute left-2 top-1/2 z-20 grid -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/55 text-white shadow-md backdrop-blur-sm transition hover:scale-105 hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white active:scale-95 ${compact ? "size-7" : "size-9"}`}
+            className={`vehicle-gallery-hover-control absolute left-2 top-1/2 z-20 grid -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/55 text-white shadow-md backdrop-blur-sm transition hover:scale-105 hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white active:scale-95 ${compact ? "size-7" : "size-9"}`}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -97,7 +117,7 @@ export function VehicleImageCarousel({
           </button>
           <button
             aria-label={nextLabel}
-            className={`vehicle-gallery-arrow absolute right-2 top-1/2 z-20 grid -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/55 text-white shadow-md backdrop-blur-sm transition hover:scale-105 hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white active:scale-95 ${compact ? "size-7" : "size-9"}`}
+            className={`vehicle-gallery-hover-control absolute right-2 top-1/2 z-20 grid -translate-y-1/2 place-items-center rounded-full border border-white/40 bg-black/55 text-white shadow-md backdrop-blur-sm transition hover:scale-105 hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white active:scale-95 ${compact ? "size-7" : "size-9"}`}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -109,7 +129,7 @@ export function VehicleImageCarousel({
           </button>
           <p
             aria-live="polite"
-            className={`absolute bottom-2 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/35 bg-black/60 font-semibold tabular-nums text-white shadow-sm backdrop-blur-sm ${compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[10px]"}`}
+            className={`vehicle-gallery-hover-control absolute bottom-2 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/35 bg-black/60 font-semibold tabular-nums text-white shadow-sm backdrop-blur-sm ${compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[10px]"}`}
           >
             <span aria-hidden="true">{activeIndex + 1} / {imageCount}</span>
             <span className="sr-only">{currentPositionLabel}</span>

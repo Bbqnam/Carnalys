@@ -83,7 +83,7 @@ export function VehicleCard({
           <VehicleImageCarousel
             fallbackLabel={copy.card.missingImage}
             imageAlt={imageAlt}
-            imageClassName="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
+            imageClassName="object-cover group-hover:scale-[1.025]"
             images={listing.images}
             nextLabel={copy.card.nextPhoto}
             positionLabel={copy.card.photoPosition}

@@ -174,6 +174,7 @@ function ScoreCard({
 export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const router = useRouter();
   const [activeImage, setActiveImage] = useState(0);
+  const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const activeThumbnail = useRef<HTMLButtonElement | null>(null);
   const fullscreenCloseButton = useRef<HTMLButtonElement | null>(null);
@@ -420,11 +421,15 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               scrolls inside it. */}
           <div className="relative">
           <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-surface-muted sm:mr-[6.25rem]">
-            {currentImage ? (
+            {currentImage && !failedImages.has(currentImage.url) ? (
               <Image
                 alt={currentImage.alt ?? listing.title}
                 className="object-contain"
                 fill
+                key={currentImage.url}
+                onError={() =>
+                  setFailedImages((failed) => new Set(failed).add(currentImage.url))
+                }
                 priority
                 sizes="(max-width: 1023px) 100vw, 60vw"
                 src={currentImage.url}
@@ -440,7 +445,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 src="/images/vehicle-fallback.svg"
               />
             )}
-            {currentImage ? (
+            {currentImage && !failedImages.has(currentImage.url) ? (
               <button
                 aria-label={copy.detail.openFullscreen}
                 className="absolute inset-0 touch-pan-y cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
@@ -494,7 +499,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 <HeartIcon className="size-[18px]" fill={isFavorite ? "currentColor" : "none"} />
               </button>
             </div>
-            {currentImage ? (
+            {currentImage && !failedImages.has(currentImage.url) ? (
               <button
                 aria-label={copy.detail.openFullscreen}
                 className="absolute bottom-3.5 right-3.5 z-10 grid size-10 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition duration-200 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95"
@@ -546,7 +551,25 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                   ref={index === activeImage ? activeThumbnail : null}
                   type="button"
                 >
-                  <Image alt="" className="object-contain" fill sizes="88px" src={image.url} />
+                  {failedImages.has(image.url) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt={copy.card.missingImage}
+                      className="absolute inset-0 size-full object-cover"
+                      src="/images/vehicle-fallback.svg"
+                    />
+                  ) : (
+                    <Image
+                      alt=""
+                      className="object-contain"
+                      fill
+                      onError={() =>
+                        setFailedImages((failed) => new Set(failed).add(image.url))
+                      }
+                      sizes="88px"
+                      src={image.url}
+                    />
+                  )}
                 </button>
               ))}
             </div>
