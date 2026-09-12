@@ -84,13 +84,15 @@ function fuelTypeList(value: unknown): FuelType[] {
 export function parseAnalystSearchFilters(value: unknown): SearchFilters {
   if (value === undefined) return { ...defaultSearchFilters };
   const input = object(value);
-  // licensePlate is accepted (never rejected — the whole-object trusted
-  // context sent from the search page naturally carries it) but never read:
-  // see the hardcoded "" below.
+  // licensePlate and the distance/location fields are accepted (never
+  // rejected — the whole-object trusted context sent from the search page
+  // naturally carries them) but never read: see the hardcoded values below.
+  // The Analyst never learns or sets the user's location.
   onlyKeys(input, [
     "query", "minPrice", "maxPrice", "brands", "models", "sources", "fuelType",
     "transmission", "minYear", "maxYear", "minMileageMil", "maxMileageMil",
     "bodyStyle", "sellerType", "postedWithin", "licensePlate",
+    "maxDistanceKm", "originLatitude", "originLongitude",
   ]);
   const minPrice = nullableInteger(input.minPrice, "minPrice", 10_000_000);
   const maxPrice = nullableInteger(input.maxPrice, "maxPrice", 10_000_000);
@@ -133,6 +135,11 @@ export function parseAnalystSearchFilters(value: unknown): SearchFilters {
     bodyStyle: bodyStyle as SearchFilters["bodyStyle"],
     sellerType: sellerType as SearchFilters["sellerType"],
     postedWithin: postedWithin as SearchFilters["postedWithin"],
+    // The Analyst never learns or sets the user's location — distance
+    // filtering is a browser-side geolocation feature, not a tool argument.
+    maxDistanceKm: null,
+    originLatitude: null,
+    originLongitude: null,
     // Always "" regardless of what was sent (see the onlyKeys comment above):
     // licensePlate is absent from searchFiltersSchema's own properties, so the
     // model can never set it, and this function ignores it even when the

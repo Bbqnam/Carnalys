@@ -5,8 +5,10 @@ import { closestValuationCandidates, constructIndependentCohort, type AnalystMar
 
 const target: AnalystMarketTarget = {
   id: "target", vehicleId: "vehicle-target", make: "Volvo", model: "V60", fuelType: "diesel",
-  transmission: "automatic", bodyStyle: "estate", performanceVariant: null, modelYear: 2021,
-  mileageKm: 70_000, priceAmount: 250_000, municipality: "Stockholm", synchronizedAt: new Date("2026-09-01"),
+  transmission: "automatic", bodyStyle: "estate", drivetrain: null, generation: null, facelift: null,
+  trim: null, performanceVariant: null, modelYear: 2021,
+  mileageKm: 70_000, priceAmount: 250_000, municipality: "Stockholm", sellerType: "private",
+  synchronizedAt: new Date("2026-09-01"),
   monthlyCostAmount: null, title: "Volvo V60", description: null,
 };
 

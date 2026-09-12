@@ -82,6 +82,8 @@ export const TRIM_TOKENS: readonly string[] = [
   "R-Design",
   "M Sport",
   "M-Sport",
+  "xLine",
+  "X Line",
   "S line",
   "S-line",
   "Style",

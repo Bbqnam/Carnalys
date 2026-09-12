@@ -14,6 +14,14 @@ export interface GenerationBand {
   readonly from: number;
   readonly to: number;
   readonly label: string;
+  /**
+   * Model year from which this generation's mid-cycle refresh (facelift/LCI)
+   * applies. Omit when the generation has no known facelift split, or the
+   * split isn't calibrated yet — `facelift` then stays `null`, never `false`,
+   * so "unknown" is never read as "confirmed pre-facelift" by comparability
+   * scoring.
+   */
+  readonly faceliftFrom?: number;
 }
 
 export interface ModelRule {
@@ -45,7 +53,8 @@ const GOLF_GENERATIONS: readonly GenerationBand[] = [
   { from: 1997, to: 2004, label: "Mk4" },
   { from: 2003, to: 2009, label: "Mk5" },
   { from: 2008, to: 2013, label: "Mk6" },
-  { from: 2012, to: 2020, label: "Mk7" },
+  // Mk7.5 facelift arrived for MY2018.
+  { from: 2012, to: 2020, label: "Mk7", faceliftFrom: 2018 },
   { from: 2019, to: 2031, label: "Mk8" },
 ];
 
@@ -55,6 +64,41 @@ const MEGANE_GENERATIONS: readonly GenerationBand[] = [
   { from: 2008, to: 2016, label: "III" },
   { from: 2015, to: 2023, label: "IV" },
   { from: 2022, to: 2031, label: "E-Tech" },
+];
+
+/** Approximate — refine as production data exposes edge cases, same as the
+ *  bands above. Octavia Mk3 facelifted for MY2017. */
+const OCTAVIA_GENERATIONS: readonly GenerationBand[] = [
+  { from: 2004, to: 2013, label: "Mk2" },
+  { from: 2012, to: 2020, label: "Mk3", faceliftFrom: 2017 },
+  { from: 2019, to: 2031, label: "Mk4" },
+];
+
+/** Ceed Mk3 (CD) facelifted for MY2022. */
+const CEED_GENERATIONS: readonly GenerationBand[] = [
+  { from: 2006, to: 2012, label: "Mk1" },
+  { from: 2012, to: 2018, label: "Mk2" },
+  { from: 2018, to: 2031, label: "Mk3", faceliftFrom: 2022 },
+];
+
+/** Volvo V60 Mk2 (2018-) facelifted for MY2023. */
+const V60_GENERATIONS: readonly GenerationBand[] = [
+  { from: 2010, to: 2018, label: "Mk1" },
+  { from: 2018, to: 2031, label: "Mk2", faceliftFrom: 2023 },
+];
+
+/** Volvo XC60 Mk2 (2017-) facelifted for MY2022. */
+const XC60_GENERATIONS: readonly GenerationBand[] = [
+  { from: 2008, to: 2017, label: "Mk1" },
+  { from: 2017, to: 2031, label: "Mk2", faceliftFrom: 2022 },
+];
+
+/** BMW X3 G01 (2017-) facelifted (LCI) for MY2022. */
+const X3_GENERATIONS: readonly GenerationBand[] = [
+  { from: 2003, to: 2010, label: "E83" },
+  { from: 2010, to: 2017, label: "F25" },
+  { from: 2017, to: 2024, label: "G01", faceliftFrom: 2022 },
+  { from: 2023, to: 2031, label: "G45" },
 ];
 
 export const MAKE_RULES: readonly MakeRule[] = [
@@ -69,6 +113,7 @@ export const MAKE_RULES: readonly MakeRule[] = [
         family: "Ceed",
         match: /\bcee'?d\b/i,
         except: /\bx[\s_-]?cee'?d\b|\bpro[\s_-]?cee'?d\b/i,
+        generationByYear: CEED_GENERATIONS,
       },
       { family: "Niro", match: /\b(?:e[\s-]?)?niro\b/i },
     ],
@@ -93,9 +138,12 @@ export const MAKE_RULES: readonly MakeRule[] = [
     models: [
       { family: "V60 Cross Country", match: /\bv60\b.*\bcross country\b/i, bodyHint: "estate" },
       { family: "V90 Cross Country", match: /\bv90\b.*\bcross country\b/i, bodyHint: "estate" },
-      { family: "V60", match: /\bv60\b/i, bodyHint: "estate" },
+      { family: "V60", match: /\bv60\b/i, bodyHint: "estate", generationByYear: V60_GENERATIONS },
       { family: "V90", match: /\bv90\b/i, bodyHint: "estate" },
       { family: "V70", match: /\bv70\b/i, bodyHint: "estate" },
+      { family: "XC60", match: /\bxc\s?60\b/i, bodyHint: "suv", generationByYear: XC60_GENERATIONS },
+      { family: "XC90", match: /\bxc\s?90\b/i, bodyHint: "suv" },
+      { family: "XC40", match: /\bxc\s?40\b/i, bodyHint: "suv" },
     ],
   },
   {
@@ -155,9 +203,24 @@ export const MAKE_RULES: readonly MakeRule[] = [
   // Alias-only entries: no model rules, just canonical brand styling.
   { canonical: "SEAT", aliases: ["seat"] },
   { canonical: "CUPRA", aliases: ["cupra"] },
-  { canonical: "BMW", aliases: ["bmw"] },
+  {
+    canonical: "BMW",
+    aliases: ["bmw"],
+    models: [
+      // "X3 M" (the M performance model) is a materially different car from a
+      // regular X3 and must not share its generation calibration.
+      { family: "X3 M", match: /\bx3\s?m\b/i },
+      { family: "X3", match: /\bx3\b/i, bodyHint: "suv", generationByYear: X3_GENERATIONS },
+    ],
+  },
   { canonical: "Audi", aliases: ["audi"] },
-  { canonical: "Skoda", aliases: ["skoda", "škoda"] },
+  {
+    canonical: "Skoda",
+    aliases: ["skoda", "škoda"],
+    models: [
+      { family: "Octavia", match: /\boctavia\b/i, generationByYear: OCTAVIA_GENERATIONS },
+    ],
+  },
   { canonical: "Nissan", aliases: ["nissan"] },
   { canonical: "Peugeot", aliases: ["peugeot"] },
   { canonical: "Citroen", aliases: ["citroen", "citroën"] },

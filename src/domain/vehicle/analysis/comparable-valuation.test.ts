@@ -168,6 +168,40 @@ test("price outliers are trimmed before the estimate", () => {
   assert.ok(Math.abs(clean - dirty) <= 5_000, `outliers moved MV ${clean} -> ${dirty}`);
 });
 
+test("REGRESSION: a low-weight outlier moves the estimate far less than a full-weight one", () => {
+  const cohort = linearCohort({ n: 30, base: 320_000, perYear: 10_000, perKm: 0.5, ageMin: 3, ageMax: 6, kmMin: 40_000, kmMax: 100_000, noise: 0.02, seed: 11 });
+  const target = { ageYears: 4, mileageKm: 70_000 };
+
+  // A cluster of pricier, weaker-tier comparables (e.g. a facelift/M-Sport
+  // equivalent) sitting well above the honest cohort.
+  const distractors: ValuationComparable[] = Array.from({ length: 10 }, (_, i) => ({
+    priceAmount: 430_000 + i * 1_000,
+    ageYears: 4,
+    mileageKm: 70_000,
+  }));
+
+  const baseline = valueVehicle(target, cohort).marketValue!;
+  const fullWeightPolluted = valueVehicle(target, [...cohort, ...distractors]).marketValue!;
+  const lowWeightPolluted = valueVehicle(
+    target,
+    [...cohort, ...distractors.map((d) => ({ ...d, weight: 0.15 }))],
+  ).marketValue!;
+
+  assert.ok(fullWeightPolluted > baseline, "sanity: full-weight distractors should pull the estimate up");
+  assert.ok(
+    lowWeightPolluted - baseline < (fullWeightPolluted - baseline) * 0.5,
+    `low-weight distractors moved MV by ${lowWeightPolluted - baseline}, full-weight moved it by ${fullWeightPolluted - baseline}`,
+  );
+});
+
+test("weighted valuation matches uniform-weight valuation within rounding when all weights are 1", () => {
+  const cohort = linearCohort({ n: 40, base: 280_000, perYear: 9_000, perKm: 0.6, ageMin: 2, ageMax: 9, kmMin: 20_000, kmMax: 160_000, noise: 0.02, seed: 5 });
+  const target = { ageYears: 5, mileageKm: 80_000 };
+  const withWeights = valueVehicle(target, cohort.map((c) => ({ ...c, weight: 1 }))).marketValue!;
+  const withoutWeights = valueVehicle(target, cohort).marketValue!;
+  assert.ok(Math.abs(withWeights - withoutWeights) <= 2_000, `${withWeights} vs ${withoutWeights}`);
+});
+
 test("the adjusted estimate cannot run away from the plain median", () => {
   // Pathological: target far outside the cohort's mileage range.
   const cohort = linearCohort({ n: 40, base: 400_000, perYear: 0, perKm: 2.0, ageMin: 4, ageMax: 4, kmMin: 10_000, kmMax: 60_000 });

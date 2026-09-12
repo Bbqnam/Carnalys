@@ -16,7 +16,7 @@ import {
  * Bump when the rules or pipeline change in a way that should re-classify
  * stored vehicles. The backfill targets rows below this; ingestion writes it.
  */
-export const CURRENT_NORMALIZATION_VERSION = 1;
+export const CURRENT_NORMALIZATION_VERSION = 2;
 
 export interface CanonicalVehicleInput {
   make: string;
@@ -35,6 +35,13 @@ export interface CanonicalVehicle {
   /** Source variant, tidied but content-preserved (provenance). */
   variant: string | null;
   generation: string | null;
+  /**
+   * `true`/`false` only when the generation's mid-cycle refresh year is
+   * calibrated (see `GenerationBand.faceliftFrom`) *and* a generation was
+   * resolved; `null` otherwise — including whenever `generation` is `null`.
+   * Never guess a facelift status from an uncalibrated model.
+   */
+  facelift: boolean | null;
   trim: string | null;
   performanceVariant: string | null;
   bodyStyle: BodyStyle;
@@ -69,17 +76,20 @@ function canonicalMake(raw: string): string {
 function generationFromYear(
   bands: readonly GenerationBand[],
   modelYear: number | null | undefined,
-): string | null {
-  if (!modelYear) return null;
+): { generation: string | null; facelift: boolean | null } {
+  if (!modelYear) return { generation: null, facelift: null };
   // Prefer the band whose window centre is closest — bands overlap by a year.
-  let best: { label: string; distance: number } | null = null;
+  let best: { band: GenerationBand; distance: number } | null = null;
   for (const band of bands) {
     if (modelYear < band.from || modelYear >= band.to) continue;
     const centre = (band.from + band.to) / 2;
     const distance = Math.abs(modelYear - centre);
-    if (!best || distance < best.distance) best = { label: band.label, distance };
+    if (!best || distance < best.distance) best = { band, distance };
   }
-  return best?.label ?? null;
+  if (!best) return { generation: null, facelift: null };
+  const facelift =
+    best.band.faceliftFrom == null ? null : modelYear >= best.band.faceliftFrom;
+  return { generation: best.band.label, facelift };
 }
 
 /** Strip a universal body/powertrain suffix from a family string. */
@@ -133,7 +143,13 @@ function applyModelRule(
   ruleHaystack: string,
   modelYear: number | null | undefined,
   rules: readonly ModelRule[] | undefined,
-): { family: string; generation: string | null; body?: BodyStyle; fuel?: FuelType } | null {
+): {
+  family: string;
+  generation: string | null;
+  facelift: boolean | null;
+  body?: BodyStyle;
+  fuel?: FuelType;
+} | null {
   if (!rules) return null;
   for (const rule of rules) {
     // `match` sees model + variant + title so a sub-model named only in the
@@ -142,11 +158,13 @@ function applyModelRule(
     // exclude a correct family.
     if (rule.except?.test(tidyModel)) continue;
     if (!rule.match.test(ruleHaystack)) continue;
+    const { generation, facelift } = rule.generationByYear
+      ? generationFromYear(rule.generationByYear, modelYear)
+      : { generation: null, facelift: null };
     return {
       family: rule.family,
-      generation: rule.generationByYear
-        ? generationFromYear(rule.generationByYear, modelYear)
-        : null,
+      generation,
+      facelift,
       body: rule.bodyHint,
       fuel: rule.fuelHint,
     };
@@ -183,6 +201,7 @@ export function canonicalizeVehicle(input: CanonicalVehicleInput): CanonicalVehi
   // --- model family + generation + body/fuel hints ---
   let family = tidyModel;
   let generation: string | null = null;
+  let facelift: boolean | null = null;
   const hintBody: BodyStyle[] = [];
   const hintFuel: FuelType[] = [];
 
@@ -190,6 +209,7 @@ export function canonicalizeVehicle(input: CanonicalVehicleInput): CanonicalVehi
   if (ruled) {
     family = ruled.family;
     generation = ruled.generation;
+    facelift = ruled.facelift;
     if (ruled.body) hintBody.push(ruled.body);
     if (ruled.fuel) hintFuel.push(ruled.fuel);
   } else {
@@ -249,6 +269,7 @@ export function canonicalizeVehicle(input: CanonicalVehicleInput): CanonicalVehi
     model: family.trim() || tidyModel,
     variant,
     generation,
+    facelift,
     trim,
     performanceVariant,
     bodyStyle,

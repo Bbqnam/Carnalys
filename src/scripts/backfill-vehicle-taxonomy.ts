@@ -42,6 +42,7 @@ type Row = {
   rawMake: string | null;
   rawModel: string | null;
   generation: string | null;
+  facelift: boolean | null;
   trim: string | null;
   performanceVariant: string | null;
   normalizationVersion: number;
@@ -53,6 +54,7 @@ const CHANGED_FIELDS = [
   "bodyStyle",
   "fuelType",
   "generation",
+  "facelift",
   "trim",
   "performanceVariant",
 ] as const;
@@ -78,6 +80,7 @@ async function main() {
     bodyFilled: 0,
     fuelFilled: 0,
     generationSet: 0,
+    faceliftSet: 0,
     trimSet: 0,
     performanceSet: 0,
     cohortKeyChanged: 0,
@@ -108,6 +111,7 @@ async function main() {
         rawMake: true,
         rawModel: true,
         generation: true,
+        facelift: true,
         trim: true,
         performanceVariant: true,
         normalizationVersion: true,
@@ -151,6 +155,7 @@ async function main() {
         bodyStyle: canonical.bodyStyle,
         fuelType: canonical.fuelType,
         generation: canonical.generation,
+        facelift: canonical.facelift,
         trim: canonical.trim,
         performanceVariant: canonical.performanceVariant,
       };
@@ -179,6 +184,7 @@ async function main() {
         if (row.bodyStyle === "other" && canonical.bodyStyle !== "other") stats.bodyFilled += 1;
         if (row.fuelType === "other" && canonical.fuelType !== "other") stats.fuelFilled += 1;
         if (!row.generation && canonical.generation) stats.generationSet += 1;
+        if (row.facelift == null && canonical.facelift != null) stats.faceliftSet += 1;
         if (!row.trim && canonical.trim) stats.trimSet += 1;
         if (!row.performanceVariant && canonical.performanceVariant) stats.performanceSet += 1;
         const before = `${row.make}|${row.model}|${row.bodyStyle}|${row.fuelType}`;
@@ -189,7 +195,7 @@ async function main() {
             `  ${row.make} ${row.model}${row.variant ? ` [${row.variant.slice(0, 34)}]` : ""}` +
               `  →  ${canonical.make} ${canonical.model}` +
               `  body ${row.bodyStyle}→${canonical.bodyStyle}  fuel ${row.fuelType}→${canonical.fuelType}` +
-              `${canonical.generation ? `  gen ${canonical.generation}` : ""}` +
+              `${canonical.generation ? `  gen ${canonical.generation}${canonical.facelift == null ? "" : canonical.facelift ? " (facelift)" : " (pre-facelift)"}` : ""}` +
               `${canonical.performanceVariant ? `  perf ${canonical.performanceVariant}` : ""}` +
               `${canonical.trim ? `  trim ${canonical.trim}` : ""}`,
           );
@@ -228,6 +234,7 @@ async function main() {
     "bodyStyle other→filled": stats.bodyFilled,
     "fuelType other→filled": stats.fuelFilled,
     "generation set": stats.generationSet,
+    "facelift set": stats.faceliftSet,
     "trim set": stats.trimSet,
     "performanceVariant set": stats.performanceSet,
     "cohort key changed (Phase B input)": stats.cohortKeyChanged,

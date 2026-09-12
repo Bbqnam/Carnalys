@@ -51,8 +51,9 @@ const MAX_PLAUSIBLE_PRICE = 3_000_000;
 const MAX_PLAUSIBLE_MILEAGE_KM = 1_000_000;
 
 const NEAREST_COMPARABLE_LIMIT = 40;
-const MIN_COMPARABLES = 3;
-const MIN_FIT_COMPARABLES = 8;
+/** Exported so cohort-widening logic upstream (repository layer) uses the same floor. */
+export const MIN_COMPARABLES = 3;
+export const MIN_FIT_COMPARABLES = 8;
 
 const TRIM_LOW_RATIO = 0.4;
 const TRIM_HIGH_RATIO = 2.5;
@@ -69,6 +70,12 @@ export interface ValuationComparable {
   priceAmount: number;
   ageYears: number;
   mileageKm: number;
+  /**
+   * How much this comparable should influence the estimate, from the
+   * similarity/tier/recency model (see `comparable-similarity.ts`). Defaults
+   * to 1 (uniform) so every existing caller and test is unaffected.
+   */
+  weight?: number;
 }
 
 export interface ValuationTarget {
@@ -99,12 +106,40 @@ function median(sortedOrNot: readonly number[]) {
   return (s[Math.floor(mid)] + s[Math.ceil(mid)]) / 2;
 }
 
-function percentile(values: readonly number[], fraction: number) {
-  const s = [...values].sort((a, b) => a - b);
-  const position = (s.length - 1) * fraction;
-  const lower = Math.floor(position);
-  const upper = Math.ceil(position);
-  return s[lower] + (s[upper] - s[lower]) * (position - lower);
+/**
+ * Weighted percentile by cumulative weight (linear interpolation between the
+ * two values straddling the target). With uniform weight 1 this coincides
+ * with `percentile` to within one sort position — a difference far inside
+ * the noise of any real cohort — while a low-weight comparable (a weak tier,
+ * or an old observation) genuinely contributes less to where the line falls,
+ * rather than counting as a full vote.
+ */
+export function weightedPercentile(
+  values: readonly { value: number; weight: number }[],
+  fraction: number,
+) {
+  const s = [...values].filter((v) => v.weight > 0).sort((a, b) => a.value - b.value);
+  if (s.length === 0) return NaN;
+  const totalWeight = s.reduce((sum, v) => sum + v.weight, 0);
+  if (!(totalWeight > 0)) return median(s.map((v) => v.value));
+
+  const target = fraction * totalWeight;
+  let cumulative = 0;
+  for (let i = 0; i < s.length; i++) {
+    const previousCumulative = cumulative;
+    cumulative += s[i].weight;
+    if (cumulative >= target) {
+      if (i === 0) return s[i].value;
+      const previous = s[i - 1];
+      const t = (target - previousCumulative) / (cumulative - previousCumulative);
+      return previous.value + t * (s[i].value - previous.value);
+    }
+  }
+  return s[s.length - 1].value;
+}
+
+export function weightedMedian(values: readonly { value: number; weight: number }[]) {
+  return weightedPercentile(values, 0.5);
 }
 
 function roundedThousands(value: number) {
@@ -135,25 +170,30 @@ export function fitAgeMileageSlopes(comparables: readonly ValuationComparable[])
   const n = comparables.length;
   if (n < MIN_FIT_COMPARABLES) return null;
 
-  const meanAge = comparables.reduce((s, c) => s + c.ageYears, 0) / n;
-  const meanMileage = comparables.reduce((s, c) => s + c.mileageKm, 0) / n;
-  const meanPrice = comparables.reduce((s, c) => s + c.priceAmount, 0) / n;
+  const weights = comparables.map((c) => c.weight ?? 1);
+  const totalWeight = weights.reduce((s, w) => s + w, 0);
+  if (!(totalWeight > 0)) return null;
+
+  const meanAge = comparables.reduce((s, c, i) => s + weights[i] * c.ageYears, 0) / totalWeight;
+  const meanMileage = comparables.reduce((s, c, i) => s + weights[i] * c.mileageKm, 0) / totalWeight;
+  const meanPrice = comparables.reduce((s, c, i) => s + weights[i] * c.priceAmount, 0) / totalWeight;
 
   let sAgeAge = 0;
   let sMileMile = 0;
   let sAgeMile = 0;
   let sAgePrice = 0;
   let sMilePrice = 0;
-  for (const c of comparables) {
+  comparables.forEach((c, i) => {
+    const w = weights[i];
     const a = c.ageYears - meanAge;
     const m = c.mileageKm - meanMileage;
     const p = c.priceAmount - meanPrice;
-    sAgeAge += a * a;
-    sMileMile += m * m;
-    sAgeMile += a * m;
-    sAgePrice += a * p;
-    sMilePrice += m * p;
-  }
+    sAgeAge += w * a * a;
+    sMileMile += w * m * m;
+    sAgeMile += w * a * m;
+    sAgePrice += w * a * p;
+    sMilePrice += w * m * p;
+  });
 
   if (!Number.isFinite(sMileMile) || sMileMile < 1e-3) return null;
 
@@ -215,8 +255,12 @@ export function valueVehicle(
   const sane = sanitizeComparables(comparables);
   if (sane.length < MIN_COMPARABLES) return insufficient;
 
+  // Higher-weight comparables (better similarity tier, more recent) win a
+  // place in the pool first; age/mileage closeness only breaks ties within a
+  // weight band. With every weight equal (the default) this is exactly the
+  // old closeness-only ordering.
   const nearest = [...sane]
-    .sort((a, b) => closeness(target, a) - closeness(target, b))
+    .sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1) || closeness(target, a) - closeness(target, b))
     .slice(0, NEAREST_COMPARABLE_LIMIT);
 
   const trimmed = trimByMedianRatio(nearest);
@@ -239,15 +283,16 @@ export function valueVehicle(
         c.priceAmount +
         bAge * (target.ageYears - c.ageYears) +
         bMileage * (target.mileageKm - c.mileageKm);
-      return Math.min(
+      const value = Math.min(
         Math.max(raw, c.priceAmount * PER_COMPARABLE_SHIFT_FLOOR),
         c.priceAmount * PER_COMPARABLE_SHIFT_CEIL,
       );
+      return { value, weight: c.weight ?? 1 };
     });
     return {
-      marketValue: roundedThousands(clamp(median(shifted))),
-      rangeLow: roundedThousands(clamp(percentile(shifted, 0.25))),
-      rangeHigh: roundedThousands(clamp(percentile(shifted, 0.75))),
+      marketValue: roundedThousands(clamp(weightedMedian(shifted))),
+      rangeLow: roundedThousands(clamp(weightedPercentile(shifted, 0.25))),
+      rangeHigh: roundedThousands(clamp(weightedPercentile(shifted, 0.75))),
       comparableCount: trimmed.length,
       method: "adjusted",
       perModelYear: Math.round(-bAge),
@@ -255,10 +300,11 @@ export function valueVehicle(
     };
   }
 
+  const weightedPrices = trimmed.map((c) => ({ value: c.priceAmount, weight: c.weight ?? 1 }));
   return {
-    marketValue: roundedThousands(plainMedian),
-    rangeLow: roundedThousands(percentile(prices, 0.25)),
-    rangeHigh: roundedThousands(percentile(prices, 0.75)),
+    marketValue: roundedThousands(weightedMedian(weightedPrices)),
+    rangeLow: roundedThousands(weightedPercentile(weightedPrices, 0.25)),
+    rangeHigh: roundedThousands(weightedPercentile(weightedPrices, 0.75)),
     comparableCount: trimmed.length,
     method: "raw_median",
   };

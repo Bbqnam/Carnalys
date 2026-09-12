@@ -70,7 +70,8 @@ function defaultFiltersForEval() {
     query: "", minPrice: null, maxPrice: null, brands: [], models: [], sources: [],
     fuelType: "" as const, transmission: "" as const, minYear: null, maxYear: null,
     minMileageMil: null, maxMileageMil: null, bodyStyle: "" as const, sellerType: "" as const,
-    postedWithin: "" as const, licensePlate: "",
+    postedWithin: "" as const, maxDistanceKm: null, originLatitude: null, originLongitude: null,
+    licensePlate: "",
   };
 }
 

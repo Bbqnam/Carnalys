@@ -236,7 +236,52 @@ test("a real performance badge in a pipe-delimited variant is still caught", () 
 });
 
 test("normalizationVersion is stamped", () => {
-  assert.equal(run("Kia", "Ceed").normalizationVersion, 1);
+  assert.equal(run("Kia", "Ceed").normalizationVersion, 2);
+});
+
+// ---------------------------------------------------------------------------
+// Generation + facelift — G01/Octavia/Ceed/V60/XC60/Golf calibrations
+// ---------------------------------------------------------------------------
+
+test("BMW X3 generation and facelift from model year, X3 M stays a distinct model", () => {
+  const pre = run("BMW", "X3", { variant: "xDrive30e xLine", modelYear: 2021 });
+  assert.equal(pre.model, "X3");
+  assert.equal(pre.generation, "G01");
+  assert.equal(pre.facelift, false);
+  assert.equal(pre.trim, "xLine");
+
+  const post = run("BMW", "X3", { variant: "xDrive30e xLine", modelYear: 2022 });
+  assert.equal(post.generation, "G01");
+  assert.equal(post.facelift, true);
+
+  assert.equal(run("BMW", "X3 M", { modelYear: 2021 }).model, "X3 M");
+});
+
+test("unknown make/model leaves generation and facelift null, not false", () => {
+  const v = run("Fiat", "500", { variant: "1.2 Lounge", modelYear: 2021 });
+  assert.equal(v.generation, null);
+  assert.equal(v.facelift, null);
+});
+
+test("Skoda Octavia, Kia Ceed, Volvo V60/XC60 generation + facelift bands", () => {
+  assert.equal(run("Skoda", "Octavia", { modelYear: 2016 }).generation, "Mk3");
+  assert.equal(run("Skoda", "Octavia", { modelYear: 2016 }).facelift, false);
+  assert.equal(run("Skoda", "Octavia", { modelYear: 2018 }).facelift, true);
+
+  assert.equal(run("Kia", "Ceed", { modelYear: 2020 }).generation, "Mk3");
+  assert.equal(run("Kia", "Ceed", { modelYear: 2020 }).facelift, false);
+  assert.equal(run("Kia", "Ceed", { modelYear: 2023 }).facelift, true);
+
+  assert.equal(run("Volvo", "V60", { variant: "D4 Geartronic", modelYear: 2020 }).facelift, false);
+  assert.equal(run("Volvo", "V60", { variant: "D4 Geartronic", modelYear: 2023 }).facelift, true);
+
+  assert.equal(run("Volvo", "XC60", { modelYear: 2020 }).facelift, false);
+  assert.equal(run("Volvo", "XC60", { modelYear: 2022 }).facelift, true);
+});
+
+test("VW Golf Mk7 vs Mk7.5 facelift split", () => {
+  assert.equal(run("Volkswagen", "Golf", { modelYear: 2016 }).facelift, false);
+  assert.equal(run("Volkswagen", "Golf", { modelYear: 2019 }).facelift, true);
 });
 
 test("an unknown make is left alone (not force-normalized)", () => {

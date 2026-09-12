@@ -335,6 +335,7 @@ function marketCandidate(row: {
   priceAmount: number;
   mileageKm: number;
   municipality: string;
+  sellerType: string;
   synchronizedAt: Date;
   vehicle: {
     make: string;
@@ -342,11 +343,15 @@ function marketCandidate(row: {
     fuelType: string;
     transmission: string;
     bodyStyle: string;
+    drivetrain: string | null;
+    generation: string | null;
+    facelift: boolean | null;
+    trim: string | null;
     performanceVariant: string | null;
     modelYear: number;
   };
 }): AnalystMarketCandidate {
-  return { ...row.vehicle, id: row.id, vehicleId: row.vehicleId, priceAmount: row.priceAmount, mileageKm: row.mileageKm, municipality: row.municipality, synchronizedAt: row.synchronizedAt };
+  return { ...row.vehicle, id: row.id, vehicleId: row.vehicleId, priceAmount: row.priceAmount, mileageKm: row.mileageKm, municipality: row.municipality, sellerType: row.sellerType, synchronizedAt: row.synchronizedAt };
 }
 
 const marketCandidateSelect = {
@@ -355,8 +360,9 @@ const marketCandidateSelect = {
   priceAmount: true,
   mileageKm: true,
   municipality: true,
+  sellerType: true,
   synchronizedAt: true,
-  vehicle: { select: { make: true, model: true, fuelType: true, transmission: true, bodyStyle: true, performanceVariant: true, modelYear: true } },
+  vehicle: { select: { make: true, model: true, fuelType: true, transmission: true, bodyStyle: true, drivetrain: true, generation: true, facelift: true, trim: true, performanceVariant: true, modelYear: true } },
 } satisfies Prisma.ListingRecordSelect;
 
 // constructIndependentCohort never looks past ±8 model years, so the SQL pull

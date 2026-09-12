@@ -32,6 +32,10 @@ model VehicleRecord {
   rawMake              String?
   rawModel             String?
   generation           String?
+  /// Mid-cycle refresh (facelift/LCI) within `generation`. `null` whenever
+  /// `generation` is `null` or the model's facelift year isn't calibrated —
+  /// never a guessed `false`. See `GenerationBand.faceliftFrom`.
+  facelift             Boolean?
   trim                 String?
   performanceVariant   String?
   normalizationVersion Int                         @default(0)
@@ -272,25 +276,33 @@ model ListingObservation {
 }
 
 model ListingAnalysisRecord {
-  listingId            String        @id
-  marketValueAmount    Int
-  marketValueMinimum   Int
-  marketValueMaximum   Int
-  comparableCount      Int
-  comparablePrices     Int[]         @default([])
-  confidence           String
+  listingId                String        @id
+  marketValueAmount        Int
+  marketValueMinimum       Int
+  marketValueMaximum       Int
+  comparableCount          Int
+  comparablePrices         Int[]         @default([])
+  confidence               String
   // Null = unrated: no comparable market value, or the asking price was
   // quarantined (monthly rate / deposit / placeholder / typo). Never 50.
-  dealScore            Int?
-  dealScoreFactors     Json          @default("[]")
-  buyConfidenceScore   Int
-  buyConfidenceFactors Json          @default("[]")
-  annualOwnershipCost  Int
-  ownershipCostItems   Json          @default("[]")
-  methodologyVersion   String
-  calculatedAt         DateTime
-  sourceSynchronizedAt DateTime
-  listing              ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  dealScore                Int?
+  dealScoreFactors         Json          @default("[]")
+  buyConfidenceScore       Int
+  buyConfidenceFactors     Json          @default("[]")
+  annualOwnershipCost      Int
+  ownershipCostItems       Json          @default("[]")
+  /// How much Carnalys trusts `marketValueAmount` itself — distinct from
+  /// `buyConfidenceScore`, which is about the specific car's condition risk.
+  /// `null` when no market value could be computed at all.
+  valuationConfidenceScore Int?
+  valuationConfidenceLabel String?
+  /// Top comparables behind the estimate, with similarity score + reasons, for
+  /// future UI explainability. See `comparable-similarity.ts`.
+  comparableInsights       Json          @default("[]")
+  methodologyVersion       String
+  calculatedAt             DateTime
+  sourceSynchronizedAt     DateTime
+  listing                  ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@index([calculatedAt])
   @@index([dealScore])

@@ -124,8 +124,9 @@ const storedListingSelect = {
  * over. Measured on the running page that was 585 KB of HTML for one screen of
  * results, of which 199 KB was payload for fields no card renders.
  *
- * A card needs one image, the identity, the price, the seller, and two score
- * values. The detail page keeps `storedListingSelect` and the full shape.
+ * A card needs a small browsable gallery, the identity, the price, the seller,
+ * and two score values. The detail page keeps `storedListingSelect` and the
+ * full shape.
  */
 const cardListingSelect = {
   id: true,
@@ -167,11 +168,12 @@ const cardListingSelect = {
       fuelConsumption: true,
     },
   },
-  // The card shows the first image and nothing else opens a gallery from here.
+  // Enough photos to inspect a car from the results page without restoring the
+  // unbounded detail-page payload for every card in a forty-result grid.
   images: {
     select: { url: true, alt: true, position: true },
     orderBy: { position: "asc" as const },
-    take: 1,
+    take: 8,
   },
   analysis: {
     select: {
@@ -616,6 +618,34 @@ function buildListingWhere(
     // `listedAt` already resolves publish-date-less ads to their first-seen
     // instant, so this is a single comparison instead of an OR.
     andConditions.push({ listedAt: { gte: cutoff } });
+  }
+
+  // Bounding box, not an exact circle: cheap on plain lat/lng columns (no
+  // PostGIS extension, no dedicated index) and close enough at the radii this
+  // filter is meant for. `distanceAway` on the card already shows the exact
+  // distance, so a corner-of-the-box listing a little outside the true circle
+  // is a minor and visible discrepancy, not a silent bug.
+  const KM_PER_DEGREE_LATITUDE = 111;
+  if (
+    filters.maxDistanceKm !== null &&
+    filters.originLatitude !== null &&
+    filters.originLongitude !== null
+  ) {
+    const latitudeDelta = filters.maxDistanceKm / KM_PER_DEGREE_LATITUDE;
+    const kmPerDegreeLongitude =
+      KM_PER_DEGREE_LATITUDE * Math.cos((filters.originLatitude * Math.PI) / 180);
+    const longitudeDelta =
+      filters.maxDistanceKm / Math.max(kmPerDegreeLongitude, 1);
+    andConditions.push({
+      latitude: {
+        gte: filters.originLatitude - latitudeDelta,
+        lte: filters.originLatitude + latitudeDelta,
+      },
+      longitude: {
+        gte: filters.originLongitude - longitudeDelta,
+        lte: filters.originLongitude + longitudeDelta,
+      },
+    });
   }
 
   return {

@@ -332,6 +332,7 @@ async function writeListing(
     rawMake: canonical.rawMake,
     rawModel: canonical.rawModel,
     generation: canonical.generation,
+    facelift: canonical.facelift,
     trim: canonical.trim,
     performanceVariant: canonical.performanceVariant,
     normalizationVersion: canonical.normalizationVersion,
