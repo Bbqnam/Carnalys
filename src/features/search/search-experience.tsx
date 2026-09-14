@@ -401,11 +401,13 @@ export function SearchExperience({
     // The catalogue can stay mounted in the browser while a synchronization
     // finishes and writes its analyses. Refresh the server payload briefly so
     // cards pick up those stored scores without requiring a hard reload or a
-    // visit to the detail page. Stop after two minutes to avoid polling forever
-    // if analysis is unavailable; genuinely unrated cars never enter this path.
+    // visit to the detail page. Keeps polling even while the tab is
+    // backgrounded, so scores are ready the moment the user comes back. Stop
+    // after two minutes to avoid polling forever if analysis is unavailable;
+    // genuinely unrated cars never enter this path.
     let refreshCount = 0;
     const refreshPendingAnalyses = () => {
-      if (document.visibilityState !== "visible" || refreshCount >= 8) return;
+      if (refreshCount >= 8) return;
       refreshCount += 1;
       router.refresh();
     };
