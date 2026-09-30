@@ -133,8 +133,15 @@ export function scoreComparable(
   // Fuel type is a hard gate, not a weighted component: a PHEV and a petrol
   // car of the same model are not the same product, however close everything
   // else is (battery, tax treatment, and running cost dominate the price).
-  if (target.fuelType !== "other" && candidate.fuelType !== "other" && target.fuelType !== candidate.fuelType) {
-    return { score: 0, tier: "D", reasons: ["Different fuel type"], hardReject: true };
+  if (target.fuelType !== candidate.fuelType) {
+    return {
+      score: 0,
+      tier: "D",
+      reasons: [candidate.fuelType === "other" || target.fuelType === "other"
+        ? "Ambiguous fuel type cannot cross a known powertrain boundary"
+        : "Different fuel type"],
+      hardReject: true,
+    };
   }
 
   const reasons: string[] = [];
