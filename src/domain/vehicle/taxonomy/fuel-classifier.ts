@@ -10,6 +10,7 @@ export interface FuelClassificationInput {
   horsepower?: number | null;
   powerKw?: number | null;
   electricRangeKm?: number | null;
+  sourceMetadata?: string | null;
 }
 
 export interface FuelClassification {
@@ -42,11 +43,16 @@ export function classifyFuelType(input: FuelClassificationInput): FuelClassifica
     .filter(Boolean)
     .join(" ")
     .toLocaleLowerCase("sv-SE");
+  const metadata = (input.sourceMetadata ?? "").toLocaleLowerCase("sv-SE");
 
   const explicitPhev = /\bplug[\s-]?in\b|\bphev\b|\bladdhybrid\b|\bplugin\b|\btwin engine\b|\brecharge\b.*\bt[68]\b|\bt[68]\b.*\brecharge\b/.test(text);
   const genericHybrid = /\bhybrid\b|\belhybrid\b|\bself[\s-]?charging\b|\bmhev\b|\bmild[\s-]?hybrid\b/.test(text);
   const explicitBev = /\bbev\b|\belbil\b|\bfull[\s-]?electric\b|\bfully electric\b/.test(text);
 
+  const metadataPhev = /\bplug[\s-]?in\b|\bphev\b|\bladdhybrid\b|\bplugin\b/.test(metadata);
+  const metadataHybrid = /\belhybrid\b|\bhybrid\b|\bself[\s-]?charging\b/.test(metadata) && !metadataPhev;
+  if (metadataPhev) add(scores, evidence, "plug_in_hybrid", 8, "raw source metadata explicitly identifies plug in hybrid");
+  if (metadataHybrid) add(scores, evidence, "self_charging_hybrid", 8, "raw source metadata identifies hybrid without plug in");
   if (explicitPhev) add(scores, evidence, "plug_in_hybrid", 7, "explicit plug in or PHEV wording");
   if (genericHybrid && !explicitPhev) add(scores, evidence, "self_charging_hybrid", 4, "generic hybrid wording without plug in evidence");
   if (explicitBev) add(scores, evidence, "electric", 7, "explicit BEV or electric car wording");
@@ -101,4 +107,27 @@ export function classifyFuelType(input: FuelClassificationInput): FuelClassifica
   }
 
   return { fuelType: best[0], confidence, evidence, contradictions };
+}
+
+export function extractFuelMetadata(raw: unknown): string {
+  const found: string[] = [];
+  let visited = 0;
+  const walk = (value: unknown, key = "", depth = 0) => {
+    if (visited++ > 1500 || depth > 8 || value == null) return;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      if (/fuel|drivmedel|bränsle|bransle|energy|powertrain/i.test(key)) found.push(String(value));
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item, key, depth + 1);
+      return;
+    }
+    if (typeof value === "object") {
+      for (const [childKey, child] of Object.entries(value as Record<string, unknown>)) {
+        walk(child, childKey, depth + 1);
+      }
+    }
+  };
+  walk(raw);
+  return found.slice(0, 30).join(" | ");
 }
