@@ -113,7 +113,7 @@ type SegmentComparableRow = MarketComparableRow;
 // never carry the same influence as an exact one. Also adds
 // `valuationConfidenceScore/Label` and `comparableInsights`. Bumping this
 // re-analyses every stored listing on the next sweep.
-const methodologyVersion = "similarity-weighted-cohorts-12.0";
+const methodologyVersion = "powertrain-safe-cohorts-13.0";
 // Deal Score semantics are versioned independently from market valuation —
 // v11 adds equipment coverage, listing transparency, seller protection, and
 // service-history/known-defects modifiers to Deal Score and Data Confidence.
