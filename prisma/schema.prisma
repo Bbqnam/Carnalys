@@ -303,6 +303,7 @@ model ListingAnalysisRecord {
   /// Top comparables behind the estimate, with similarity score + reasons, for
   /// future UI explainability. See `comparable-similarity.ts`.
   comparableInsights       Json          @default("[]")
+  valuationSanity          Json          @default("{}")
   methodologyVersion       String
   /// Deal Score semantics are versioned independently from market valuation.
   scoringVersion           String        @default("legacy")
