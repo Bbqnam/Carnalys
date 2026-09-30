@@ -190,7 +190,7 @@ test("two marketplaces' names for the same car resolve to the same core identity
     variant: "Sportswagon Plug-in Hybrid DCT Advance Euro 6",
     title: null,
     bodyStyle: "other",
-    fuelType: "petrol", // Blocket often mis-files PHEV as petrol; do NOT override a set enum
+    fuelType: "petrol", // Blocket can mis-file PHEV as petrol; explicit plug-in evidence must win
     modelYear: 2023,
   });
 
@@ -203,8 +203,8 @@ test("two marketplaces' names for the same car resolve to the same core identity
   // Raw provenance preserved and distinct.
   assert.equal(hedin.rawModel, "Ceed SW Plug-In Hybrid");
   assert.equal(blocket.rawModel, "Ceed");
-  // Blocket's petrol fuel is kept but flagged.
-  assert.equal(blocket.fuelType, "petrol");
+  // Explicit plug-in evidence corrects the weak source enum.
+  assert.equal(blocket.fuelType, "plug_in_hybrid");
   assert.ok(blocket.contradictions.some((c) => c.startsWith("fuelType")));
 });
 
@@ -236,7 +236,7 @@ test("a real performance badge in a pipe-delimited variant is still caught", () 
 });
 
 test("normalizationVersion is stamped", () => {
-  assert.equal(run("Kia", "Ceed").normalizationVersion, 2);
+  assert.equal(run("Kia", "Ceed").normalizationVersion, 3);
 });
 
 // ---------------------------------------------------------------------------
