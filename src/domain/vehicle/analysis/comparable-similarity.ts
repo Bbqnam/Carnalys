@@ -30,7 +30,7 @@ export interface SimilarityVehicle {
   facelift: boolean | null;
   trim: string | null;
   performanceVariant: string | null;
-  horsepower: number | null;
+  horsepower?: number | null;
   modelYear: number;
 }
 
