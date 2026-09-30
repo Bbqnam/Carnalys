@@ -304,6 +304,7 @@ export async function refreshStoredListingAnalyses(
       facelift: target.vehicle.facelift,
       trim: target.vehicle.trim,
       performanceVariant: target.vehicle.performanceVariant,
+      horsepower: target.vehicle.horsepower,
       modelYear: target.vehicle.modelYear,
       mileageKm: target.mileageKm,
       sellerType: target.sellerType,
@@ -320,6 +321,7 @@ export async function refreshStoredListingAnalyses(
       facelift: row.facelift,
       trim: row.trim,
       performanceVariant: row.performanceVariant,
+      horsepower: row.horsepower,
       modelYear: row.modelYear,
       mileageKm: Number(row.mileageKm),
       sellerType: row.sellerType,
@@ -485,6 +487,8 @@ export async function refreshStoredListingAnalyses(
         comparable.vehicleId !== target.vehicleId &&
         compatibleKind(targetKind, kindOf(comparable)) &&
         comparable.fuelType === target.vehicle.fuelType &&
+        (!target.vehicle.horsepower || !comparable.horsepower ||
+          Math.abs(comparable.horsepower - target.vehicle.horsepower) / target.vehicle.horsepower <= 0.25) &&
         Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 5 &&
         Number(comparable.priceAmount) >= minimumPrice &&
         Number(comparable.priceAmount) <= maximumPrice,
@@ -572,7 +576,7 @@ export async function refreshStoredListingAnalyses(
     let valuationSanity: Record<string, unknown> = { suspicious: false, recalculated: false };
     if (
       valuation.marketValue &&
-      (valuation.marketValue > target.priceAmount * 1.8 || valuation.marketValue < target.priceAmount * 0.55)
+      (valuation.marketValue > target.priceAmount * 1.5 || valuation.marketValue < target.priceAmount * 0.67)
     ) {
       const strictRows = cohortRows.filter((row) => {
         const sameGeneration = !target.vehicle.generation || !row.generation || row.generation === target.vehicle.generation;
