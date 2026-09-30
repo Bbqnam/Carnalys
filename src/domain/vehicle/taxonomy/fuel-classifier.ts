@@ -96,7 +96,7 @@ export function classifyFuelType(input: FuelClassificationInput): FuelClassifica
   if (best[0] === "plug_in_hybrid" && !explicitPhev && second && second[1] >= 2) {
     return { fuelType: "other", confidence: Math.min(confidence, 0.49), evidence, contradictions };
   }
-  if (margin < 1 && second && second[1] > 0) {
+  if (margin <= 1 && second && second[1] > 0) {
     return { fuelType: "other", confidence: Math.min(confidence, 0.49), evidence, contradictions };
   }
 
