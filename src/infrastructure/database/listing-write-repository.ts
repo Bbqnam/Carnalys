@@ -3,6 +3,7 @@ import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application
 import { exactVehicleMatchEvidence } from "@/application/ingestion/vehicle-match-policy";
 import { meaningfulListingEvents } from "@/domain/market/listing-history";
 import { canonicalizeVehicle } from "@/domain/vehicle/taxonomy";
+import { extractFuelMetadata } from "@/domain/vehicle/taxonomy/fuel-classifier";
 import { Prisma } from "@/generated/prisma/client";
 import { listingImageWritePolicy } from "./listing-image-write-policy";
 import { initializeDatabase, prisma } from "./prisma";
@@ -315,6 +316,7 @@ async function writeListing(
     description: listing.description,
     engineDescription: vehicle.engineDescription,
     horsepower: vehicle.horsepower,
+    sourceMetadata: extractFuelMetadata(normalized.rawPayload),
   });
 
   const vehicleFields = {
