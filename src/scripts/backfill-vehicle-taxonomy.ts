@@ -19,6 +19,7 @@ import {
   canonicalizeVehicle,
   CURRENT_NORMALIZATION_VERSION,
 } from "@/domain/vehicle/taxonomy";
+import { extractFuelMetadata } from "@/domain/vehicle/taxonomy/fuel-classifier";
 
 const args = new Map(
   process.argv.slice(2).map((a) => {
@@ -128,14 +129,14 @@ async function main() {
     cursor = rows[rows.length - 1].id;
 
     // One representative title per vehicle for token context.
-    const contextByVehicle = new Map<string, { title: string | null; description: string | null }>();
+    const contextByVehicle = new Map<string, { title: string | null; description: string | null; sourceMetadata: string }>();
     const listingRows = await prisma.listingRecord.findMany({
       where: { vehicleId: { in: rows.map((r) => r.id) } },
       orderBy: [{ isVehicleRepresentative: "desc" }, { synchronizedAt: "desc" }],
-      select: { vehicleId: true, title: true, description: true },
+      select: { vehicleId: true, title: true, description: true, rawPayload: true },
     });
     for (const l of listingRows) {
-      if (!contextByVehicle.has(l.vehicleId)) contextByVehicle.set(l.vehicleId, { title: l.title, description: l.description });
+      if (!contextByVehicle.has(l.vehicleId)) contextByVehicle.set(l.vehicleId, { title: l.title, description: l.description, sourceMetadata: extractFuelMetadata(l.rawPayload) });
     }
 
     const updates: { id: string; data: Record<string, unknown> }[] = [];
@@ -152,6 +153,7 @@ async function main() {
         description: contextByVehicle.get(row.id)?.description ?? null,
         engineDescription: row.engineDescription,
         horsepower: row.horsepower,
+        sourceMetadata: contextByVehicle.get(row.id)?.sourceMetadata ?? null,
         bodyStyle: row.bodyStyle as never,
         fuelType: row.fuelType as never,
         modelYear: row.modelYear,
