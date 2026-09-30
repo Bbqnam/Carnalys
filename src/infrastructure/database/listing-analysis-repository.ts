@@ -72,6 +72,7 @@ interface AnalysisTarget {
     trim: string | null;
     performanceVariant: string | null;
     modelYear: number;
+    horsepower: number | null;
   };
 }
 
@@ -92,6 +93,7 @@ interface MarketComparableRow {
   trim: string | null;
   performanceVariant: string | null;
   modelYear: number;
+  horsepower: number | null;
   mileageKm: number;
   priceAmount: number;
   sellerType: string;
@@ -210,6 +212,7 @@ async function loadTargets(
           trim: true,
           performanceVariant: true,
           modelYear: true,
+          horsepower: true,
         },
       },
     },
@@ -261,6 +264,7 @@ export async function refreshStoredListingAnalyses(
       vehicle."trim" AS "trim",
       vehicle."performanceVariant" AS "performanceVariant",
       vehicle."modelYear" AS "modelYear",
+      vehicle."horsepower" AS "horsepower",
       listing."mileageKm" AS "mileageKm",
       listing."priceAmount" AS "priceAmount",
       listing."sellerType" AS "sellerType",
@@ -440,6 +444,7 @@ export async function refreshStoredListingAnalyses(
           vehicle."trim" AS "trim",
           vehicle."performanceVariant" AS "performanceVariant",
           vehicle."modelYear" AS "modelYear",
+          vehicle."horsepower" AS "horsepower",
           listing."mileageKm" AS "mileageKm",
           listing."priceAmount" AS "priceAmount",
           listing."sellerType" AS "sellerType",
@@ -479,6 +484,7 @@ export async function refreshStoredListingAnalyses(
         comparable.id !== target.id &&
         comparable.vehicleId !== target.vehicleId &&
         compatibleKind(targetKind, kindOf(comparable)) &&
+        comparable.fuelType === target.vehicle.fuelType &&
         Math.abs(comparable.modelYear - target.vehicle.modelYear) <= 5 &&
         Number(comparable.priceAmount) >= minimumPrice &&
         Number(comparable.priceAmount) <= maximumPrice,
@@ -562,7 +568,45 @@ export async function refreshStoredListingAnalyses(
     }
 
     const ageYears = Math.max(0, analysisYear - target.vehicle.modelYear);
-    const valuation = valueVehicle({ ageYears, mileageKm: target.mileageKm }, cohort);
+    let valuation = valueVehicle({ ageYears, mileageKm: target.mileageKm }, cohort);
+    let valuationSanity: Record<string, unknown> = { suspicious: false, recalculated: false };
+    if (
+      valuation.marketValue &&
+      (valuation.marketValue > target.priceAmount * 1.8 || valuation.marketValue < target.priceAmount * 0.55)
+    ) {
+      const strictRows = cohortRows.filter((row) => {
+        const sameGeneration = !target.vehicle.generation || !row.generation || row.generation === target.vehicle.generation;
+        const sameDrivetrain = !target.vehicle.drivetrain || !row.drivetrain || row.drivetrain === target.vehicle.drivetrain;
+        const powerCompatible =
+          !target.vehicle.horsepower ||
+          !row.horsepower ||
+          Math.abs(row.horsepower - target.vehicle.horsepower) / target.vehicle.horsepower <= 0.25;
+        return row.fuelType === target.vehicle.fuelType &&
+          sameGeneration &&
+          sameDrivetrain &&
+          powerCompatible &&
+          Math.abs(row.modelYear - target.vehicle.modelYear) <= 2 &&
+          Math.abs(Number(row.mileageKm) - target.mileageKm) <= 60_000;
+      });
+      const strict = strictRows.map((row) => ({
+        priceAmount: Number(row.priceAmount),
+        ageYears: analysisYear - row.modelYear,
+        mileageKm: Number(row.mileageKm),
+      }));
+      const recalculated = valueVehicle({ ageYears, mileageKm: target.mileageKm }, strict);
+      valuationSanity = {
+        suspicious: true,
+        reason: "market value far from asking price",
+        checks: ["fuel type", "generation", "drivetrain", "horsepower", "model year", "mileage"],
+        strictComparableCount: recalculated.comparableCount,
+        recalculated: recalculated.marketValue !== null,
+      };
+      if (recalculated.marketValue !== null) {
+        valuation = recalculated;
+        cohortRows = strictRows;
+        cohort = strict;
+      }
+    }
     // Nearest 40 by year/mileage closeness — bounds the equipment-comparison
     // query for a popular model without needing the whole cohort.
     const equipmentCohort = [...cohortRows]
@@ -586,6 +630,7 @@ export async function refreshStoredListingAnalyses(
       tierCountsUsed,
       usedSegmentFallback,
       comparableInsights,
+      valuationSanity,
     };
   });
 
@@ -806,6 +851,7 @@ export async function refreshStoredListingAnalyses(
           valuationConfidenceScore: valuationConfidence?.score ?? null,
           valuationConfidenceLabel: valuationConfidence?.label ?? null,
           comparableInsights: comparableInsights as unknown as Prisma.InputJsonValue,
+          valuationSanity: context.valuationSanity as unknown as Prisma.InputJsonValue,
           dealScore: dealResult.value,
           dealScoreFactors: buildDealScoreFactors(
             factorInputs,
