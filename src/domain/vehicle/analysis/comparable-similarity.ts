@@ -144,7 +144,7 @@ export function scoreComparable(
     };
   }
 
-  const reasons: string[] = [];
+  const reasons: string[] = [`Same fuel type (${target.fuelType})`];
   let weighted = 0;
 
   // --- generation + facelift ---
