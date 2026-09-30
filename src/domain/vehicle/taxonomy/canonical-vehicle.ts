@@ -17,7 +17,7 @@ import {
  * Bump when the rules or pipeline change in a way that should re-classify
  * stored vehicles. The backfill targets rows below this; ingestion writes it.
  */
-export const CURRENT_NORMALIZATION_VERSION = 3;
+export const CURRENT_NORMALIZATION_VERSION = 4;
 
 export interface CanonicalVehicleInput {
   make: string;
@@ -33,6 +33,7 @@ export interface CanonicalVehicleInput {
   horsepower?: number | null;
   powerKw?: number | null;
   electricRangeKm?: number | null;
+  sourceMetadata?: string | null;
 }
 
 export interface CanonicalVehicle {
@@ -261,6 +262,7 @@ export function canonicalizeVehicle(input: CanonicalVehicleInput): CanonicalVehi
     horsepower: input.horsepower,
     powerKw: input.powerKw,
     electricRangeKm: input.electricRangeKm,
+    sourceMetadata: input.sourceMetadata,
   });
   let fuelType = fuelClassification.fuelType;
   contradictions.push(...fuelClassification.contradictions);
