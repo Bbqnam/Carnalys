@@ -30,6 +30,7 @@ export interface SimilarityVehicle {
   facelift: boolean | null;
   trim: string | null;
   performanceVariant: string | null;
+  horsepower: number | null;
   modelYear: number;
 }
 
@@ -133,6 +134,19 @@ export function scoreComparable(
   // Fuel type is a hard gate, not a weighted component: a PHEV and a petrol
   // car of the same model are not the same product, however close everything
   // else is (battery, tax treatment, and running cost dominate the price).
+  if (
+    target.horsepower &&
+    candidate.horsepower &&
+    Math.abs(candidate.horsepower - target.horsepower) / target.horsepower > 0.25
+  ) {
+    return {
+      score: 0,
+      tier: "D",
+      reasons: [`Horsepower differs substantially (${target.horsepower} vs ${candidate.horsepower} hp)`],
+      hardReject: true,
+    };
+  }
+
   if (target.fuelType !== candidate.fuelType) {
     return {
       score: 0,
@@ -145,6 +159,7 @@ export function scoreComparable(
   }
 
   const reasons: string[] = [`Same fuel type (${target.fuelType})`];
+  if (target.horsepower && candidate.horsepower) reasons.push(`Compatible horsepower (${candidate.horsepower} hp)`);
   let weighted = 0;
 
   // --- generation + facelift ---
