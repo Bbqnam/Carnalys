@@ -19,6 +19,7 @@ import {
   canonicalizeVehicle,
   CURRENT_NORMALIZATION_VERSION,
 } from "@/domain/vehicle/taxonomy";
+import { extractFuelMetadata } from "@/domain/vehicle/taxonomy/fuel-classifier";
 
 const args = new Map(
   process.argv.slice(2).map((a) => {
@@ -46,6 +47,9 @@ type Row = {
   trim: string | null;
   performanceVariant: string | null;
   normalizationVersion: number;
+  engineDescription: string | null;
+  horsepower: number | null;
+  fuelTypeConfidence: number | null;
 };
 
 const CHANGED_FIELDS = [
@@ -57,6 +61,7 @@ const CHANGED_FIELDS = [
   "facelift",
   "trim",
   "performanceVariant",
+  "fuelTypeConfidence",
 ] as const;
 
 async function main() {
@@ -115,20 +120,23 @@ async function main() {
         trim: true,
         performanceVariant: true,
         normalizationVersion: true,
+        engineDescription: true,
+        horsepower: true,
+        fuelTypeConfidence: true,
       },
     });
     if (rows.length === 0) break;
     cursor = rows[rows.length - 1].id;
 
     // One representative title per vehicle for token context.
-    const titleByVehicle = new Map<string, string>();
+    const contextByVehicle = new Map<string, { title: string | null; description: string | null; sourceMetadata: string }>();
     const listingRows = await prisma.listingRecord.findMany({
       where: { vehicleId: { in: rows.map((r) => r.id) } },
       orderBy: [{ isVehicleRepresentative: "desc" }, { synchronizedAt: "desc" }],
-      select: { vehicleId: true, title: true },
+      select: { vehicleId: true, title: true, description: true, rawPayload: true },
     });
     for (const l of listingRows) {
-      if (l.title && !titleByVehicle.has(l.vehicleId)) titleByVehicle.set(l.vehicleId, l.title);
+      if (!contextByVehicle.has(l.vehicleId)) contextByVehicle.set(l.vehicleId, { title: l.title, description: l.description, sourceMetadata: extractFuelMetadata(l.rawPayload) });
     }
 
     const updates: { id: string; data: Record<string, unknown> }[] = [];
@@ -141,7 +149,11 @@ async function main() {
         make: sourceMake,
         model: sourceModel,
         variant: row.variant,
-        title: titleByVehicle.get(row.id) ?? null,
+        title: contextByVehicle.get(row.id)?.title ?? null,
+        description: contextByVehicle.get(row.id)?.description ?? null,
+        engineDescription: row.engineDescription,
+        horsepower: row.horsepower,
+        sourceMetadata: contextByVehicle.get(row.id)?.sourceMetadata ?? null,
         bodyStyle: row.bodyStyle as never,
         fuelType: row.fuelType as never,
         modelYear: row.modelYear,
@@ -158,10 +170,12 @@ async function main() {
         facelift: canonical.facelift,
         trim: canonical.trim,
         performanceVariant: canonical.performanceVariant,
+        fuelTypeConfidence: canonical.fuelTypeConfidence,
       };
 
       const data: Record<string, unknown> = {
         normalizationVersion: CURRENT_NORMALIZATION_VERSION,
+        fuelTypeEvidence: canonical.fuelTypeEvidence,
       };
       if (row.rawMake == null) data.rawMake = sourceMake;
       if (row.rawModel == null) data.rawModel = sourceModel;

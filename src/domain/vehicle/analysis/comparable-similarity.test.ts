@@ -174,3 +174,13 @@ test("rare vehicle: sparse but genuinely close data still scores well on its own
   );
   assert.ok(r.score >= 60, `expected a decent score from year/mileage/drivetrain alone, got ${r.score}`);
 });
+
+test("substantially different horsepower is a hard comparable rejection", () => {
+  const r = scoreComparable(
+    target({ fuelType: "self_charging_hybrid", horsepower: 222 }),
+    candidate({ fuelType: "self_charging_hybrid", horsepower: 306 }),
+    NOW,
+  );
+  assert.equal(r.hardReject, true);
+  assert.ok(r.reasons.some((reason) => reason.includes("Horsepower differs substantially")));
+});

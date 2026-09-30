@@ -1,5 +1,6 @@
 import type { BodyStyle, FuelType } from "@/domain/vehicle/specifications";
 import { findMakeRule, type GenerationBand, type ModelRule } from "./rules";
+import { classifyFuelType } from "./fuel-classifier";
 import {
   ABSORBABLE_MODEL_SUFFIXES,
   BODY_TOKENS,
@@ -16,7 +17,7 @@ import {
  * Bump when the rules or pipeline change in a way that should re-classify
  * stored vehicles. The backfill targets rows below this; ingestion writes it.
  */
-export const CURRENT_NORMALIZATION_VERSION = 2;
+export const CURRENT_NORMALIZATION_VERSION = 4;
 
 export interface CanonicalVehicleInput {
   make: string;
@@ -27,6 +28,12 @@ export interface CanonicalVehicleInput {
   bodyStyle: BodyStyle;
   fuelType: FuelType;
   modelYear?: number | null;
+  description?: string | null;
+  engineDescription?: string | null;
+  horsepower?: number | null;
+  powerKw?: number | null;
+  electricRangeKm?: number | null;
+  sourceMetadata?: string | null;
 }
 
 export interface CanonicalVehicle {
@@ -49,6 +56,8 @@ export interface CanonicalVehicle {
   rawMake: string;
   rawModel: string;
   normalizationVersion: number;
+  fuelTypeConfidence: number;
+  fuelTypeEvidence: readonly string[];
   /**
    * Dimensions where a token disagreed with a *set* source enum. Not applied
    * (conservative), surfaced for the future data-quality diagnostic.
@@ -240,12 +249,25 @@ export function canonicalizeVehicle(input: CanonicalVehicleInput): CanonicalVehi
     contradictions.push(`bodyStyle: source=${input.bodyStyle} tokens=${[...new Set(hintBody)].join("/")}`);
   }
 
-  // --- fuel type: fill only when source is `other` ---
-  let fuelType = input.fuelType;
-  if (fuelType === "other" && hintFuel.length > 0) {
-    fuelType = hintFuel[0];
-  } else if (fuelType !== "other" && hintFuel.length > 0 && !hintFuel.includes(fuelType)) {
-    contradictions.push(`fuelType: source=${input.fuelType} tokens=${[...new Set(hintFuel)].join("/")}`);
+  // --- fuel type: evidence based across source + listing context ---
+  // Marketplace enums are inputs, not truth. In particular, generic "hybrid"
+  // wording can never promote a vehicle to PHEV without independent plug in evidence.
+  const fuelClassification = classifyFuelType({
+    sourceFuelType: input.fuelType,
+    title: input.title,
+    model: tidyModel,
+    variant,
+    description: input.description,
+    engineDescription: input.engineDescription,
+    horsepower: input.horsepower,
+    powerKw: input.powerKw,
+    electricRangeKm: input.electricRangeKm,
+    sourceMetadata: input.sourceMetadata,
+  });
+  let fuelType = fuelClassification.fuelType;
+  contradictions.push(...fuelClassification.contradictions);
+  if (hintFuel.length > 0 && fuelType !== "other" && !hintFuel.includes(fuelType)) {
+    contradictions.push(`fuelType: classified=${fuelType} tokens=${[...new Set(hintFuel)].join("/")}`);
   }
 
   // --- trim + performance variant (from variant, then title) ---
@@ -277,6 +299,8 @@ export function canonicalizeVehicle(input: CanonicalVehicleInput): CanonicalVehi
     rawMake,
     rawModel,
     normalizationVersion: CURRENT_NORMALIZATION_VERSION,
+    fuelTypeConfidence: fuelClassification.confidence,
+    fuelTypeEvidence: fuelClassification.evidence,
     contradictions,
   };
 }

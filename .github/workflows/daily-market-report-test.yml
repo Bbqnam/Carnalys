@@ -51,6 +51,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Run unit tests
+        run: npm test
+
       - name: Apply repository migrations
         run: npx prisma migrate deploy
 
@@ -73,3 +76,27 @@ jobs:
 
       - name: Execute complete daily report query
         run: npm run report:smoke
+
+  production-powertrain-diagnostic:
+    name: Powertrain production diagnostic
+    needs: report
+    if: github.head_ref == 'fix/powertrain-classification'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - name: Capture old listing analysis
+        run: npx tsx src/scripts/powertrain-fix-diagnostic.ts before listing_3c30bfa3a3431f06f349
+      - name: Renormalize stored Toyota vehicles
+        run: npx tsx src/scripts/backfill-vehicle-taxonomy.ts --make=Toyota
+      - name: Reanalyse target listing
+        run: npx tsx src/scripts/powertrain-fix-diagnostic.ts after listing_3c30bfa3a3431f06f349
