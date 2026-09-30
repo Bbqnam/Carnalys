@@ -11,9 +11,12 @@ const provider = "blocket_unofficial";
 
 function normalizeFuel(value?: string): FuelType {
   const fuel = value?.toLocaleLowerCase("sv-SE") ?? "";
-  if (fuel.includes("laddhybrid") || (/\bel\b/.test(fuel) && fuel.includes("bensin")))
+  // "El + bensin" / generic hybrid is not proof of external charging.
+  // PHEV requires explicit plug in semantics from the source.
+  if (fuel.includes("laddhybrid") || fuel.includes("plug-in") || fuel.includes("plug in") || fuel.includes("phev"))
     return "plug_in_hybrid";
-  if (fuel.includes("hybrid")) return "self_charging_hybrid";
+  if (fuel.includes("hybrid") || (/\bel\b/.test(fuel) && fuel.includes("bensin")))
+    return "self_charging_hybrid";
   if (fuel === "el" || fuel.includes("elektrisk")) return "electric";
   if (fuel.includes("diesel")) return "diesel";
   if (fuel.includes("bensin")) return "petrol";
