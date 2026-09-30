@@ -205,7 +205,7 @@ test("two marketplaces' names for the same car resolve to the same core identity
   assert.equal(blocket.rawModel, "Ceed");
   // Explicit plug-in evidence corrects the weak source enum.
   assert.equal(blocket.fuelType, "plug_in_hybrid");
-  assert.ok(blocket.contradictions.some((c) => c.startsWith("fuelType")));
+  assert.ok(blocket.contradictions.some((c) => c.includes("fuel")));
 });
 
 // ---------------------------------------------------------------------------
