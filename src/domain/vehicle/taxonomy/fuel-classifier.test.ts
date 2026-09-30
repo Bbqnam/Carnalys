@@ -44,3 +44,14 @@ test("RAV4 222 hp HEV and 306 hp PHEV separate from evidence, not model hardcodi
   assert.equal(hev.fuelType, "self_charging_hybrid");
   assert.equal(phev.fuelType, "plug_in_hybrid");
 });
+
+test("raw source metadata corrects a wrongly normalized PHEV enum", () => {
+  const result = classifyFuelType({
+    sourceFuelType: "plug_in_hybrid",
+    title: "Toyota RAV4",
+    sourceMetadata: "Drivmedel: Elhybrid (bensin)",
+    horsepower: 222,
+  });
+  assert.equal(result.fuelType, "self_charging_hybrid");
+  assert.ok(result.evidence.some((x) => x.includes("raw source metadata")));
+});
