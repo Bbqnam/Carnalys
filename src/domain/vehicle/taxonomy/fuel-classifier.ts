@@ -43,7 +43,7 @@ export function classifyFuelType(input: FuelClassificationInput): FuelClassifica
     .join(" ")
     .toLocaleLowerCase("sv-SE");
 
-  const explicitPhev = /\bplug[\s-]?in\b|\bphev\b|\bladdhybrid\b|\bplugin\b|\btwin engine\b/.test(text);
+  const explicitPhev = /\bplug[\s-]?in\b|\bphev\b|\bladdhybrid\b|\bplugin\b|\btwin engine\b|\brecharge\b.*\bt[68]\b|\bt[68]\b.*\brecharge\b/.test(text);
   const genericHybrid = /\bhybrid\b|\belhybrid\b|\bself[\s-]?charging\b|\bmhev\b|\bmild[\s-]?hybrid\b/.test(text);
   const explicitBev = /\bbev\b|\belbil\b|\bfull[\s-]?electric\b|\bfully electric\b/.test(text);
 
