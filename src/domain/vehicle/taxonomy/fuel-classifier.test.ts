@@ -28,7 +28,7 @@ test("diesel", () => {
 
 test("conflicting strong source information becomes ambiguous", () => {
   const result = classifyFuelType({ sourceFuelType: "diesel", title: "Fully electric BEV" });
-  assert.equal(result.fuelType, "electric");
+  assert.equal(result.fuelType, "other");
   assert.ok(result.contradictions.length > 0);
 });
 
