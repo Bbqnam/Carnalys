@@ -312,6 +312,9 @@ async function writeListing(
     bodyStyle: vehicle.bodyStyle,
     fuelType: vehicle.fuelType,
     modelYear: vehicle.modelYear,
+    description: listing.description,
+    engineDescription: vehicle.engineDescription,
+    horsepower: vehicle.horsepower,
   });
 
   const vehicleFields = {
@@ -338,6 +341,8 @@ async function writeListing(
     trim: canonical.trim,
     performanceVariant: canonical.performanceVariant,
     normalizationVersion: canonical.normalizationVersion,
+    fuelTypeConfidence: canonical.fuelTypeConfidence,
+    fuelTypeEvidence: canonical.fuelTypeEvidence as unknown as Prisma.InputJsonValue,
   };
 
   // Kept beside the fields it is derived from, so a change to the vehicle's
