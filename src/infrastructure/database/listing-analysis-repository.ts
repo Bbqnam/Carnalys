@@ -667,7 +667,7 @@ export async function refreshStoredListingAnalyses(
 
   await prisma.$transaction(
     contexts.map(
-      ({ target, strength, cohortRows, cohort, equipmentCohort, ageYears, valuation, tierCountsUsed, usedSegmentFallback, comparableInsights }) => {
+      ({ target, strength, cohortRows, cohort, equipmentCohort, ageYears, valuation, tierCountsUsed, usedSegmentFallback, comparableInsights, valuationSanity }) => {
         const weightedPrices = cohort.map((c) => ({ value: c.priceAmount, weight: c.weight ?? 1 }));
         const dispersionMedian = weightedPrices.length ? weightedMedian(weightedPrices) : 0;
         const priceDispersionRatio =
@@ -851,7 +851,7 @@ export async function refreshStoredListingAnalyses(
           valuationConfidenceScore: valuationConfidence?.score ?? null,
           valuationConfidenceLabel: valuationConfidence?.label ?? null,
           comparableInsights: comparableInsights as unknown as Prisma.InputJsonValue,
-          valuationSanity: context.valuationSanity as unknown as Prisma.InputJsonValue,
+          valuationSanity: valuationSanity as unknown as Prisma.InputJsonValue,
           dealScore: dealResult.value,
           dealScoreFactors: buildDealScoreFactors(
             factorInputs,
