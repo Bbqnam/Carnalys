@@ -18,6 +18,10 @@ model VehicleRecord {
   registrationYear     Int?
   bodyStyle            String
   fuelType             String
+  /// Valuation-specific powertrain class: bev | phev | mhev | hev |
+  /// combustion | hydrogen | unknown. Kept separate from the public fuel
+  /// filter because source marketplaces often file hybrids under petrol.
+  powertrainType        String?
   transmission         String
   drivetrain           String?
   horsepower           Int?
@@ -112,6 +116,12 @@ model ListingRecord {
   contentHash                String?
   imageHash                  String?
   equipmentHash              String?
+  /// Source-independent validation outcome. Legacy rows remain eligible until
+  /// they are revalidated on their next sync/backfill.
+  validationStatus           String                   @default("unchecked")
+  validationReasonCodes      String[]                 @default([])
+  valuationEligible          Boolean                  @default(true)
+  validatedAt                DateTime?
   missingReconciliationCount Int                      @default(0)
   availabilityCheckedAt      DateTime?
   availabilityCheckStatus    String?
@@ -141,6 +151,7 @@ model ListingRecord {
   @@index([provider, status, availabilityCheckedAt])
   @@index([mileageKm])
   @@index([lastSeenAt])
+  @@index([valuationEligible, status])
 }
 
 /// Lightweight first-party accounts. Usernames are displayed as entered while

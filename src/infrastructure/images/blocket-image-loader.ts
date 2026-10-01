@@ -2,7 +2,13 @@
 
 const blocketImageHost = "https://images.blocketcdn.se/";
 const waykeImageHost = "https://cdn.wayke.se/";
+const hedinImageHost = "https://cdne-cdn-prod-polaris-prod.azureedge.net/";
 const waykeCfitWidths = [225, 380, 770, 800, 1170, 1920] as const;
+
+function appendWidth(url: string, width: number, parameter = "width") {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}${parameter}=${width}`;
+}
 
 function supportedWaykeCfitWidth(requestedWidth: number) {
   return (
@@ -22,9 +28,9 @@ function supportedWaykeCfitWidth(requestedWidth: number) {
  * quota no matter how it's tuned. Delegating the resize to Blocket keeps
  * correctly-sized, responsive images while costing us nothing.
  *
- * Anything else (the brand mark, the local SVG fallback) is a handful of
- * small static assets, so it's served straight from /public rather than
- * optimized — the SVG isn't optimizable anyway, and the mark renders at 36px.
+ * Hedin's Polaris CDN exposes fixed thumbnail/preview/enlarged files and Imgix
+ * accepts normal width parameters. Anything else is a small static asset, so
+ * it remains a pass-through response with a responsive-candidate cache key.
  */
 export default function blocketImageLoader({
   src,
@@ -52,5 +58,25 @@ export default function blocketImageLoader({
     }
     return url.toString();
   }
-  return src;
+  if (src.startsWith(hedinImageHost)) {
+    // Polaris exposes real 200px thumbnail, 700px preview and 1920px enlarged
+    // files rather than a query-driven resize API. Select the smallest source
+    // that covers Next's requested width; this cuts a typical result-card image
+    // from ~265 kB to ~52 kB while preserving the enlarged detail image.
+    const variant = width <= 256 ? "thumbnail" : width <= 700 ? "preview" : "enlarged";
+    const selected = src.replace(/-(?:thumbnail|preview|enlarged)(\.[a-z0-9]+)(?:\?.*)?$/i, `-${variant}$1`);
+    return appendWidth(selected, width);
+  }
+  if (src.startsWith("https://vl.imgix.net/")) {
+    const url = new URL(src);
+    url.searchParams.set("auto", "format");
+    url.searchParams.set("fit", "max");
+    url.searchParams.set("w", String(width));
+    return url.toString();
+  }
+
+  // Static imports and the few remaining remote marks cannot be resized by
+  // their origin. Keep them as pass-through assets, but make the selected
+  // responsive candidate explicit so Next does not treat the loader as broken.
+  return appendWidth(src, width);
 }

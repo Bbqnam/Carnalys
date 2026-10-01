@@ -57,15 +57,17 @@ function Mark({
     );
   }
   const drawnHeight = Math.round(height * (source.logoKey ? MARK_SCALE[source.logoKey] ?? 1 : 1));
+  const naturalWidth = Math.round((drawnHeight * mark.width) / mark.height);
+  const drawnWidth = Math.min(naturalWidth, MARK_MAX_WIDTH);
+  const constrainedHeight = Math.max(1, Math.round((drawnHeight * drawnWidth) / naturalWidth));
   const image = (
     <Image
       alt=""
       aria-hidden="true"
-      className="relative w-auto max-w-full object-contain object-left"
-      height={drawnHeight}
+      className="relative object-contain object-left"
+      height={constrainedHeight}
       src={mark}
-      style={{ height: drawnHeight, maxWidth: MARK_MAX_WIDTH }}
-      width={Math.round((drawnHeight * mark.width) / mark.height)}
+      width={drawnWidth}
     />
   );
   if (!source.logoKey || !NEEDS_DARK_CHIP.has(source.logoKey)) return image;

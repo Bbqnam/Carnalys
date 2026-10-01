@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { uiCopy, type Locale } from "./copy";
 
@@ -35,7 +36,7 @@ export function SearchHero({
         />
       </div>
 
-      <div className="relative mx-auto flex max-w-[1800px] items-center px-5 py-10 sm:min-h-[530px] sm:px-8 sm:py-14 lg:px-12">
+      <div className="relative mx-auto flex max-w-[1800px] items-center px-5 py-9 sm:min-h-[410px] sm:px-8 sm:py-12 lg:px-12">
         <div className="w-full max-w-[39rem]">
           <p className="text-xs font-semibold tracking-[-0.01em] text-accent-strong">
             {copy.hero.eyebrow}
@@ -51,11 +52,46 @@ export function SearchHero({
             </span>
           </h1>
 
-          <p className="mt-4 text-sm text-ink-muted">
-            {copy.hero.analysedCount(totalListings)}
+          <p className="mt-4 max-w-xl text-sm leading-6 text-ink-muted">
+            {copy.hero.description}
           </p>
 
-          <div className="mt-8">{analyst}</div>
+          <form action="/#cars" className="mt-6 flex max-w-xl gap-2" role="search">
+            <label className="sr-only" htmlFor="hero-search">{copy.hero.searchLabel}</label>
+            <input
+              className="h-12 min-w-0 flex-1 rounded-xl border border-border-strong bg-surface/95 px-4 text-sm text-ink shadow-sm outline-none transition placeholder:text-ink-subtle focus:border-accent focus:ring-2 focus:ring-accent/20"
+              id="hero-search"
+              name="q"
+              placeholder={copy.hero.searchPlaceholder}
+              type="search"
+            />
+            <button
+              className="h-12 shrink-0 rounded-xl bg-ink px-5 text-sm font-semibold text-surface shadow-sm transition hover:opacity-90 active:scale-[0.98]"
+              type="submit"
+            >
+              {copy.hero.searchAction}
+            </button>
+          </form>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <Link
+              className="inline-flex h-11 items-center rounded-full border border-border-strong bg-surface/90 px-4 text-sm font-semibold text-ink shadow-sm transition hover:border-accent/50 hover:shadow-md"
+              href="#cars"
+            >
+              {locale === "sv" ? "Hitta en bil" : "Find a car"}
+            </Link>
+            {analyst}
+            <Link
+              className="inline-flex h-11 items-center rounded-full border border-border-strong bg-surface/90 px-4 text-sm font-semibold text-ink shadow-sm transition hover:border-accent/50 hover:shadow-md"
+              href="/?sort=deal_score#cars"
+            >
+              {locale === "sv" ? "Bästa köpen" : "Best deals"}
+            </Link>
+          </div>
+
+          <p className="mt-4 text-xs font-medium text-ink-subtle">
+            {copy.hero.analysedCount(totalListings)}
+          </p>
         </div>
       </div>
     </section>

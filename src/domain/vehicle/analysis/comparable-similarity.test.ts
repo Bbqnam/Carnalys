@@ -85,6 +85,21 @@ test("different fuel type is a hard reject regardless of everything else matchin
   assert.equal(r.score, 0);
 });
 
+test("powertrain class separates HEV, PHEV and MHEV even when source fuel enums are noisy", () => {
+  const samePhev = scoreComparable(
+    target({ fuelType: "petrol", powertrainType: "phev" }),
+    candidate({ fuelType: "self_charging_hybrid", powertrainType: "phev" }),
+    NOW,
+  );
+  const mhev = scoreComparable(
+    target({ fuelType: "petrol", powertrainType: "phev" }),
+    candidate({ fuelType: "petrol", powertrainType: "mhev" }),
+    NOW,
+  );
+  assert.equal(samePhev.hardReject, false);
+  assert.equal(mhev.hardReject, true);
+});
+
 test("facelift boundary: same generation, different facelift status scores meaningfully lower but not zero", () => {
   const sameFacelift = scoreComparable(target(), candidate({ facelift: false }), NOW);
   const differentFacelift = scoreComparable(target(), candidate({ facelift: true }), NOW);

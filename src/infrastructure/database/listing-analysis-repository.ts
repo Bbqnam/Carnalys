@@ -56,6 +56,7 @@ interface AnalysisTarget {
   description: string | null;
   sellerType: string;
   synchronizedAt: Date;
+  valuationEligible: boolean;
   equipment: { label: string }[];
   vehicle: {
     registrationNumber: string | null;
@@ -64,6 +65,7 @@ interface AnalysisTarget {
     model: string;
     variant: string | null;
     fuelType: string;
+    powertrainType: string | null;
     transmission: string;
     bodyStyle: string;
     drivetrain: string | null;
@@ -85,6 +87,7 @@ interface MarketComparableRow {
   variant: string | null;
   generation: string | null;
   fuelType: string;
+  powertrainType: string | null;
   transmission: string;
   bodyStyle: string;
   drivetrain: string | null;
@@ -111,7 +114,7 @@ type SegmentComparableRow = MarketComparableRow;
 // never carry the same influence as an exact one. Also adds
 // `valuationConfidenceScore/Label` and `comparableInsights`. Bumping this
 // re-analyses every stored listing on the next sweep.
-const methodologyVersion = "similarity-weighted-cohorts-12.0";
+const methodologyVersion = "quality-gated-similarity-cohorts-12.1";
 // Deal Score semantics are versioned independently from market valuation —
 // v11 adds equipment coverage, listing transparency, seller protection, and
 // service-history/known-defects modifiers to Deal Score and Data Confidence.
@@ -193,6 +196,7 @@ async function loadTargets(
       description: true,
       sellerType: true,
       synchronizedAt: true,
+      valuationEligible: true,
       equipment: { select: { label: true } },
       vehicle: {
         select: {
@@ -202,6 +206,7 @@ async function loadTargets(
           model: true,
           variant: true,
           fuelType: true,
+          powertrainType: true,
           transmission: true,
           bodyStyle: true,
           drivetrain: true,
@@ -254,6 +259,7 @@ export async function refreshStoredListingAnalyses(
       vehicle."variant" AS "variant",
       vehicle."generation" AS "generation",
       vehicle."fuelType" AS "fuelType",
+      vehicle."powertrainType" AS "powertrainType",
       vehicle."transmission" AS "transmission",
       vehicle."bodyStyle" AS "bodyStyle",
       vehicle."drivetrain" AS "drivetrain",
@@ -272,6 +278,7 @@ export async function refreshStoredListingAnalyses(
     INNER JOIN "ListingRecord" AS listing
       ON listing."vehicleId" = vehicle."id"
       AND listing."status" = 'active'
+      AND listing."valuationEligible" = TRUE
     WHERE ${Prisma.raw(
       plausibleAskingPriceSql(
         'listing."priceAmount"',
@@ -293,6 +300,7 @@ export async function refreshStoredListingAnalyses(
   function toSimilarityTarget(target: AnalysisTarget): SimilarityTarget {
     return {
       fuelType: target.vehicle.fuelType,
+      powertrainType: target.vehicle.powertrainType,
       transmission: target.vehicle.transmission,
       drivetrain: target.vehicle.drivetrain,
       bodyStyle: target.vehicle.bodyStyle,
@@ -309,6 +317,7 @@ export async function refreshStoredListingAnalyses(
   function toSimilarityCandidate(row: MarketComparableRow): SimilarityCandidate {
     return {
       fuelType: row.fuelType,
+      powertrainType: row.powertrainType,
       transmission: row.transmission,
       drivetrain: row.drivetrain,
       bodyStyle: row.bodyStyle,
@@ -433,6 +442,7 @@ export async function refreshStoredListingAnalyses(
           vehicle."variant" AS "variant",
           vehicle."generation" AS "generation",
           vehicle."fuelType" AS "fuelType",
+          vehicle."powertrainType" AS "powertrainType",
           vehicle."transmission" AS "transmission",
           vehicle."bodyStyle" AS "bodyStyle",
           vehicle."drivetrain" AS "drivetrain",
@@ -448,6 +458,7 @@ export async function refreshStoredListingAnalyses(
         INNER JOIN "ListingRecord" AS listing
           ON listing."vehicleId" = vehicle."id"
           AND listing."status" = 'active'
+          AND listing."valuationEligible" = TRUE
         WHERE vehicle."make" IN (${Prisma.join(segmentMakes)})
           AND ${Prisma.raw(
             plausibleAskingPriceSql(
@@ -494,6 +505,11 @@ export async function refreshStoredListingAnalyses(
   }
 
   interface ComparableInsight {
+    listingId: string;
+    provider: string;
+    make: string;
+    model: string;
+    title: string | null;
     priceAmount: number;
     modelYear: number;
     mileageKm: number;
@@ -534,6 +550,11 @@ export async function refreshStoredListingAnalyses(
         .sort((a, b) => b.weight - a.weight)
         .slice(0, MAX_INSIGHTS)
         .map((c) => ({
+          listingId: c.row.id,
+          provider: c.row.provider,
+          make: c.row.make,
+          model: c.row.model,
+          title: c.row.title,
           priceAmount: Number(c.row.priceAmount),
           modelYear: c.row.modelYear,
           mileageKm: Number(c.row.mileageKm),
@@ -550,6 +571,11 @@ export async function refreshStoredListingAnalyses(
       cohort = segment.comparables;
       tierCountsUsed = { A: 0, B: 0, C: 0, D: segment.comparables.length };
       comparableInsights = segment.rows.slice(0, MAX_INSIGHTS).map((row) => ({
+        listingId: row.id,
+        provider: row.provider,
+        make: row.make,
+        model: row.model,
+        title: row.title,
         priceAmount: Number(row.priceAmount),
         modelYear: row.modelYear,
         mileageKm: Number(row.mileageKm),
@@ -653,7 +679,7 @@ export async function refreshStoredListingAnalyses(
         });
 
         const canComparePrice =
-          valuation.marketValue !== null && assessment.usable;
+          target.valuationEligible && valuation.marketValue !== null && assessment.usable;
         const priceDelta = canComparePrice
           ? (valuation.marketValue! - target.priceAmount) / valuation.marketValue!
           : 0;
@@ -788,24 +814,30 @@ export async function refreshStoredListingAnalyses(
           (34_000 + target.priceAmount * 0.065) * fuelMultiplier,
         );
 
-        const sampledPrices = evenlySampled(
-          cohort.map((c) => c.priceAmount).toSorted((a, b) => a - b),
-          comparableDisplaySampleSize,
-        );
+        const sampledPrices = canComparePrice
+          ? evenlySampled(
+              cohort.map((c) => c.priceAmount).toSorted((a, b) => a - b),
+              comparableDisplaySampleSize,
+            )
+          : [];
 
         const values = {
-          marketValueAmount: valuation.marketValue ?? target.priceAmount,
+          marketValueAmount: canComparePrice ? valuation.marketValue! : target.priceAmount,
           marketValueMinimum:
-            valuation.rangeLow ?? roundedThousands(target.priceAmount * 0.9),
+            canComparePrice && valuation.rangeLow != null
+              ? valuation.rangeLow
+              : roundedThousands(target.priceAmount * 0.9),
           marketValueMaximum:
-            valuation.rangeHigh ?? roundedThousands(target.priceAmount * 1.1),
-          comparableCount: valuation.comparableCount,
+            canComparePrice && valuation.rangeHigh != null
+              ? valuation.rangeHigh
+              : roundedThousands(target.priceAmount * 1.1),
+          comparableCount: canComparePrice ? valuation.comparableCount : 0,
           comparablePrices: sampledPrices,
           confidence,
           confidenceRank,
-          valuationConfidenceScore: valuationConfidence?.score ?? null,
-          valuationConfidenceLabel: valuationConfidence?.label ?? null,
-          comparableInsights: comparableInsights as unknown as Prisma.InputJsonValue,
+          valuationConfidenceScore: canComparePrice ? valuationConfidence?.score ?? null : null,
+          valuationConfidenceLabel: canComparePrice ? valuationConfidence?.label ?? null : null,
+          comparableInsights: (canComparePrice ? comparableInsights : []) as unknown as Prisma.InputJsonValue,
           dealScore: dealResult.value,
           dealScoreFactors: buildDealScoreFactors(
             factorInputs,

@@ -23,6 +23,7 @@ export type ComparableTier = "A" | "B" | "C" | "D";
 
 export interface SimilarityVehicle {
   fuelType: string;
+  powertrainType?: string | null;
   transmission: string;
   drivetrain: string | null;
   bodyStyle: string;
@@ -130,10 +131,28 @@ export function scoreComparable(
   candidate: SimilarityCandidate,
   now: Date = new Date(),
 ): SimilarityResult {
-  // Fuel type is a hard gate, not a weighted component: a PHEV and a petrol
-  // car of the same model are not the same product, however close everything
-  // else is (battery, tax treatment, and running cost dominate the price).
-  if (target.fuelType !== "other" && candidate.fuelType !== "other" && target.fuelType !== candidate.fuelType) {
+  // A classified powertrain is the strongest gate. It lets a source that
+  // files an MHEV under petrol compare with another correctly identified MHEV,
+  // while still separating HEV/PHEV/MHEV/BEV. Legacy rows without the finer
+  // class fall back to the public fuel enum.
+  const targetPowertrain = target.powertrainType;
+  const candidatePowertrain = candidate.powertrainType;
+  if (
+    targetPowertrain &&
+    candidatePowertrain &&
+    targetPowertrain !== "unknown" &&
+    candidatePowertrain !== "unknown" &&
+    targetPowertrain !== candidatePowertrain
+  ) {
+    return { score: 0, tier: "D", reasons: ["Different powertrain class"], hardReject: true };
+  }
+  if (
+    (!targetPowertrain || targetPowertrain === "unknown" ||
+      !candidatePowertrain || candidatePowertrain === "unknown") &&
+    target.fuelType !== "other" &&
+    candidate.fuelType !== "other" &&
+    target.fuelType !== candidate.fuelType
+  ) {
     return { score: 0, tier: "D", reasons: ["Different fuel type"], hardReject: true };
   }
 

@@ -43,7 +43,7 @@ export function HeroAskButton({ locale }: { locale: Locale }) {
   const pathname = usePathname();
   return (
     <button
-      className="group inline-flex items-center gap-2.5 rounded-full border border-border-strong bg-surface/90 py-2.5 pl-3 pr-4 text-sm font-medium text-ink shadow-sm backdrop-blur-md transition hover:border-accent/50 hover:shadow-md active:scale-[0.98]"
+      className="group inline-flex h-11 items-center gap-2.5 rounded-full border border-border-strong bg-surface/90 pl-3 pr-4 text-sm font-semibold text-ink shadow-sm backdrop-blur-md transition hover:border-accent/50 hover:shadow-md active:scale-[0.98]"
       onClick={() =>
         user
           ? setOpen(true)
@@ -54,7 +54,7 @@ export function HeroAskButton({ locale }: { locale: Locale }) {
       <span className="grid size-7 place-items-center rounded-full bg-accent-soft text-accent-strong">
         <LauncherMark className="size-4" />
       </span>
-      {locale === "sv" ? "Fråga Carnalys om vilken bil som helst" : "Ask Carnalys about any car"}
+      {locale === "sv" ? "Analysera en annons" : "Analyse a listing"}
       <span aria-hidden="true" className="text-ink-subtle transition group-hover:translate-x-0.5 group-hover:text-accent-strong">→</span>
     </button>
   );

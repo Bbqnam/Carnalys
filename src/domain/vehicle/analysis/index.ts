@@ -23,6 +23,7 @@ export type {
 } from "./scores";
 
 export type {
+  MarketComparableEvidence,
   MarketValueEstimate,
   VehicleAnalysis,
 } from "./vehicle-analysis";

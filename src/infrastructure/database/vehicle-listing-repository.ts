@@ -102,6 +102,9 @@ const storedListingSelect = {
       marketValueMaximum: true,
       comparableCount: true,
       comparablePrices: true,
+      valuationConfidenceScore: true,
+      valuationConfidenceLabel: true,
+      comparableInsights: true,
       confidence: true,
       confidenceRank: true,
       dealScore: true,
@@ -185,6 +188,8 @@ const cardListingSelect = {
       comparableCount: true,
       confidence: true,
       confidenceRank: true,
+      valuationConfidenceScore: true,
+      valuationConfidenceLabel: true,
       dealScore: true,
       // Kept because the results page sorts on it client-side; the factor
       // lists behind both scores are detail-page material.
@@ -370,6 +375,22 @@ function createStoredAnalysis(
       confidence,
       comparableListingCount: comparableCount,
       comparablePrices: narrow.comparablePrices ?? [],
+      comparables: Array.isArray(narrow.comparableInsights)
+        ? (narrow.comparableInsights as unknown as VehicleSearchResult["analysis"]["marketValue"]["comparables"])
+        : [],
+      valuationConfidence:
+        typeof narrow.valuationConfidenceScore === "number" &&
+        typeof narrow.valuationConfidenceLabel === "string" &&
+        ["very_low", "low", "medium", "high", "very_high"].includes(
+          narrow.valuationConfidenceLabel,
+        )
+          ? {
+              score: narrow.valuationConfidenceScore,
+              label: narrow.valuationConfidenceLabel as NonNullable<
+                VehicleSearchResult["analysis"]["marketValue"]["valuationConfidence"]
+              >["label"],
+            }
+          : undefined,
       explanation:
         comparableCount >= 3
           ? `Medianpris från ${comparableCount} jämförbara aktiva annonser.`
@@ -852,16 +873,26 @@ async function _getListingById(
   // fetched below feed benchmark statistics, not a displayed ownership cost,
   // so they stay on the universal (brand-only) estimate.
   const target = mapStoredListing(record, { insuranceProfile });
-  const comparableRecords = await prisma.listingRecord.findMany({
-    where: {
-      status: "active",
-      vehicle: {
-        is: { make: record.vehicle.make, model: record.vehicle.model },
+  const [comparableRecords, historyRows] = await Promise.all([
+    prisma.listingRecord.findMany({
+      where: {
+        status: "active",
+        vehicle: {
+          is: { make: record.vehicle.make, model: record.vehicle.model },
+        },
       },
-    },
-    select: comparableListingSelect,
-    take: 50,
-  });
+      select: comparableListingSelect,
+      take: 50,
+    }),
+    prisma.listingObservation.findMany({
+      where: {
+        listingId,
+        kind: { in: ["first_seen", "price_change"] },
+      },
+      select: { observedAt: true, priceAmount: true, kind: true },
+      orderBy: [{ observedAt: "asc" }, { id: "asc" }],
+    }),
+  ]);
   const comparables = comparableRecords.map((record) => mapStoredListing(record));
   const benchmarkSource = comparables.some(
     (result) => result.listing.id === target.listing.id,
@@ -869,9 +900,23 @@ async function _getListingById(
     ? comparables
     : [...comparables, target];
   const benchmarks = buildVehicleInsightBenchmarks(benchmarkSource);
+  const priceHistory: NonNullable<VehicleSearchResult["priceHistory"]>[number][] = historyRows.map((row) => ({
+    observedAt: row.observedAt.toISOString(),
+    priceAmount: row.priceAmount,
+    kind: row.kind as "first_seen" | "price_change",
+  }));
+  const lastHistory = priceHistory.at(-1);
+  if (!lastHistory || lastHistory.priceAmount !== record.priceAmount) {
+    priceHistory.push({
+      observedAt: record.synchronizedAt.toISOString(),
+      priceAmount: record.priceAmount,
+      kind: "current",
+    });
+  }
 
   return {
     ...target,
+    priceHistory,
     analysis: {
       ...target.analysis,
       insights: generateVehicleInsights(target, benchmarks),

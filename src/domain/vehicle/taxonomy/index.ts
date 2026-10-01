@@ -5,3 +5,8 @@ export {
   type CanonicalVehicleInput,
 } from "./canonical-vehicle";
 export { findMakeRule, MAKE_RULES, type MakeRule, type ModelRule } from "./rules";
+export {
+  classifyPowertrain,
+  type PowertrainClass,
+  type PowertrainClassification,
+} from "./powertrain-classification";

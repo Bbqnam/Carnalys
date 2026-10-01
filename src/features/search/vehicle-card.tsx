@@ -51,6 +51,7 @@ export function VehicleCard({
     hasMarketEstimate,
     priceDifference,
     marketDifferencePercent,
+    analysis,
     financingOffer,
     source,
     priceReduction,
@@ -216,6 +217,12 @@ export function VehicleCard({
               >
                 {priceDifference > 0 ? "−" : "+"}
                 {marketDifferencePercent}%
+              </span>
+              <span className="mt-0.5 block whitespace-nowrap text-[10px] font-medium text-ink-subtle">
+                {copy.card.marketValue}: {moneyFormatter.format(marketValue)}
+                {analysis.marketValue.valuationConfidence
+                  ? ` · ${analysis.marketValue.valuationConfidence.score}/100`
+                  : ""}
               </span>
               <span
                 className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] right-0 z-20 w-max max-w-56 translate-y-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-surface opacity-0 shadow-lg transition duration-150 group-hover/market:translate-y-0 group-hover/market:opacity-100 group-focus-visible/market:translate-y-0 group-focus-visible/market:opacity-100"

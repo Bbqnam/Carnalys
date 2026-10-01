@@ -236,7 +236,7 @@ test("a real performance badge in a pipe-delimited variant is still caught", () 
 });
 
 test("normalizationVersion is stamped", () => {
-  assert.equal(run("Kia", "Ceed").normalizationVersion, 2);
+  assert.equal(run("Kia", "Ceed").normalizationVersion, 3);
 });
 
 // ---------------------------------------------------------------------------

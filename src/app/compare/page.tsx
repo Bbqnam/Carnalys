@@ -89,10 +89,54 @@ export default function ComparePage() {
           : copy.card.marketEstimatePending,
     },
     {
+      label: locale === "en" ? "Typical market range" : "Typiskt marknadsintervall",
+      render: (r) =>
+        r.analysis.marketValue.comparableListingCount >= 3
+          ? `${moneyFormatter.format(r.analysis.marketValue.range.minimum.amount)} – ${moneyFormatter.format(r.analysis.marketValue.range.maximum.amount)}`
+          : "–",
+    },
+    {
+      label: locale === "en" ? "Price vs market" : "Pris mot marknaden",
+      render: (r) => {
+        if (r.analysis.marketValue.comparableListingCount < 3) return "–";
+        const difference = Math.round(
+          ((r.listing.price.askingPrice.amount - r.analysis.marketValue.value.amount) /
+            r.analysis.marketValue.value.amount) * 100,
+        );
+        return `${Math.abs(difference)}% ${difference <= 0 ? (locale === "en" ? "below" : "under") : (locale === "en" ? "above" : "över")}`;
+      },
+      compareValue: (r) =>
+        r.analysis.marketValue.comparableListingCount >= 3
+          ? r.listing.price.askingPrice.amount / r.analysis.marketValue.value.amount
+          : undefined,
+      betterWhen: "lower",
+    },
+    {
+      label: locale === "en" ? "Valuation confidence" : "Värderingstillit",
+      render: (r) => {
+        const confidence = r.analysis.marketValue.valuationConfidence;
+        return confidence ? `${confidence.label.replace("_", " ")} · ${confidence.score}/100` : "–";
+      },
+      compareValue: (r) => r.analysis.marketValue.valuationConfidence?.score,
+      betterWhen: "higher",
+    },
+    {
       label: copy.compare.dealScore,
       render: (r) => r.analysis.dealScore.value ?? copy.card.notRated,
       compareValue: (r) => r.analysis.dealScore.value ?? undefined,
       betterWhen: "higher",
+    },
+    {
+      label: locale === "en" ? "Buy confidence" : "Köptrygghet",
+      render: (r) => `${r.analysis.buyConfidenceScore.value}/100`,
+      compareValue: (r) => r.analysis.buyConfidenceScore.value,
+      betterWhen: "higher",
+    },
+    {
+      label: locale === "en" ? "Estimated ownership / month" : "Uppskattat ägande / mån",
+      render: (r) => moneyFormatter.format(Math.round(r.analysis.ownershipCost.annualCost.amount / 12)),
+      compareValue: (r) => r.analysis.ownershipCost.annualCost.amount,
+      betterWhen: "lower",
     },
     {
       label: copy.compare.mileage,
@@ -328,6 +372,11 @@ export default function ComparePage() {
                 })}
               </tbody>
             </table>
+            <p className="p-4 text-xs leading-5 text-ink-subtle">
+              {locale === "en"
+                ? "Market values and ownership costs are estimates. Ownership uses the same annual-distance and cost assumptions shown on each vehicle page; insurance is not a personal quote."
+                : "Marknadsvärden och ägandekostnader är uppskattningar. Ägandet använder samma körsträcka och kostnadsantaganden som visas på varje bilsida; försäkring är inte en personlig offert."}
+            </p>
           </div>
         )}
       </div>

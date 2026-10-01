@@ -38,6 +38,7 @@ type Row = {
   variant: string | null;
   bodyStyle: string;
   fuelType: string;
+  powertrainType: string | null;
   modelYear: number;
   rawMake: string | null;
   rawModel: string | null;
@@ -53,6 +54,7 @@ const CHANGED_FIELDS = [
   "model",
   "bodyStyle",
   "fuelType",
+  "powertrainType",
   "generation",
   "facelift",
   "trim",
@@ -107,6 +109,7 @@ async function main() {
         variant: true,
         bodyStyle: true,
         fuelType: true,
+        powertrainType: true,
         modelYear: true,
         rawMake: true,
         rawModel: true,
@@ -154,6 +157,7 @@ async function main() {
         model: canonical.model,
         bodyStyle: canonical.bodyStyle,
         fuelType: canonical.fuelType,
+        powertrainType: canonical.powertrainType,
         generation: canonical.generation,
         facelift: canonical.facelift,
         trim: canonical.trim,

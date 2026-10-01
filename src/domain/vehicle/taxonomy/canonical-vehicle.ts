@@ -11,12 +11,16 @@ import {
   tidyEngineBadgeCasing,
   tidyModelString,
 } from "./tokens";
+import {
+  classifyPowertrain,
+  type PowertrainClass,
+} from "./powertrain-classification";
 
 /**
  * Bump when the rules or pipeline change in a way that should re-classify
  * stored vehicles. The backfill targets rows below this; ingestion writes it.
  */
-export const CURRENT_NORMALIZATION_VERSION = 2;
+export const CURRENT_NORMALIZATION_VERSION = 3;
 
 export interface CanonicalVehicleInput {
   make: string;
@@ -46,6 +50,8 @@ export interface CanonicalVehicle {
   performanceVariant: string | null;
   bodyStyle: BodyStyle;
   fuelType: FuelType;
+  powertrainType: PowertrainClass;
+  powertrainConflict: boolean;
   rawMake: string;
   rawModel: string;
   normalizationVersion: number;
@@ -264,6 +270,8 @@ export function canonicalizeVehicle(input: CanonicalVehicleInput): CanonicalVehi
     fuelType = "plug_in_hybrid";
   }
 
+  const powertrain = classifyPowertrain({ fuelType, text: haystack });
+
   return {
     make,
     model: family.trim() || tidyModel,
@@ -274,6 +282,8 @@ export function canonicalizeVehicle(input: CanonicalVehicleInput): CanonicalVehi
     performanceVariant,
     bodyStyle,
     fuelType,
+    powertrainType: powertrain.type,
+    powertrainConflict: powertrain.conflict,
     rawMake,
     rawModel,
     normalizationVersion: CURRENT_NORMALIZATION_VERSION,

@@ -6,6 +6,22 @@ import type {
   DealScore,
 } from "./scores";
 import type { VehicleInsight } from "./vehicle-insights";
+import type { ValuationConfidenceLabel } from "./valuation-confidence";
+
+export interface MarketComparableEvidence {
+  listingId?: string;
+  provider?: string;
+  make?: string;
+  model?: string;
+  title?: string | null;
+  priceAmount: number;
+  modelYear: number;
+  mileageKm: number;
+  sellerType?: string | null;
+  tier: "A" | "B" | "C" | "D";
+  score: number;
+  reasons: readonly string[];
+}
 
 export interface MarketValueEstimate {
   value: Money;
@@ -17,6 +33,12 @@ export interface MarketValueEstimate {
   comparableListingCount: number;
   /** Asking prices of the comparable listings the estimate was derived from. */
   comparablePrices: readonly number[];
+  /** Strongest individual evidence rows, ordered by effective similarity. */
+  comparables: readonly MarketComparableEvidence[];
+  valuationConfidence?: {
+    score: number;
+    label: ValuationConfidenceLabel;
+  };
   explanation: string;
 }
 

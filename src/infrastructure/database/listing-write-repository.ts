@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application/ingestion/types";
 import { exactVehicleMatchEvidence } from "@/application/ingestion/vehicle-match-policy";
 import { meaningfulListingEvents } from "@/domain/market/listing-history";
+import { assessListingDataQuality } from "@/domain/vehicle/analysis/listing-data-quality";
 import { canonicalizeVehicle } from "@/domain/vehicle/taxonomy";
 import { Prisma } from "@/generated/prisma/client";
 import { listingImageWritePolicy } from "./listing-image-write-policy";
@@ -255,6 +256,7 @@ interface ExistingListingState {
   imageHash: string | null;
   imageCount: number;
   equipmentHash: string | null;
+  validationStatus: string;
 }
 
 async function writeListing(
@@ -279,6 +281,7 @@ async function writeListing(
     );
   const unchanged =
     existing?.status === "active" &&
+    existing.validationStatus !== "unchecked" &&
     existing.contentHash === hashes.contentHash &&
     existing.imageHash === imagePolicy.imageHash &&
     existing.equipmentHash === hashes.equipmentHash;
@@ -324,6 +327,7 @@ async function writeListing(
     registrationYear: vehicle.registrationYear,
     bodyStyle: canonical.bodyStyle,
     fuelType: canonical.fuelType,
+    powertrainType: canonical.powertrainType,
     transmission: vehicle.transmission,
     drivetrain: vehicle.drivetrain,
     horsepower: vehicle.horsepower,
@@ -357,6 +361,29 @@ async function writeListing(
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+
+  const quality = assessListingDataQuality({
+    priceAmount: listing.priceAmount,
+    monthlyCostAmount: listing.monthlyCostAmount,
+    mileageKm: listing.mileageKm,
+    modelYear: vehicle.modelYear,
+    make: canonical.make,
+    model: canonical.model,
+    title: listing.title,
+    variant: canonical.variant,
+    description: listing.description,
+    fuelType: canonical.fuelType,
+    powertrainType: canonical.powertrainType,
+    powertrainConflict: canonical.powertrainConflict,
+    bodyStyle: canonical.bodyStyle,
+    transmission: vehicle.transmission,
+    drivetrain: vehicle.drivetrain,
+    horsepower: vehicle.horsepower,
+    generation: canonical.generation,
+    sellerType: listing.sellerType,
+    sellerName: listing.sellerName,
+    currentYear: synchronizedAt.getUTCFullYear(),
+  });
 
   // A P2002 collision here (VIN or registration number already held by a
   // different vehicle row) is handled by the caller: Postgres aborts the
@@ -415,6 +442,10 @@ async function writeListing(
       contentHash: hashes.contentHash,
       imageHash: imagePolicy.imageHash,
       equipmentHash: hashes.equipmentHash,
+      validationStatus: quality.status,
+      validationReasonCodes: [...quality.reasonCodes],
+      valuationEligible: quality.valuationEligible,
+      validatedAt: synchronizedAt,
     },
     update: {
       sourceScope: normalized.source.scope,
@@ -455,6 +486,10 @@ async function writeListing(
       contentHash: hashes.contentHash,
       imageHash: imagePolicy.imageHash,
       equipmentHash: hashes.equipmentHash,
+      validationStatus: quality.status,
+      validationReasonCodes: [...quality.reasonCodes],
+      valuationEligible: quality.valuationEligible,
+      validatedAt: synchronizedAt,
     },
   });
 
@@ -597,6 +632,7 @@ export async function upsertNormalizedListings(
       contentHash: true,
       imageHash: true,
       equipmentHash: true,
+      validationStatus: true,
       _count: { select: { images: true } },
     },
   });

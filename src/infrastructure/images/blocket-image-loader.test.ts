@@ -24,3 +24,28 @@ test("keeps arbitrary resizing for Wayke media images", () => {
     `${mediaImage}?w=640`,
   );
 });
+
+test("selects the smallest useful Hedin Polaris image variant", () => {
+  const enlarged =
+    "https://cdne-cdn-prod-polaris-prod.azureedge.net/vehicles/example-enlarged.jpg";
+  assert.equal(
+    imageLoader({ src: enlarged, width: 256 }),
+    "https://cdne-cdn-prod-polaris-prod.azureedge.net/vehicles/example-thumbnail.jpg?width=256",
+  );
+  assert.equal(
+    imageLoader({ src: enlarged, width: 640 }),
+    "https://cdne-cdn-prod-polaris-prod.azureedge.net/vehicles/example-preview.jpg?width=640",
+  );
+  assert.equal(
+    imageLoader({ src: enlarged, width: 1080 }),
+    "https://cdne-cdn-prod-polaris-prod.azureedge.net/vehicles/example-enlarged.jpg?width=1080",
+  );
+});
+
+test("adds responsive width parameters to imgix and static assets", () => {
+  assert.equal(
+    imageLoader({ src: "https://vl.imgix.net/img/volvo-logo.png", width: 64 }),
+    "https://vl.imgix.net/img/volvo-logo.png?auto=format&fit=max&w=64",
+  );
+  assert.equal(imageLoader({ src: "/logo.svg", width: 48 }), "/logo.svg?width=48");
+});

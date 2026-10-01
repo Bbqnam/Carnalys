@@ -203,6 +203,10 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const copy = uiCopy[locale];
   const moneyFormatter = createMoneyFormatter(locale);
   const numberFormatter = createNumberFormatter(locale);
+  const historyDateFormatter = new Intl.DateTimeFormat(
+    locale === "en" ? "en-SE" : "sv-SE",
+    { day: "numeric", month: "short", year: "numeric" },
+  );
   const isFavorite = favorites.has(listing.id);
   const isCompared = compared.some((vehicle) => vehicle.id === listing.id);
   const compareDisabled = compareFull && !isCompared;
@@ -211,6 +215,45 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
     : estimateFuelConsumptionL100km(specification);
   const askingPrice = listing.price.askingPrice.amount;
   const hasMarketEstimate = analysis.marketValue.comparableListingCount >= 3;
+  const marketDifferencePercent = hasMarketEstimate
+    ? Math.round(
+        ((askingPrice - analysis.marketValue.value.amount) /
+          analysis.marketValue.value.amount) *
+          100,
+      )
+    : null;
+  const marketVerdict = !hasMarketEstimate
+    ? locale === "en"
+      ? "Market value unavailable"
+      : "Marknadsvärde saknas"
+    : askingPrice < analysis.marketValue.range.minimum.amount
+      ? locale === "en"
+        ? "Strong price"
+        : "Starkt pris"
+      : askingPrice > analysis.marketValue.range.maximum.amount
+        ? locale === "en"
+          ? "Above the typical market range"
+          : "Över typiskt marknadsintervall"
+        : locale === "en"
+          ? "Fairly priced"
+          : "Rimligt prissatt";
+  const valuationConfidence = analysis.marketValue.valuationConfidence;
+  const valuationConfidenceText = valuationConfidence
+    ? ({
+        very_low: locale === "en" ? "Very low" : "Mycket låg",
+        low: locale === "en" ? "Low" : "Låg",
+        medium: locale === "en" ? "Medium" : "Medel",
+        high: locale === "en" ? "High" : "Hög",
+        very_high: locale === "en" ? "Very high" : "Mycket hög",
+      } as const)[valuationConfidence.label]
+    : locale === "en"
+      ? "Unavailable"
+      : "Saknas";
+  const priceHistory = result.priceHistory ?? [];
+  const firstObservedPrice = priceHistory[0]?.priceAmount;
+  const totalPriceReduction = firstObservedPrice
+    ? Math.max(0, firstObservedPrice - askingPrice)
+    : 0;
   // The analysis page reads the same `make`/`model` parameters the search page
   // writes, so linking there needs no dedicated route — just this car's
   // identity in that shared vocabulary. Fuel and year are deliberately left
@@ -393,7 +436,60 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           <span className="truncate text-ink">{identity.model}</span>
         </nav>
 
-        <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:gap-8">
+        <section className="mt-5 rounded-[1.4rem] border border-border bg-surface p-5 shadow-[0_10px_35px_rgba(26,35,29,0.05)] sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-accent-strong">
+                {locale === "en" ? "Carnalys assessment" : "Carnalys bedömning"}
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">
+                {identity.make} {identity.model}
+                {identity.variant ? (
+                  <>
+                    {" "}
+                    <span className="font-normal text-ink-muted">{identity.variant}</span>
+                  </>
+                ) : null}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                <p className="text-3xl font-semibold tracking-[-0.045em] text-ink">
+                  {moneyFormatter.format(askingPrice)}
+                </p>
+                <p className={`text-sm font-semibold ${hasMarketEstimate && marketDifferencePercent! <= 0 ? "text-positive" : hasMarketEstimate ? "text-negative" : "text-ink-muted"}`}>
+                  {marketVerdict}
+                  {marketDifferencePercent !== null
+                    ? ` · ${Math.abs(marketDifferencePercent)}% ${marketDifferencePercent <= 0 ? (locale === "en" ? "below estimate" : "under värdering") : (locale === "en" ? "above estimate" : "över värdering")}`
+                    : ""}
+                </p>
+              </div>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:min-w-[33rem]">
+              <div>
+                <dt className="text-[11px] font-medium text-ink-subtle">{copy.detail.marketRange}</dt>
+                <dd className="mt-1 text-sm font-semibold text-ink">
+                  {hasMarketEstimate
+                    ? `${moneyFormatter.format(analysis.marketValue.range.minimum.amount)} – ${moneyFormatter.format(analysis.marketValue.range.maximum.amount)}`
+                    : "–"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-medium text-ink-subtle">{copy.detail.dealScoreTitle}</dt>
+                <dd className="mt-1 text-sm font-semibold text-ink">
+                  {analysis.dealScore.value === null ? copy.card.notRated : `${analysis.dealScore.value}/100`}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-medium text-ink-subtle">{locale === "en" ? "Valuation confidence" : "Värderingstillit"}</dt>
+                <dd className="mt-1 text-sm font-semibold text-ink">
+                  {valuationConfidenceText}
+                  {valuationConfidence ? ` · ${valuationConfidence.score}/100` : ""}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:gap-8">
         {/* min-w-0: on mobile this is a single implicit grid track, and without
             it the track takes its width from the thumbnail rail's full content
             width (a shrink-0 flex row) instead of the viewport, blowing the
@@ -430,7 +526,8 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 onError={() =>
                   setFailedImages((failed) => new Set(failed).add(currentImage.url))
                 }
-                priority
+                fetchPriority="high"
+                loading="eager"
                 sizes="(max-width: 1023px) 100vw, 60vw"
                 src={currentImage.url}
               />
@@ -594,16 +691,6 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 : copy.card.privateSellerBadge}
             </span>
           </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink sm:text-3xl">
-            {identity.make} {identity.model}
-          </h1>
-          {identity.variant ? (
-            <p className="mt-1 text-base text-ink-muted">{identity.variant}</p>
-          ) : null}
-          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-ink">
-            {moneyFormatter.format(askingPrice)}
-          </p>
-
           {listing.seller.name || listing.location.municipality ? (
             <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
               <MapPinIcon className="size-3.5 shrink-0" />
@@ -821,9 +908,17 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           />
 
           <div className="rounded-2xl border border-border bg-surface p-4">
-            <h3 className="text-sm font-semibold text-ink">{copy.detail.marketValueTitle}</h3>
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-sm font-semibold text-ink">{locale === "en" ? "Market comparison" : "Marknadsjämförelse"}</h3>
+              {valuationConfidence ? (
+                <span className="rounded-full border border-border bg-surface-muted px-2 py-1 text-[10px] font-semibold text-ink-muted">
+                  {valuationConfidenceText} · {valuationConfidence.score}/100
+                </span>
+              ) : null}
+            </div>
             {hasMarketEstimate ? (
               <>
+                <p className="mt-3 text-[11px] font-medium text-ink-subtle">{copy.detail.marketValueTitle}</p>
                 <p className="mt-2 text-xl font-semibold text-ink">
                   {moneyFormatter.format(analysis.marketValue.value.amount)}
                 </p>
@@ -844,13 +939,69 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                     targetPrice={askingPrice}
                   />
                 ) : null}
+                <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs">
+                  <div className="rounded-lg bg-surface-subtle p-2.5">
+                    <dt className="text-ink-subtle">{locale === "en" ? "Comparable vehicles" : "Jämförbara bilar"}</dt>
+                    <dd className="mt-1 font-semibold text-ink">{analysis.marketValue.comparableListingCount}</dd>
+                  </div>
+                  <div className="rounded-lg bg-surface-subtle p-2.5">
+                    <dt className="text-ink-subtle">{locale === "en" ? "This vehicle" : "Den här bilen"}</dt>
+                    <dd className={`mt-1 font-semibold ${marketDifferencePercent! <= 0 ? "text-positive" : "text-negative"}`}>
+                      {Math.abs(marketDifferencePercent!)}% {marketDifferencePercent! <= 0 ? (locale === "en" ? "below estimate" : "under värdering") : (locale === "en" ? "above estimate" : "över värdering")}
+                    </dd>
+                  </div>
+                </dl>
+
+                {analysis.marketValue.comparables.length > 0 ? (
+                  <div className="mt-4 border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-ink">
+                      {locale === "en" ? "Strongest matches" : "Starkaste jämförelser"}
+                    </p>
+                    <ul className="mt-2 grid gap-2">
+                      {analysis.marketValue.comparables.slice(0, 4).map((comparable, index) => {
+                        const content = (
+                          <>
+                            <span className="min-w-0">
+                              <span className="block truncate text-xs font-semibold text-ink">
+                                {comparable.title ??
+                                  ([comparable.make, comparable.model].filter(Boolean).join(" ") ||
+                                    (locale === "en" ? "Comparable vehicle" : "Jämförbar bil"))}
+                              </span>
+                              <span className="mt-0.5 block text-[10px] text-ink-subtle">
+                                {comparable.modelYear} · {numberFormatter.format(comparable.mileageKm / 10)} mil · {locale === "en" ? "match" : "likhet"} {comparable.score}/100
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-xs font-semibold text-ink">
+                              {moneyFormatter.format(comparable.priceAmount)}
+                            </span>
+                          </>
+                        );
+                        return (
+                          <li key={comparable.listingId ?? `${comparable.priceAmount}-${index}`}>
+                            {comparable.listingId ? (
+                              <Link className="flex items-center justify-between gap-3 rounded-lg bg-surface-subtle p-2.5 transition hover:bg-surface-muted" href={`/vehicle/${comparable.listingId}`}>
+                                {content}
+                              </Link>
+                            ) : (
+                              <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-subtle p-2.5">
+                                {content}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
               </>
             ) : (
-              <p className="mt-2 text-sm text-ink-muted">{copy.card.marketEstimatePending}</p>
+              <div className="mt-3 rounded-xl bg-surface-subtle p-3">
+                <p className="text-sm font-semibold text-ink">{locale === "en" ? "Market value unavailable" : "Marknadsvärde saknas"}</p>
+                <p className="mt-1 text-xs leading-5 text-ink-muted">
+                  {locale === "en" ? "There is not enough trustworthy, compatible evidence to publish an estimate." : "Det finns inte tillräckligt tillförlitligt och jämförbart underlag för att visa en värdering."}
+                </p>
+              </div>
             )}
-            <p className="mt-2.5 text-xs text-ink-subtle">
-              {analysis.marketValue.comparableListingCount} {copy.detail.comparablePricesLabel.toLocaleLowerCase(locale === "en" ? "en-SE" : "sv-SE")}
-            </p>
             {/* This was a 12px muted line under a paragraph — indistinguishable
                 from the caption above it, and nobody who did not already know
                 the analysis page existed would have found it. It is the one
@@ -863,6 +1014,36 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               {copy.detail.analyseModel(`${identity.make} ${identity.model}`)}
               <ArrowRightIcon className="size-4" />
             </Link>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-ink">{locale === "en" ? "Price history" : "Prishistorik"}</h3>
+              {totalPriceReduction > 0 ? (
+                <span className="rounded-full bg-accent-soft px-2 py-1 text-[10px] font-semibold text-positive">
+                  −{moneyFormatter.format(totalPriceReduction)}
+                </span>
+              ) : null}
+            </div>
+            {priceHistory.length > 1 ? (
+              <ol className="mt-3 border-l border-border pl-4">
+                {priceHistory.map((entry, index) => (
+                  <li className="relative flex items-center justify-between gap-3 pb-3 last:pb-0" key={`${entry.observedAt}-${entry.kind}-${index}`}>
+                    <span className="absolute -left-[1.18rem] size-2 rounded-full border border-surface bg-border-strong" />
+                    <time className="text-xs text-ink-subtle" dateTime={entry.observedAt}>
+                      {index === priceHistory.length - 1 && entry.kind === "current"
+                        ? locale === "en" ? "Today" : "Idag"
+                        : historyDateFormatter.format(new Date(entry.observedAt))}
+                    </time>
+                    <span className="text-xs font-semibold text-ink">{moneyFormatter.format(entry.priceAmount)}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="mt-2 text-xs leading-5 text-ink-muted">
+                {locale === "en" ? "No observed price changes yet." : "Inga observerade prisändringar ännu."}
+              </p>
+            )}
           </div>
 
           <div className="rounded-2xl border border-border bg-surface p-4">
@@ -892,7 +1073,13 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                       tabIndex={0}
                     >
                       <span
-                        className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-20 w-max max-w-56 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-surface opacity-0 shadow-lg transition duration-150 group-hover/cost:translate-y-0 group-hover/cost:opacity-100 group-focus-visible/cost:translate-y-0 group-focus-visible/cost:opacity-100"
+                        className={`pointer-events-none absolute bottom-[calc(100%+0.45rem)] z-20 w-max max-w-56 translate-y-1 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-[11px] font-medium text-surface opacity-0 shadow-lg transition duration-150 group-hover/cost:translate-y-0 group-hover/cost:opacity-100 group-focus-visible/cost:translate-y-0 group-focus-visible/cost:opacity-100 ${
+                          index === 0
+                            ? "left-0"
+                            : index >= analysis.ownershipCost.items.length - 2
+                              ? "right-0"
+                              : "left-1/2 -translate-x-1/2"
+                        }`}
                         role="tooltip"
                       >
                         {copy.detail.ownershipCostCategories[item.category]}:{" "}

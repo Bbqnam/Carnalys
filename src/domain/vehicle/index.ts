@@ -3,6 +3,7 @@ export type {
   BuyConfidenceScore,
   DealScore,
   InsuranceProfileInput,
+  MarketComparableEvidence,
   MarketValueEstimate,
   OwnershipCostCategory,
   OwnershipCostEstimate,

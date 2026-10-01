@@ -12,6 +12,7 @@
 // are actually unfinished. It never touches any other migration and never
 // swallows an unrelated failure: any unexpected error aborts the deploy.
 
+import "dotenv/config";
 import pg from "pg";
 
 const OBSOLETE_MIGRATIONS = [

@@ -12,6 +12,11 @@ export interface VehicleSearchResult {
   vehicle: Vehicle;
   listing: VehicleListing;
   analysis: VehicleAnalysis;
+  priceHistory?: readonly {
+    observedAt: string;
+    priceAmount: number;
+    kind: "first_seen" | "price_change" | "current";
+  }[];
   relatedSourceListings?: readonly {
     id: string;
     provider: string;
