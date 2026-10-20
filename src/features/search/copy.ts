@@ -437,6 +437,7 @@ export const uiCopy = {
       },
       sorts: {
         deal_score: "Highest Deal Score",
+        market_discount: "Largest % below market value",
         buy_confidence: "Highest confidence",
         price_asc: "Lowest price",
         price_desc: "Highest price",
@@ -798,6 +799,7 @@ export const uiCopy = {
       },
       sorts: {
         deal_score: "Högst Deal Score",
+        market_discount: "Störst % under marknadsvärde",
         buy_confidence: "Högst köptrygghet",
         price_asc: "Lägst pris",
         price_desc: "Högst pris",

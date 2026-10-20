@@ -41,6 +41,7 @@ const bodyStyles = new Set<BodyStyle>([
 ]);
 const sorts = new Set<SearchSort>([
   "deal_score",
+  "market_discount",
   "buy_confidence",
   "price_asc",
   "price_desc",

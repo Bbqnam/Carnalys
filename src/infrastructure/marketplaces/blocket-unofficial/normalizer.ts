@@ -113,8 +113,13 @@ export function normalizeBlocketListing(
   const horsepower = parseFirstNumber(specifications.Effekt);
   const ownerCount = parseFirstNumber(specifications["Antal ägare"]);
   const seenAt = new Date();
-  const imageUrls =
-    document.imageUrls.length > 0 ? document.imageUrls : (detail?.imageUrls ?? []);
+  // The search feed can retain obsolete image UUIDs after a dealer replaces
+  // individual photos. When fetchDetail already had to read the public page,
+  // its gallery is the fresher source and must win even if the feed is not
+  // empty. Otherwise broken feed URLs can occupy the cover position forever.
+  const imageUrls = detail?.imageUrls?.length
+    ? detail.imageUrls
+    : document.imageUrls;
 
   return {
     source: {
@@ -168,14 +173,18 @@ export function normalizeBlocketListing(
       // complete gallery. De-duplicated before the slice so a source that
       // repeats a URL spends the budget on eight distinct photos rather than
       // storing the same one twice.
-      images: [...new Set(imageUrls)].slice(0, MAX_LISTING_IMAGES).map((url, position) => ({
-        url,
-        thumbnailUrl: position === 0 ? document.thumbnail?.url : undefined,
-        alt: `${document.make} ${document.model} ${document.variant ?? ""}`.trim(),
-        position,
-        width: position === 0 ? document.thumbnail?.width : undefined,
-        height: position === 0 ? document.thumbnail?.height : undefined,
-      })),
+      images: [...new Set(imageUrls)].slice(0, MAX_LISTING_IMAGES).map((url, position) => {
+        const hasMatchingFeedThumbnail =
+          position === 0 && document.thumbnail?.url === url;
+        return {
+          url,
+          thumbnailUrl: hasMatchingFeedThumbnail ? document.thumbnail?.url : undefined,
+          alt: `${document.make} ${document.model} ${document.variant ?? ""}`.trim(),
+          position,
+          width: hasMatchingFeedThumbnail ? document.thumbnail?.width : undefined,
+          height: hasMatchingFeedThumbnail ? document.thumbnail?.height : undefined,
+        };
+      }),
     },
     // Store everything we fetched, not just the fields we currently map to
     // typed columns — `detail` is read back as an enrichment cache (see

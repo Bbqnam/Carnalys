@@ -98,6 +98,12 @@ export function SettingsContent({
               <Link className="inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-muted" href="/admin/insurance">
                 {en ? "Open insurance data" : "Öppna försäkringsdata"}
               </Link>
+              <Link className="inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-muted" href="/admin/source-value">
+                {en ? "Open source value" : "Öppna källvärde"}
+              </Link>
+              <Link className="inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-muted" href="/admin/reliability">
+                {en ? "Open reliability data" : "Öppna driftsäkerhetsdata"}
+              </Link>
             </div>
           ) : null}
         </header>

@@ -21,7 +21,7 @@ model VehicleRecord {
   /// Valuation-specific powertrain class: bev | phev | mhev | hev |
   /// combustion | hydrogen | unknown. Kept separate from the public fuel
   /// filter because source marketplaces often file hybrids under petrol.
-  powertrainType        String?
+  powertrainType       String?
   transmission         String
   drivetrain           String?
   horsepower           Int?
@@ -291,6 +291,11 @@ model ListingAnalysisRecord {
   marketValueAmount        Int
   marketValueMinimum       Int
   marketValueMaximum       Int
+  /// Signed discount to estimated market value in basis points. Positive
+  /// means the asking price is below the estimate (1_250 = 12.50% below),
+  /// negative means above. Null when the listing is not safely valuated.
+  /// Stored so the catalogue can order the complete result set before paging.
+  marketDiscountBps        Int?
   comparableCount          Int
   comparablePrices         Int[]         @default([])
   confidence               String
@@ -322,7 +327,63 @@ model ListingAnalysisRecord {
   @@index([calculatedAt])
   @@index([dealScore])
   @@index([confidenceRank, dealScore])
+  @@index([marketDiscountBps])
   @@index([buyConfidenceScore])
+}
+
+/// Curated, evidence-backed reliability guidance. Profiles deliberately match
+/// a vehicle cohort rather than one listing: make/model and model-year range
+/// are required, while generation/powertrain selectors make a profile more
+/// precise. A profile is public only once it has at least one source.
+model ReliabilityProfile {
+  id            String              @id @default(uuid())
+  make          String
+  model         String
+  generation    String?
+  modelYearFrom Int
+  modelYearTo   Int
+  fuelType      String?
+  transmission  String?
+  enginePattern String?
+  riskLevel     String
+  confidence    String
+  summary       String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  issues        ReliabilityIssue[]
+  sources       ReliabilitySource[]
+
+  @@index([make, model, modelYearFrom, modelYearTo])
+}
+
+model ReliabilityIssue {
+  id                       String             @id @default(uuid())
+  profileId                String
+  title                    String
+  severity                 String
+  description              String
+  symptoms                 String?
+  inspectionAdvice         String?
+  typicalRepairCostMinimum Int?
+  typicalRepairCostMaximum Int?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  profile                  ReliabilityProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, severity])
+}
+
+model ReliabilitySource {
+  id          String             @id @default(uuid())
+  profileId   String
+  label       String
+  url         String
+  publishedAt DateTime?
+  accessedAt  DateTime           @default(now())
+  profile     ReliabilityProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, url])
+  @@index([profileId])
 }
 
 model ListingImageRecord {

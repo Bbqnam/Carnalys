@@ -32,6 +32,7 @@ import type {
 import { Prisma } from "@/generated/prisma/client";
 import { getPreparedCatalogFilters } from "./catalog-facet-repository";
 import { initializeDatabase, prisma } from "./prisma";
+import { getReliabilityAssessmentForVehicle } from "./reliability-repository";
 
 const storedListingSelect = {
   id: true,
@@ -71,6 +72,7 @@ const storedListingSelect = {
       drivetrain: true,
       horsepower: true,
       engineDescription: true,
+      generation: true,
       engineDisplacement: true,
       fuelConsumption: true,
       registrationNumber: true,
@@ -722,6 +724,16 @@ function listingOrder(
       return [{ listedAt: "desc" }, { id: "asc" }];
     case "buy_confidence":
       return [{ analysis: { buyConfidenceScore: "desc" } }, { id: "asc" }];
+    case "market_discount":
+      return [
+        {
+          analysis: {
+            marketDiscountBps: { sort: "desc", nulls: "last" },
+          },
+        },
+        { analysis: { valuationConfidenceScore: { sort: "desc", nulls: "last" } } },
+        { id: "asc" },
+      ];
     case "deal_score":
     default:
       // Unrated listings (dealScore IS NULL) sort last, not first — a missing
@@ -873,7 +885,7 @@ async function _getListingById(
   // fetched below feed benchmark statistics, not a displayed ownership cost,
   // so they stay on the universal (brand-only) estimate.
   const target = mapStoredListing(record, { insuranceProfile });
-  const [comparableRecords, historyRows] = await Promise.all([
+  const [comparableRecords, historyRows, reliability] = await Promise.all([
     prisma.listingRecord.findMany({
       where: {
         status: "active",
@@ -891,6 +903,15 @@ async function _getListingById(
       },
       select: { observedAt: true, priceAmount: true, kind: true },
       orderBy: [{ observedAt: "asc" }, { id: "asc" }],
+    }),
+    getReliabilityAssessmentForVehicle({
+      make: record.vehicle.make,
+      model: record.vehicle.model,
+      modelYear: record.vehicle.modelYear,
+      generation: record.vehicle.generation,
+      fuelType: record.vehicle.fuelType,
+      transmission: record.vehicle.transmission,
+      engineDescription: record.vehicle.engineDescription,
     }),
   ]);
   const comparables = comparableRecords.map((record) => mapStoredListing(record));
@@ -917,6 +938,7 @@ async function _getListingById(
   return {
     ...target,
     priceHistory,
+    reliability,
     analysis: {
       ...target.analysis,
       insights: generateVehicleInsights(target, benchmarks),

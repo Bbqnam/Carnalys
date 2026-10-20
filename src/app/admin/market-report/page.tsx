@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   buildDailyMarketReport,
-  type DailyMarketReport,
   type VehicleRegisterRow,
 } from "@/application/reporting/daily-market-report";
 import { requireAdmin } from "@/features/auth/session";
@@ -181,6 +180,18 @@ export default async function AdminMarketReportPage() {
               href="/admin/insurance"
             >
               Insurance data
+            </Link>
+            <Link
+              className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted"
+              href="/admin/source-value"
+            >
+              Source value
+            </Link>
+            <Link
+              className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted"
+              href="/admin/reliability"
+            >
+              Reliability
             </Link>
             <Link
               className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-muted"

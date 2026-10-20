@@ -12,6 +12,7 @@ import {
 } from "react";
 import { BrandLogo } from "@/features/search/brand-logo";
 import { PriceDistribution } from "./price-distribution";
+import { ReliabilityPanel } from "./reliability-panel";
 import {
   scoreFactorText,
   uiCopy,
@@ -44,6 +45,7 @@ import {
 import { setLocaleCookie } from "@/features/search/locale";
 import { clearSavedSearchState } from "@/features/search/search-state";
 import { CompareTray } from "@/features/search/compare-tray";
+import { nextUsableImageIndex } from "@/features/search/image-gallery-state";
 import { SiteHeader } from "@/features/search/site-header";
 import { SiteFooter } from "@/features/search/site-footer";
 import { useCompare } from "@/features/search/use-compare";
@@ -175,6 +177,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const router = useRouter();
   const [activeImage, setActiveImage] = useState(0);
   const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
+  const failedImagesRef = useRef(failedImages);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const activeThumbnail = useRef<HTMLButtonElement | null>(null);
   const fullscreenCloseButton = useRef<HTMLButtonElement | null>(null);
@@ -266,13 +269,38 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const images = listing.images.length > 0 ? listing.images : undefined;
   const currentImage = images?.[activeImage] ?? images?.[0];
   const imageCount = images?.length ?? 0;
+  const usableImageCount = imageCount - failedImages.size;
+  const coverImageUrl = images?.find((image) => !failedImages.has(image.url))?.url;
   // Wraps in both directions, so the gallery has no dead end at either end.
   const stepImage = useCallback(
-    (delta: number) =>
+    (delta: number) => {
+      if (!images || usableImageCount < 2) return;
       setActiveImage((index) =>
-        imageCount > 0 ? (index + delta + imageCount) % imageCount : 0,
-      ),
-    [imageCount],
+        nextUsableImageIndex(
+          images,
+          failedImagesRef.current,
+          index,
+          delta < 0 ? -1 : 1,
+        ) ?? index,
+      );
+    },
+    [images, usableImageCount],
+  );
+
+  const markImageFailed = useCallback(
+    (index: number, url: string) => {
+      if (!images) return;
+      const nextFailed = new Set(failedImagesRef.current).add(url);
+      const nextIndex = nextUsableImageIndex(images, nextFailed, index, 1);
+      failedImagesRef.current = nextFailed;
+      setFailedImages(nextFailed);
+      if (nextIndex === undefined) setIsFullscreen(false);
+      setActiveImage((currentIndex) => {
+        if (currentIndex !== index) return currentIndex;
+        return nextIndex ?? 0;
+      });
+    },
+    [images],
   );
 
   function startImageSwipe(event: ReactPointerEvent<HTMLElement>) {
@@ -523,9 +551,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 className="object-contain"
                 fill
                 key={currentImage.url}
-                onError={() =>
-                  setFailedImages((failed) => new Set(failed).add(currentImage.url))
-                }
+                onError={() => markImageFailed(activeImage, currentImage.url)}
                 fetchPriority="high"
                 loading="eager"
                 sizes="(max-width: 1023px) 100vw, 60vw"
@@ -575,7 +601,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                     make: identity.make,
                     model: identity.model,
                     variant: identity.variant,
-                    imageUrl: listing.images[0]?.url,
+                    imageUrl: coverImageUrl,
                   })
                 }
                 type="button"
@@ -606,7 +632,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 <ExpandIcon className="size-[18px]" />
               </button>
             ) : null}
-            {imageCount > 1 ? (
+            {usableImageCount > 1 ? (
               <>
                 {([
                   [-1, copy.detail.previousPhoto, "left-3.5", ""],
@@ -631,44 +657,36 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               </>
             ) : null}
           </div>
-          {images && images.length > 1 ? (
+          {images && usableImageCount > 1 ? (
             <div className="scrollbar-none mt-2.5 flex gap-2 overflow-x-auto pb-1 sm:absolute sm:inset-y-0 sm:right-0 sm:mt-0 sm:w-[5.5rem] sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:pb-0">
-              {images.map((image, index) => (
-                <button
-                  // The button's only child is a decorative image, so without
-                  // this it reached the accessibility tree unnamed — a row of
-                  // anonymous buttons. `aria-current` marks which one is showing.
-                  aria-current={index === activeImage ? "true" : undefined}
-                  aria-label={copy.detail.photoPosition(index + 1, imageCount)}
-                  className={`relative aspect-[4/3] w-16 shrink-0 overflow-hidden rounded-lg bg-surface-muted ring-2 transition sm:w-[5.5rem] ${
-                    index === activeImage ? "ring-accent" : "ring-transparent hover:ring-border-strong"
-                  }`}
-                  key={image.url}
-                  onClick={() => setActiveImage(index)}
-                  ref={index === activeImage ? activeThumbnail : null}
-                  type="button"
-                >
-                  {failedImages.has(image.url) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt={copy.card.missingImage}
-                      className="absolute inset-0 size-full object-cover"
-                      src="/images/vehicle-fallback.svg"
-                    />
-                  ) : (
+              {images.map((image, index) => {
+                if (failedImages.has(image.url)) return null;
+                return (
+                  <button
+                    // The button's only child is a decorative image, so without
+                    // this it reached the accessibility tree unnamed — a row of
+                    // anonymous buttons. `aria-current` marks which one is showing.
+                    aria-current={index === activeImage ? "true" : undefined}
+                    aria-label={copy.detail.photoPosition(index + 1, imageCount)}
+                    className={`relative aspect-[4/3] w-16 shrink-0 overflow-hidden rounded-lg bg-surface-muted ring-2 transition sm:w-[5.5rem] ${
+                      index === activeImage ? "ring-accent" : "ring-transparent hover:ring-border-strong"
+                    }`}
+                    key={image.url}
+                    onClick={() => setActiveImage(index)}
+                    ref={index === activeImage ? activeThumbnail : null}
+                    type="button"
+                  >
                     <Image
                       alt=""
                       className="object-contain"
                       fill
-                      onError={() =>
-                        setFailedImages((failed) => new Set(failed).add(image.url))
-                      }
+                      onError={() => markImageFailed(index, image.url)}
                       sizes="88px"
                       src={image.url}
                     />
-                  )}
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           ) : null}
           </div>
@@ -907,6 +925,10 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             value={analysis.buyConfidenceScore.value}
           />
 
+          {result.reliability ? (
+            <ReliabilityPanel assessment={result.reliability} locale={locale} />
+          ) : null}
+
           <div className="rounded-2xl border border-border bg-surface p-4">
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-sm font-semibold text-ink">{locale === "en" ? "Market comparison" : "Marknadsjämförelse"}</h3>
@@ -1126,7 +1148,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
 
       <SiteFooter locale={locale} />
 
-      {isFullscreen && currentImage ? (
+      {isFullscreen && currentImage && !failedImages.has(currentImage.url) ? (
         <div
           aria-label={currentImage.alt ?? listing.title}
           aria-modal="true"
@@ -1154,6 +1176,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             alt={currentImage.alt ?? listing.title}
             className="max-h-[88vh] max-w-[94vw] touch-pan-y select-none object-contain"
             draggable={false}
+            onError={() => markImageFailed(activeImage, currentImage.url)}
             onClick={(event) => event.stopPropagation()}
             onPointerCancel={cancelImageSwipe}
             onPointerDown={startImageSwipe}
@@ -1161,7 +1184,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             src={currentImage.url}
           />
 
-          {imageCount > 1 ? (
+          {usableImageCount > 1 ? (
             <>
               {([
                 [-1, copy.detail.previousPhoto, "left-3 sm:left-5", ""],

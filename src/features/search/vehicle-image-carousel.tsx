@@ -1,9 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ListingImage } from "@/domain/vehicle";
 import { ChevronLeftIcon } from "./icons";
+import {
+  firstUsableImageIndex,
+  nextUsableImageIndex,
+} from "./image-gallery-state";
 
 const imagePlaceholder =
   "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjUiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjUiIGZpbGw9IiNlN2U3ZTIiLz48L3N2Zz4=";
@@ -36,7 +40,9 @@ export function VehicleImageCarousel({
 }: VehicleImageCarouselProps) {
   const [activeImage, setActiveImage] = useState(0);
   const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
+  const failedImagesRef = useRef(failedImages);
   const imageCount = images.length;
+  const usableImageCount = imageCount - failedImages.size;
   const activeIndex = imageCount > 0 ? activeImage % imageCount : 0;
   const currentImage = images[activeIndex];
   const currentPositionLabel = positionLabel(activeIndex + 1, imageCount);
@@ -44,13 +50,32 @@ export function VehicleImageCarousel({
   useEffect(() => {
     if (activeImage === 0) return;
 
-    const resetTimer = window.setTimeout(() => setActiveImage(0), resetDelayMs);
+    const resetTimer = window.setTimeout(() => {
+      setActiveImage(firstUsableImageIndex(images, failedImagesRef.current) ?? 0);
+    }, resetDelayMs);
     return () => window.clearTimeout(resetTimer);
-  }, [activeImage]);
+  }, [activeImage, images]);
 
   function stepImage(delta: number) {
-    if (imageCount < 2) return;
-    setActiveImage((index) => (index + delta + imageCount) % imageCount);
+    if (usableImageCount < 2) return;
+    setActiveImage((index) =>
+      nextUsableImageIndex(
+        images,
+        failedImagesRef.current,
+        index % imageCount,
+        delta < 0 ? -1 : 1,
+      ) ?? index,
+    );
+  }
+
+  function markImageFailed(index: number, url: string) {
+    const nextFailed = new Set(failedImagesRef.current).add(url);
+    failedImagesRef.current = nextFailed;
+    setFailedImages(nextFailed);
+    setActiveImage((currentIndex) => {
+      if (currentIndex % imageCount !== index) return currentIndex;
+      return nextUsableImageIndex(images, nextFailed, index, 1) ?? 0;
+    });
   }
 
   // Stepping used to swap the whole <Image> on a `key` change, so every click
@@ -62,10 +87,15 @@ export function VehicleImageCarousel({
   // at a time is instant. Jumping further than a neighbour (rare — only via
   // the thumbnail rail on the detail page, which this component isn't used
   // for) still pays a one-time fetch.
-  const preloadIndices =
-    imageCount <= 3
-      ? Array.from({ length: imageCount }, (_, index) => index)
-      : [...new Set([-1, 0, 1].map((offset) => (activeIndex + offset + imageCount) % imageCount))];
+  const preloadIndices = imageCount <= 3
+    ? Array.from({ length: imageCount }, (_, index) => index)
+    : [
+        nextUsableImageIndex(images, failedImages, activeIndex, -1),
+        activeIndex,
+        nextUsableImageIndex(images, failedImages, activeIndex, 1),
+      ].filter((index, position, values): index is number =>
+        index !== undefined && values.indexOf(index) === position,
+      );
 
   return (
     <>
@@ -90,9 +120,7 @@ export function VehicleImageCarousel({
             className={`${imageClassName} [transition:opacity_250ms_ease-out,transform_700ms_ease-out] ${isActive ? "opacity-100" : "pointer-events-none opacity-0"}`}
             fill
             key={image.url}
-            onError={() =>
-              setFailedImages((failed) => new Set(failed).add(image.url))
-            }
+            onError={() => markImageFailed(index, image.url)}
             placeholder="blur"
             preload={priority && index === 0}
             sizes={sizes}
@@ -101,7 +129,7 @@ export function VehicleImageCarousel({
         );
       })}
 
-      {imageCount > 1 ? (
+      {usableImageCount > 1 ? (
         <>
           <button
             aria-label={previousLabel}

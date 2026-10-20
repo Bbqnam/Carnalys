@@ -245,6 +245,17 @@ export function SearchExperience({
           left.analysis.buyConfidenceScore.value,
       );
     }
+    if (sort === "market_discount") {
+      return listings.toSorted((left, right) => {
+        const discount = (result: VehicleSearchResult) => {
+          const marketValue = result.analysis.marketValue.value.amount;
+          return result.analysis.marketValue.comparableListingCount >= 3 && marketValue > 0
+            ? (marketValue - result.listing.price.askingPrice.amount) / marketValue
+            : Number.NEGATIVE_INFINITY;
+        };
+        return discount(right) - discount(left);
+      });
+    }
     return listings;
   }, [listings, sort]);
 

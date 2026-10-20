@@ -7,6 +7,7 @@ import type {
   VehicleAnalysis,
   VehicleListing,
 } from "@/domain/vehicle";
+import type { ReliabilityAssessment } from "@/domain/reliability";
 
 export interface VehicleSearchResult {
   vehicle: Vehicle;
@@ -23,6 +24,8 @@ export interface VehicleSearchResult {
     url: string;
     title?: string;
   }[];
+  /** Only present on the detail view when an evidence-backed profile matches. */
+  reliability?: ReliabilityAssessment;
 }
 
 export interface SearchFilters {
@@ -66,6 +69,7 @@ export interface AvailableVehicleFilters {
 
 export type SearchSort =
   | "deal_score"
+  | "market_discount"
   | "buy_confidence"
   | "price_asc"
   | "price_desc"

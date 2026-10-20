@@ -821,6 +821,15 @@ export async function refreshStoredListingAnalyses(
             )
           : [];
 
+        const marketDiscountBps =
+          canComparePrice && dealResult.value !== null && valuation.marketValue! > 0
+            ? Math.round(
+                ((valuation.marketValue! - target.priceAmount) /
+                  valuation.marketValue!) *
+                  10_000,
+              )
+            : null;
+
         const values = {
           marketValueAmount: canComparePrice ? valuation.marketValue! : target.priceAmount,
           marketValueMinimum:
@@ -831,6 +840,7 @@ export async function refreshStoredListingAnalyses(
             canComparePrice && valuation.rangeHigh != null
               ? valuation.rangeHigh
               : roundedThousands(target.priceAmount * 1.1),
+          marketDiscountBps,
           comparableCount: canComparePrice ? valuation.comparableCount : 0,
           comparablePrices: sampledPrices,
           confidence,
