@@ -39,6 +39,7 @@ export function VehicleImageCarousel({
   imageClassName = "object-cover",
 }: VehicleImageCarouselProps) {
   const [activeImage, setActiveImage] = useState(0);
+  const [prefetchedImage, setPrefetchedImage] = useState<number | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
   const failedImagesRef = useRef(failedImages);
   const imageCount = images.length;
@@ -58,6 +59,7 @@ export function VehicleImageCarousel({
 
   function stepImage(delta: number) {
     if (usableImageCount < 2) return;
+    setPrefetchedImage(null);
     setActiveImage((index) =>
       nextUsableImageIndex(
         images,
@@ -68,34 +70,38 @@ export function VehicleImageCarousel({
     );
   }
 
+  function prefetchImage(delta: -1 | 1) {
+    if (usableImageCount < 2) return;
+    setPrefetchedImage(
+      nextUsableImageIndex(
+        images,
+        failedImagesRef.current,
+        activeIndex,
+        delta,
+      ) ?? null,
+    );
+  }
+
   function markImageFailed(index: number, url: string) {
     const nextFailed = new Set(failedImagesRef.current).add(url);
     failedImagesRef.current = nextFailed;
     setFailedImages(nextFailed);
+    setPrefetchedImage((prefetched) => prefetched === index ? null : prefetched);
     setActiveImage((currentIndex) => {
       if (currentIndex % imageCount !== index) return currentIndex;
       return nextUsableImageIndex(images, nextFailed, index, 1) ?? 0;
     });
   }
 
-  // Stepping used to swap the whole <Image> on a `key` change, so every click
-  // unmounted the previous photo and mounted a fresh one — a blank/placeholder
-  // flash while it re-fetched, even for a slide already shown seconds earlier.
-  // The active slide plus its immediate neighbours instead stay mounted (each
-  // keyed by its own URL, never by index) and are cross-faded with opacity: a
-  // neighbour is already decoded by the time its turn comes, so stepping one
-  // at a time is instant. Jumping further than a neighbour (rare — only via
-  // the thumbnail rail on the detail page, which this component isn't used
-  // for) still pays a one-time fetch.
-  const preloadIndices = imageCount <= 3
-    ? Array.from({ length: imageCount }, (_, index) => index)
-    : [
-        nextUsableImageIndex(images, failedImages, activeIndex, -1),
-        activeIndex,
-        nextUsableImageIndex(images, failedImages, activeIndex, 1),
-      ].filter((index, position, values): index is number =>
-        index !== undefined && values.indexOf(index) === position,
-      );
+  // Only the visible image is mounted during initial rendering. Mounting both
+  // neighbours for every one of forty cards caused the browser to request up
+  // to 120 remote photos before the user touched a gallery. A neighbour is
+  // still prefetched on pointer hover or keyboard focus so desktop navigation
+  // remains instant, while touch loads the requested slide on demand.
+  const renderedIndices = [activeIndex, prefetchedImage].filter(
+    (index, position, values): index is number =>
+      index !== null && values.indexOf(index) === position,
+  );
 
   return (
     <>
@@ -109,7 +115,7 @@ export function VehicleImageCarousel({
           src="/images/vehicle-fallback.svg"
         />
       ) : null}
-      {preloadIndices.map((index) => {
+      {renderedIndices.map((index) => {
         const image = images[index];
         if (!image || failedImages.has(image.url)) return null;
         const isActive = index === activeIndex;
@@ -122,7 +128,7 @@ export function VehicleImageCarousel({
             key={image.url}
             onError={() => markImageFailed(index, image.url)}
             placeholder="blur"
-            preload={priority && index === 0}
+            preload={priority && isActive}
             sizes={sizes}
             src={image.url}
           />
@@ -139,6 +145,8 @@ export function VehicleImageCarousel({
               event.stopPropagation();
               stepImage(-1);
             }}
+            onFocus={() => prefetchImage(-1)}
+            onPointerEnter={() => prefetchImage(-1)}
             type="button"
           >
             <ChevronLeftIcon className={compact ? "size-4" : "size-5"} />
@@ -151,6 +159,8 @@ export function VehicleImageCarousel({
               event.stopPropagation();
               stepImage(1);
             }}
+            onFocus={() => prefetchImage(1)}
+            onPointerEnter={() => prefetchImage(1)}
             type="button"
           >
             <ChevronLeftIcon className={`rotate-180 ${compact ? "size-4" : "size-5"}`} />

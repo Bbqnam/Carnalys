@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { prisma } from "@/infrastructure/database/prisma";
 import { assertAdmin } from "./admin-guard";
 
@@ -80,7 +81,7 @@ export async function deleteCurrentSession() {
   cookieStore.delete(sessionCookieName);
 }
 
-export async function getCurrentUser(): Promise<AccountUser | null> {
+async function findCurrentUser(): Promise<AccountUser | null> {
   const token = (await cookies()).get(sessionCookieName)?.value;
   if (!token) return null;
 
@@ -91,6 +92,11 @@ export async function getCurrentUser(): Promise<AccountUser | null> {
   if (!session || session.expiresAt <= new Date()) return null;
   return accountUser(session.user);
 }
+
+// The root layout and the page body both ask for the account. React's request
+// cache turns those calls into one cookie read and one session query for the
+// current server render; it does not persist identity data between requests.
+export const getCurrentUser = cache(findCurrentUser);
 
 export async function requireCurrentUser() {
   const user = await getCurrentUser();

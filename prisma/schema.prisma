@@ -329,6 +329,9 @@ model ListingAnalysisRecord {
   @@index([confidenceRank, dealScore])
   @@index([marketDiscountBps])
   @@index([buyConfidenceScore])
+  @@index([confidenceRank(sort: Desc), dealScore(sort: Desc), listingId], map: "ListingAnalysisRecord_catalogDealSort_idx")
+  @@index([marketDiscountBps(sort: Desc), valuationConfidenceScore(sort: Desc), listingId], map: "ListingAnalysisRecord_catalogDiscountSort_idx")
+  @@index([buyConfidenceScore(sort: Desc), listingId], map: "ListingAnalysisRecord_catalogBuyConfidenceSort_idx")
 }
 
 /// Curated, evidence-backed reliability guidance. Profiles deliberately match

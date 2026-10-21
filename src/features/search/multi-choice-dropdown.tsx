@@ -29,6 +29,7 @@ interface MultiChoiceDropdownProps {
   doneLabel: string;
   noResultsLabel: string;
   onChange: (values: readonly string[]) => void;
+  onOpen?: () => void;
   renderIcon?: (value: string) => ReactNode;
   /** Icon slot holds a wide wordmark (e.g. a source logo) rather than a
    *  square mark — the container flexes to the artwork instead of cropping. */
@@ -62,6 +63,7 @@ export function MultiChoiceDropdown({
   doneLabel,
   noResultsLabel,
   onChange,
+  onOpen,
   renderIcon,
   iconWide = false,
   hideLabels = false,
@@ -161,6 +163,7 @@ export function MultiChoiceDropdown({
 
   const openMenu = () => {
     if (disabled) return;
+    onOpen?.();
     setQuery("");
     setOpen(true);
     if (searchable) requestAnimationFrame(() => searchRef.current?.focus());

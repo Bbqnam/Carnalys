@@ -145,6 +145,10 @@ export function SearchExperience({
   } = useCompare();
   const comparedIds = new Set(compared.map((vehicle) => vehicle.id));
   const [showFilters, setShowFilters] = useState(false);
+  const [loadedModelOptions, setLoadedModelOptions] = useState<
+    Record<string, AvailableVehicleFilters["models"]>
+  >({});
+  const loadingModelOptions = useRef(new Set<string>());
   // The drawer plays an exit animation before it leaves the tree: `closeFilters`
   // flags the node, then unmounts it a beat later. Opening clears the flag.
   const [filtersClosing, setFiltersClosing] = useState(false);
@@ -170,6 +174,33 @@ export function SearchExperience({
   const navigationTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const copy = uiCopy[locale];
   const formatLocale = locale === "en" ? "en-SE" : "sv-SE";
+  const preparedModelKey = [...initialFilters.brands].sort().join("\u0000") || "*";
+  const currentModelKey = [...filters.brands].sort().join("\u0000") || "*";
+  const modelOptions = currentModelKey === preparedModelKey
+    ? availableFilters.models
+    : (loadedModelOptions[currentModelKey] ?? []);
+  const loadModelOptions = useCallback(async () => {
+    if (modelOptions.length > 0 || loadingModelOptions.current.has(currentModelKey)) return;
+    loadingModelOptions.current.add(currentModelKey);
+    try {
+      const params = new URLSearchParams();
+      for (const make of filters.brands) params.append("make", make);
+      const response = await fetch(`/api/catalog/models?${params.toString()}`);
+      if (!response.ok) return;
+      const payload = await response.json() as {
+        models?: AvailableVehicleFilters["models"];
+      };
+      if (!Array.isArray(payload.models)) return;
+      setLoadedModelOptions((current) => ({
+        ...current,
+        [currentModelKey]: payload.models ?? [],
+      }));
+    } catch {
+      // Keep the picker usable; reopening retries a transient network error.
+    } finally {
+      loadingModelOptions.current.delete(currentModelKey);
+    }
+  }, [currentModelKey, filters.brands, modelOptions.length]);
   const showHero = pagination.page <= 1;
   useAnalystPageContext({ surface: "search", filters });
   // A neutral fallback analysis means this server payload was produced before
@@ -1055,8 +1086,9 @@ export function SearchExperience({
                   filters={filters}
                   locale={locale}
                   locationStatus={locationStatus}
-                  models={availableFilters.models}
+                  models={modelOptions}
                   onChange={changeFilters}
+                  onModelOptionsNeeded={loadModelOptions}
                   onReset={resetFilters}
                   onRequestLocation={requestCurrentLocation}
                   resultCount={pagination.totalListings}

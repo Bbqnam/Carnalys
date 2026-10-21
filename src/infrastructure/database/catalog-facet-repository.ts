@@ -1,8 +1,35 @@
+import { unstable_cache } from "next/cache";
 import type { AvailableVehicleFilters } from "@/features/search/types";
 import { Prisma } from "@/generated/prisma/client";
 import { initializeDatabase, prisma } from "./prisma";
 
 const activeCatalogSummaryId = "active-catalog";
+const catalogCacheTag = "listing-catalog-count";
+
+const findCatalogModelOptions = unstable_cache(
+  async (selectedBrands: readonly string[]) => {
+    const modelGroups = await prisma.catalogModelFacet.groupBy({
+      by: ["model"],
+      where:
+        selectedBrands.length > 0
+          ? { make: { in: [...selectedBrands] } }
+          : undefined,
+      _sum: { count: true },
+      orderBy: { model: "asc" },
+    });
+    return modelGroups.map(({ model, _sum }) => ({
+      value: model,
+      count: _sum.count ?? 0,
+    }));
+  },
+  ["catalog-model-options-v1"],
+  { revalidate: 900, tags: [catalogCacheTag] },
+);
+
+export async function getCatalogModelOptions(selectedBrands: readonly string[]) {
+  await initializeDatabase();
+  return findCatalogModelOptions([...new Set(selectedBrands)].sort());
+}
 
 export async function refreshCatalogFacets() {
   await initializeDatabase();
@@ -68,24 +95,18 @@ export async function refreshCatalogFacets() {
   );
 }
 
-export async function getPreparedCatalogFilters(
+async function readPreparedCatalogFilters(
   selectedBrands: readonly string[],
+  includeUnscopedModels: boolean,
 ): Promise<{
   filters: AvailableVehicleFilters;
   lastSynchronizedAt?: string;
 }> {
-  await initializeDatabase();
-  const [brands, modelGroups, years, summary] = await Promise.all([
+  const [brands, models, years, summary] = await Promise.all([
     prisma.catalogMakeFacet.findMany({ orderBy: { make: "asc" } }),
-    prisma.catalogModelFacet.groupBy({
-      by: ["model"],
-      where:
-        selectedBrands.length > 0
-          ? { make: { in: [...selectedBrands] } }
-          : undefined,
-      _sum: { count: true },
-      orderBy: { model: "asc" },
-    }),
+    selectedBrands.length > 0 || includeUnscopedModels
+      ? getCatalogModelOptions(selectedBrands)
+      : Promise.resolve([]),
     prisma.catalogYearFacet.findMany({ orderBy: { modelYear: "desc" } }),
     prisma.catalogSummary.findUnique({ where: { id: activeCatalogSummaryId } }),
   ]);
@@ -93,10 +114,7 @@ export async function getPreparedCatalogFilters(
   return {
     filters: {
       brands: brands.map(({ make, count }) => ({ value: make, count })),
-      models: modelGroups.map(({ model, _sum }) => ({
-        value: model,
-        count: _sum.count ?? 0,
-      })),
+      models,
       years: years.map(({ modelYear, count }) => ({ value: modelYear, count })),
       priceRange: {
         minimum: summary?.minimumPrice ?? 0,
@@ -105,4 +123,24 @@ export async function getPreparedCatalogFilters(
     },
     lastSynchronizedAt: summary?.lastSynchronizedAt?.toISOString(),
   };
+}
+
+const findPreparedCatalogFilters = unstable_cache(
+  readPreparedCatalogFilters,
+  ["prepared-catalog-filters-v1"],
+  { revalidate: 900, tags: [catalogCacheTag] },
+);
+
+export async function getPreparedCatalogFilters(
+  selectedBrands: readonly string[],
+  includeUnscopedModels = true,
+): Promise<{
+  filters: AvailableVehicleFilters;
+  lastSynchronizedAt?: string;
+}> {
+  await initializeDatabase();
+  return findPreparedCatalogFilters(
+    [...new Set(selectedBrands)].sort(),
+    includeUnscopedModels,
+  );
 }

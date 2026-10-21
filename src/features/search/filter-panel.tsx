@@ -108,6 +108,7 @@ interface FilterPanelProps {
   years: readonly VehicleFilterOption<number>[];
   resultCount: number;
   onChange: (filters: SearchFilters) => void;
+  onModelOptionsNeeded?: () => void;
   onReset: () => void;
   currentLocation?: UserLocation;
   locationStatus?: LocationStatus;
@@ -278,6 +279,7 @@ export function FilterPanel({
   years,
   resultCount,
   onChange,
+  onModelOptionsNeeded,
   onReset,
   currentLocation,
   locationStatus,
@@ -484,11 +486,11 @@ export function FilterPanel({
           />
           <MultiChoiceDropdown
             clearLabel={copy.clearSelection}
-            disabled={models.length === 0}
             doneLabel={copy.done}
             label={copy.model}
             noResultsLabel={copy.noMatches}
             onChange={(models) => onChange({ ...filters, models })}
+            onOpen={onModelOptionsNeeded}
             options={modelOptions}
             placeholder={copy.allModels}
             renderIcon={() => <VehicleModelIcon className="size-3.5" />}

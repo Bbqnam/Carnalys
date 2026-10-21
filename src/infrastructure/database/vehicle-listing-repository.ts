@@ -722,28 +722,136 @@ function listingOrder(
       // none. Ordering on `publishedAt` alone sent every publish-date-less ad
       // (Hedin, older Bytbil) to the top on a DESC sort's NULLs-first rule.
       return [{ listedAt: "desc" }, { id: "asc" }];
-    case "buy_confidence":
-      return [{ analysis: { buyConfidenceScore: "desc" } }, { id: "asc" }];
-    case "market_discount":
-      return [
-        {
-          analysis: {
-            marketDiscountBps: { sort: "desc", nulls: "last" },
-          },
-        },
-        { analysis: { valuationConfidenceScore: { sort: "desc", nulls: "last" } } },
-        { id: "asc" },
-      ];
-    case "deal_score":
     default:
-      // Unrated listings (dealScore IS NULL) sort last, not first — a missing
-      // score is not the best deal on the page.
-      return [
-        { analysis: { confidenceRank: "desc" } },
-        { analysis: { dealScore: { sort: "desc", nulls: "last" } } },
-        { id: "asc" },
-      ];
+      // Score sorts are handled by `findScoreSortedListingIds`: driving the
+      // query from the compact analysis indexes avoids a full hash join and
+      // sort across both large tables.
+      return [{ id: "asc" }];
   }
+}
+
+type ScoreSort = Extract<
+  SearchSort,
+  "deal_score" | "market_discount" | "buy_confidence"
+>;
+
+function isScoreSort(sort: SearchSort): sort is ScoreSort {
+  return sort === "deal_score" || sort === "market_discount" || sort === "buy_confidence";
+}
+
+function scoreSortDefinition(sort: ScoreSort): {
+  rated: Prisma.ListingAnalysisRecordWhereInput;
+  unrated: Prisma.ListingRecordWhereInput;
+  orderBy: Prisma.ListingAnalysisRecordOrderByWithRelationInput[];
+} {
+  switch (sort) {
+    case "market_discount":
+      return {
+        rated: {
+          marketDiscountBps: { not: null },
+          valuationConfidenceScore: { not: null },
+        },
+        unrated: {
+          OR: [
+            { analysis: { is: null } },
+            { analysis: { is: { marketDiscountBps: null } } },
+            { analysis: { is: { valuationConfidenceScore: null } } },
+          ],
+        },
+        orderBy: [
+          { marketDiscountBps: "desc" },
+          { valuationConfidenceScore: "desc" },
+          { listingId: "asc" },
+        ],
+      };
+    case "buy_confidence":
+      return {
+        rated: {},
+        unrated: { analysis: { is: null } },
+        orderBy: [{ buyConfidenceScore: "desc" }, { listingId: "asc" }],
+      };
+    case "deal_score":
+      return {
+        rated: { dealScore: { not: null } },
+        unrated: {
+          OR: [
+            { analysis: { is: null } },
+            { analysis: { is: { dealScore: null } } },
+          ],
+        },
+        orderBy: [
+          { confidenceRank: "desc" },
+          { dealScore: "desc" },
+          { listingId: "asc" },
+        ],
+      };
+  }
+}
+
+async function findScoreSortedListingIds(
+  sort: ScoreSort,
+  where: Prisma.ListingRecordWhereInput,
+  skip: number,
+  take: number,
+): Promise<string[]> {
+  const definition = scoreSortDefinition(sort);
+  const ratedWhere: Prisma.ListingAnalysisRecordWhereInput = {
+    ...definition.rated,
+    listing: { is: where },
+  };
+  const rated = await prisma.listingAnalysisRecord.findMany({
+    where: ratedWhere,
+    select: { listingId: true },
+    orderBy: definition.orderBy,
+    skip,
+    take,
+  });
+  if (rated.length === take) return rated.map(({ listingId }) => listingId);
+
+  // Unrated entries belong after every rated result. This branch is normally
+  // reached only on the final page or for a very narrow filter, so the extra
+  // count never sits on the hot path for the broad catalogue.
+  const ratedCount = await prisma.listingAnalysisRecord.count({ where: ratedWhere });
+  const fallback = await prisma.listingRecord.findMany({
+    where: { AND: [where, definition.unrated] },
+    select: { id: true },
+    orderBy: { id: "asc" },
+    skip: Math.max(0, skip - ratedCount),
+    take: take - rated.length,
+  });
+  return [
+    ...rated.map(({ listingId }) => listingId),
+    ...fallback.map(({ id }) => id),
+  ];
+}
+
+async function findCatalogRecords(
+  sort: SearchSort,
+  where: Prisma.ListingRecordWhereInput,
+  skip: number,
+  take: number,
+): Promise<CardListing[]> {
+  if (!isScoreSort(sort)) {
+    return prisma.listingRecord.findMany({
+      where,
+      select: cardListingSelect,
+      orderBy: listingOrder(sort),
+      skip,
+      take,
+    });
+  }
+
+  const orderedIds = await findScoreSortedListingIds(sort, where, skip, take);
+  if (orderedIds.length === 0) return [];
+  const records = await prisma.listingRecord.findMany({
+    where: { id: { in: orderedIds } },
+    select: cardListingSelect,
+  });
+  const byId = new Map(records.map((record) => [record.id, record]));
+  return orderedIds.flatMap((id) => {
+    const record = byId.get(id);
+    return record ? [record] : [];
+  });
 }
 
 /**
@@ -770,7 +878,7 @@ function countActiveListings(
   )();
 }
 
-export async function getActiveVehicleListings(
+async function getActiveVehicleListingsUncached(
   options: VehicleSearchOptions,
 ): Promise<VehicleListingCatalog> {
   await initializeDatabase();
@@ -783,14 +891,13 @@ export async function getActiveVehicleListings(
   const requestedPage = Math.max(1, Math.trunc(options.page));
   const [totalListings, records, preparedCatalog] = await Promise.all([
     countActiveListings(where),
-    prisma.listingRecord.findMany({
+    findCatalogRecords(
+      options.sort,
       where,
-      select: cardListingSelect,
-      orderBy: listingOrder(options.sort),
-      skip: (requestedPage - 1) * pageSize,
-      take: pageSize,
-    }),
-    getPreparedCatalogFilters(options.filters.brands),
+      (requestedPage - 1) * pageSize,
+      pageSize,
+    ),
+    getPreparedCatalogFilters(options.filters.brands, false),
   ]);
   const totalPages = Math.max(1, Math.ceil(totalListings / pageSize));
   const page = Math.min(requestedPage, totalPages);
@@ -813,6 +920,22 @@ export async function getActiveVehicleListings(
       totalPages,
     },
   };
+}
+
+export function getActiveVehicleListings(
+  options: VehicleSearchOptions,
+): Promise<VehicleListingCatalog> {
+  const key = createHash("sha1")
+    .update(JSON.stringify(options))
+    .digest("hex");
+  return unstable_cache(
+    () => getActiveVehicleListingsUncached(options),
+    ["vehicle-listing-catalog-v1", key],
+    // Search results are public and change only when a synchronization writer
+    // invalidates this tag. The short TTL also bounds staleness if an external
+    // database writer bypasses that application path.
+    { revalidate: 60, tags: [catalogCountCacheTag] },
+  )();
 }
 
 /** Just enough of a listing to title a page; deliberately avoids the

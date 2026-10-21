@@ -21,11 +21,16 @@ export function SearchHero({
           <Image> so a missing file degrades to the plain band instead of a
           broken-image box. Asset lives at public/images/hero.png. The overlay
           is solid only at the far left and fully clear by ~40% across, so the
-          car itself keeps full contrast instead of sitting under a veil. */}
+          car itself keeps full contrast instead of sitting under a veil. The
+          image-set serves a ~65–74 KB modern asset instead of the 1.8 MB PNG;
+          PNG remains the fallback candidate. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 right-0 -z-10 hidden w-[61%] bg-cover bg-[position:66%_center] bg-no-repeat sm:block lg:w-[58%]"
-        style={{ backgroundImage: "url(/images/hero.png)" }}
+        style={{
+          backgroundImage:
+            "image-set(url('/images/hero.avif') type('image/avif'), url('/images/hero.webp') type('image/webp'), url('/images/hero.png') type('image/png'))",
+        }}
       >
         <div
           className="absolute inset-0"
