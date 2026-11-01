@@ -44,7 +44,7 @@ import {
 import { computeValuationConfidence } from "@/domain/vehicle/analysis/valuation-confidence";
 import type { ServiceHistoryStatus } from "@/domain/vehicle";
 import { initializeDatabase, prisma } from "./prisma";
-import { freshListingSql } from "./listing-freshness";
+import { freshListingSql, freshListingWhere } from "./listing-freshness";
 
 interface AnalysisTarget {
   id: string;
@@ -169,6 +169,9 @@ async function loadTargets(
   return prisma.listingRecord.findMany({
     where: {
       status: "active",
+      // Archived/unverified inventory cannot affect the visible catalogue.
+      // Defer its calculations until ingestion or a host check reconfirms it.
+      ...(!listingIds ? { AND: [freshListingWhere()] } : {}),
       ...(listingIds
         ? { id: { in: [...listingIds] } }
         : {

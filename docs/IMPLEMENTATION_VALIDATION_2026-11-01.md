@@ -97,7 +97,9 @@ contained no errors after reload.
 
 Nightly non-Blocket checks rotate 500 adverts per source. The independent
 90-minute valuation job drains up to 50,000 changed/expired estimates and logs
-the pending-change count and oldest timestamp. This is bounded work; it does
+the pending-change count and oldest visible timestamp. Hidden unverified stock
+is deferred until reconfirmed, rather than consuming the visible-stock budget.
+This is bounded work; it does
 not promise complete daily host coverage or a strict 24-hour refresh SLA.
 Catalogue result caches can retain cards briefly; recommendation responses
 use no-store and five-minute maximum positive evidence reuse. A seller can

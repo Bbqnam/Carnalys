@@ -114,6 +114,8 @@ Displayed explanation candidates are restricted to the actual used set.
 Changed listings carry `analysisRequiredAt`; workers select dirty rows as well
 as old methods and estimates older than a day. Clearing a dirty marker is
 conditional on its timestamp to preserve a concurrent update. Nightly draining
-is bounded; backlog size and oldest pending timestamp are operational release
+prioritizes inventory inside the shared catalogue freshness policy; hidden
+unverified ads wait for source/host reconfirmation. Work is bounded; visible
+backlog size and oldest pending timestamp are operational release
 checks. The legacy numeric estimator is not assumed to be calibrated because
 its unit tests pass.

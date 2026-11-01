@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { refreshStoredListingAnalyses } from "@/infrastructure/database/listing-analysis-repository";
 import { initializeDatabase, prisma } from "@/infrastructure/database/prisma";
+import { freshListingSql } from "@/infrastructure/database/listing-freshness";
 
 function positiveInteger(value: string | undefined, fallback: number) {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -29,11 +30,12 @@ async function main() {
       ? "Alla aktiva annonser har redan en aktuell sparad analys."
       : `Klart: ${analyzed.toLocaleString("sv-SE")} analyser uppdaterades.`,
   );
-  const [backlog] = await prisma.$queryRaw<{ pending: bigint; oldestPending: Date | null }[]>`
-    SELECT COUNT(*) AS "pending", MIN("analysisRequiredAt") AS "oldestPending"
-    FROM "ListingRecord" WHERE "status" = 'active' AND "analysisRequiredAt" IS NOT NULL
+  const [backlog] = await prisma.$queryRaw<{ pending: bigint; pendingVisible: bigint; oldestVisiblePending: Date | null }[]>`
+    SELECT COUNT(*) AS "pending", COUNT(*) FILTER (WHERE ${freshListingSql()}) AS "pendingVisible",
+      MIN("analysisRequiredAt") FILTER (WHERE ${freshListingSql()}) AS "oldestVisiblePending"
+    FROM "ListingRecord" AS listing WHERE "status" = 'active' AND "analysisRequiredAt" IS NOT NULL
   `;
-  console.log(JSON.stringify({ pendingChangedListings: Number(backlog.pending), oldestPending: backlog.oldestPending }));
+  console.log(JSON.stringify({ pendingChangedListings: Number(backlog.pending), pendingVisibleListings: Number(backlog.pendingVisible), oldestVisiblePending: backlog.oldestVisiblePending }));
 }
 
 main()

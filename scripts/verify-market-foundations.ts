@@ -30,6 +30,11 @@ async function main() {
   await upsertNormalizedListings([{ ...fixtureListing, listing: { ...fixtureListing.listing, priceAmount: 301000, mileageKnown: true } }], new Date());
   assert.equal(await prisma.listingFactObservation.count({ where: { listingId: fixtureId } }), 2);
   assert.deepEqual((await prisma.listingFactObservation.findUniqueOrThrow({ where: { id: firstFact.id } })).facts, firstFact.facts);
+  const seeded = await prisma.listingAnalysisRecord.findUniqueOrThrow({ where: { listingId: fixtureId } });
+  await prisma.listingRecord.update({ where: { id: fixtureId },
+    data: { lastSeenAt: new Date("2010-01-01"), analysisRequiredAt: new Date("1970-01-01") } });
+  await refreshStoredListingAnalyses(undefined, 1);
+  assert.equal((await prisma.listingAnalysisRecord.findUniqueOrThrow({ where: { listingId: fixtureId } })).calculatedAt.getTime(), seeded.calculatedAt.getTime());
   await prisma.listingRecord.update({ where: { id: fixtureId }, data: { status: "removed", isVehicleRepresentative: false } });
   const target = await prisma.listingRecord.findFirstOrThrow({
     where: { status: "active", mileageKnown: true, valuationEligible: true, vehicle: { make: "Volvo", model: "V60" } },
