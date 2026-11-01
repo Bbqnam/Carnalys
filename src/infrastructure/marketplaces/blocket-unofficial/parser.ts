@@ -140,6 +140,7 @@ export function parseBlocketSearchResponse(payload: unknown): {
         organisationName: stringValue(candidate.organisation_name),
         year: Math.round(year),
         mileageMil: Math.round(mileageMil),
+        mileageKnown: numberValue(candidate.mileage) !== undefined,
         dealerSegment: stringValue(candidate.dealer_segment),
         registrationNumber: stringValue(candidate.regno),
         vin: stringValue(candidate.chassis_number),

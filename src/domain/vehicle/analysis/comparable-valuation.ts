@@ -67,6 +67,8 @@ const MEDIAN_CLAMP_FLOOR = 0.5;
 const MEDIAN_CLAMP_CEIL = 1.6;
 
 export interface ValuationComparable {
+  listingId?: string;
+  vehicleId?: string;
   priceAmount: number;
   ageYears: number;
   mileageKm: number;
@@ -93,6 +95,8 @@ export interface Valuation {
   /** Comparables that actually fed the estimate (after sanity + trim + nearest). */
   comparableCount: number;
   method: ValuationMethod;
+  comparables: readonly (ValuationComparable & { adjustedPriceAmount: number; adjustmentClipped: boolean })[];
+  effectiveSampleSize: number;
   /** SEK a model year *newer* is worth here; only when `method === "adjusted"`. */
   perModelYear?: number;
   /** SEK 1,000 km *less* is worth here; only when `method === "adjusted"`. */
@@ -250,6 +254,8 @@ export function valueVehicle(
     rangeHigh: null,
     comparableCount: 0,
     method: "insufficient",
+    comparables: [],
+    effectiveSampleSize: 0,
   };
 
   const sane = sanitizeComparables(comparables);
@@ -273,6 +279,9 @@ export function valueVehicle(
   const clamp = (v: number) => Math.min(Math.max(v, clampLow), clampHigh);
 
   const slopes = fitAgeMileageSlopes(trimmed);
+  const totalWeight = trimmed.reduce((sum, row) => sum + (row.weight ?? 1), 0);
+  const squaredWeight = trimmed.reduce((sum, row) => sum + (row.weight ?? 1) ** 2, 0);
+  const effectiveSampleSize = squaredWeight > 0 ? totalWeight ** 2 / squaredWeight : 0;
   const canAdjust =
     slopes !== null && slopes.bAge <= 0 && slopes.bMileage < 0;
 
@@ -287,7 +296,7 @@ export function valueVehicle(
         Math.max(raw, c.priceAmount * PER_COMPARABLE_SHIFT_FLOOR),
         c.priceAmount * PER_COMPARABLE_SHIFT_CEIL,
       );
-      return { value, weight: c.weight ?? 1 };
+      return { value, weight: c.weight ?? 1, comparable: { ...c, adjustedPriceAmount: value, adjustmentClipped: value !== raw } };
     });
     return {
       marketValue: roundedThousands(clamp(weightedMedian(shifted))),
@@ -295,6 +304,8 @@ export function valueVehicle(
       rangeHigh: roundedThousands(clamp(weightedPercentile(shifted, 0.75))),
       comparableCount: trimmed.length,
       method: "adjusted",
+      comparables: shifted.map(row => row.comparable),
+      effectiveSampleSize,
       perModelYear: Math.round(-bAge),
       perThousandKm: Math.round(bMileage * 1_000),
     };
@@ -307,5 +318,7 @@ export function valueVehicle(
     rangeHigh: roundedThousands(weightedPercentile(weightedPrices, 0.75)),
     comparableCount: trimmed.length,
     method: "raw_median",
+    comparables: trimmed.map(row => ({ ...row, adjustedPriceAmount: row.priceAmount, adjustmentClipped: false })),
+    effectiveSampleSize,
   };
 }

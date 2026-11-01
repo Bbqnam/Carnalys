@@ -10,6 +10,12 @@ import {
 
 const NOW = new Date("2026-09-12T00:00:00Z");
 
+test("a shared combustion class never makes known petrol and diesel equivalent", () => {
+  const result = scoreComparable(target({ fuelType: "petrol", powertrainType: "combustion" }),
+    candidate({ fuelType: "diesel", powertrainType: "combustion" }), NOW);
+  assert.equal(result.hardReject, true);
+});
+
 function target(overrides: Partial<SimilarityTarget> = {}): SimilarityTarget {
   return {
     fuelType: "plug_in_hybrid",

@@ -95,6 +95,7 @@ const UNKNOWN_OWNER_SCORE = 45;
 export interface ConditionInputs {
   ageYears: number;
   mileageKm: number;
+  mileageKnown?: boolean;
   /** `null` when the listing does not state it. */
   ownerCount: number | null;
   serviceHistory: ServiceHistoryStatus;
@@ -112,7 +113,7 @@ export interface ConditionScores {
 export function conditionScores(inputs: ConditionInputs): ConditionScores {
   return {
     ageScore: interpolateScore(Math.max(0, inputs.ageYears), AGE_SCORE_POINTS),
-    mileageScore: interpolateScore(
+    mileageScore: inputs.mileageKnown === false ? NEUTRAL_SCORE : interpolateScore(
       Math.max(0, inputs.mileageKm),
       MILEAGE_SCORE_POINTS,
     ),

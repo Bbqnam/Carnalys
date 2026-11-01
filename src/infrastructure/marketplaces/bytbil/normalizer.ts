@@ -133,6 +133,7 @@ export function normalizeBytbilListing(
         0,
       previousPriceAmount: detail?.previousPriceAmount,
       mileageKm: mileageKm ?? 0,
+      mileageKnown: mileageKm !== undefined,
       location: place(document.location),
       municipality: place(document.location),
       latitude: coordinates?.latitude,

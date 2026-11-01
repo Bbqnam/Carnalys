@@ -45,14 +45,13 @@ export function VehicleRow({
     specification,
     copy,
     moneyFormatter,
-    numberFormatter,
     askingPrice,
     hasMarketEstimate,
     priceDifference,
     marketDifferencePercent,
     financingOffer,
     priceReduction,
-    mileage,
+    mileageLabel,
     sellerLocation,
     distanceKm,
     listingDateValue,
@@ -142,7 +141,7 @@ export function VehicleRow({
             <span>{identity.modelYear}</span>
             <span className="text-ink-subtle">•</span>
             <span>
-              {numberFormatter.format(mileage)} {copy.card.mileageUnit}
+              {mileageLabel}
             </span>
             {specification.powertrain.powerHp ? (
               <>

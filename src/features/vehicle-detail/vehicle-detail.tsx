@@ -13,6 +13,7 @@ import {
 import { BrandLogo } from "@/features/search/brand-logo";
 import { PriceDistribution } from "./price-distribution";
 import { ReliabilityPanel } from "./reliability-panel";
+import { SimilarVehicles } from "./similar-vehicles";
 import {
   scoreFactorText,
   uiCopy,
@@ -696,7 +697,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             </span>
             <span>{identity.modelYear}</span>
             <span className="text-ink-subtle">•</span>
-            <span>{numberFormatter.format(listing.mileageKm / 10)} {copy.card.mileageUnit}</span>
+            <span>{listing.mileageKnown === false ? (locale === "sv" ? "Miltal saknas" : "Mileage unknown") : `${numberFormatter.format(listing.mileageKm / 10)} ${copy.card.mileageUnit}`}</span>
             <span className="text-ink-subtle">•</span>
             <span>{copy.filters.fuels[specification.powertrain.fuelType]}</span>
             <span className="text-ink-subtle">•</span>
@@ -746,7 +747,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               <div>
                 <dt className="text-ink-subtle">{copy.detail.mileage}</dt>
                 <dd className="font-medium text-ink">
-                  {numberFormatter.format(listing.mileageKm / 10)} {copy.card.mileageUnit}
+                  {listing.mileageKnown === false ? (locale === "sv" ? "Miltal saknas" : "Mileage unknown") : `${numberFormatter.format(listing.mileageKm / 10)} ${copy.card.mileageUnit}`}
                 </dd>
               </div>
               <div>
@@ -940,6 +941,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             </div>
             {hasMarketEstimate ? (
               <>
+                <p className="mt-2 text-xs text-ink-subtle">{locale === "sv" ? "Värderingen bygger på annonserade priser, inte genomförda köp. Tillitspoängen beskriver underlaget och är inte en sannolikhet." : "The estimate uses advertised prices, not completed sales. The confidence score describes the evidence; it is not a probability."}</p>
                 <p className="mt-3 text-[11px] font-medium text-ink-subtle">{copy.detail.marketValueTitle}</p>
                 <p className="mt-2 text-xl font-semibold text-ink">
                   {moneyFormatter.format(analysis.marketValue.value.amount)}
@@ -1137,6 +1139,10 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           </div>
         </div>
         </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        <SimilarVehicles listingId={listing.id} locale={locale} />
       </div>
 
       <CompareTray

@@ -12,6 +12,7 @@ export interface BlocketSearchDocument {
   organisationName?: string;
   year: number;
   mileageMil: number;
+  mileageKnown?: boolean;
   dealerSegment?: string;
   registrationNumber?: string;
   vin?: string;

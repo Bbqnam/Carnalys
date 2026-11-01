@@ -63,6 +63,7 @@ export interface NormalizedVehicleListing {
     previousPriceAmount?: number;
     monthlyCostAmount?: number;
     mileageKm: number;
+    mileageKnown?: boolean;
     location: string;
     municipality: string;
     latitude?: number;

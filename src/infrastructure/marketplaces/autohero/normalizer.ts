@@ -202,6 +202,7 @@ export function normalizeAutoheroListing(
       previousPriceAmount: document.previousPriceAmount,
       monthlyCostAmount: document.monthlyCostAmount,
       mileageKm: detail?.mileageKm ?? document.mileageKm,
+      mileageKnown: true,
       location: place(city),
       municipality: place(city),
       latitude: placeCoordinates(city)?.latitude,

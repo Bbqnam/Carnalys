@@ -38,6 +38,8 @@
     "data:sync:autohero:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=autohero",
     "data:analyze": "tsx src/scripts/analyze-vehicle-listings.ts",
     "data:audit:deal-score-v11": "tsx src/scripts/audit-deal-score-v11.ts",
+    "valuation:freeze": "tsx scripts/valuation/export-snapshot.ts",
+    "valuation:evaluate": "tsx scripts/valuation/evaluate-snapshot.ts",
     "data:audit:quality": "tsx src/scripts/backfill-listing-quality.ts",
     "data:backfill:quality": "tsx src/scripts/backfill-listing-quality.ts --write",
     "data:quarantine:quality": "tsx src/scripts/backfill-listing-quality.ts --write --quarantine-only",
@@ -46,6 +48,8 @@
     "blocket:probe": "tsx scripts/probe-blocket-availability.ts",
     "data:poll": "tsx scripts/poll-blocket-removals.ts --write",
     "data:poll:dry": "tsx scripts/poll-blocket-removals.ts",
+    "data:availability": "tsx scripts/poll-host-availability.ts",
+    "data:availability:write": "tsx scripts/poll-host-availability.ts --write",
     "data:sync:all:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental && tsx src/scripts/sync-vehicle-listings.ts incremental --source=wayke && tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil && tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin && tsx src/scripts/sync-vehicle-listings.ts incremental --source=autohero"
   },
   "dependencies": {

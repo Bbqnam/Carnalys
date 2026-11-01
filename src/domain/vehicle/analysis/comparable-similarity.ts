@@ -147,7 +147,8 @@ export function scoreComparable(
     return { score: 0, tier: "D", reasons: ["Different powertrain class"], hardReject: true };
   }
   if (
-    (!targetPowertrain || targetPowertrain === "unknown" ||
+    ((targetPowertrain === "combustion" && candidatePowertrain === "combustion") ||
+      !targetPowertrain || targetPowertrain === "unknown" ||
       !candidatePowertrain || candidatePowertrain === "unknown") &&
     target.fuelType !== "other" &&
     candidate.fuelType !== "other" &&

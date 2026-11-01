@@ -42,3 +42,8 @@ test("keeps search-feed images when no page gallery was fetched", () => {
   const normalized = normalizeBlocketListing(document, undefined, "all-cars");
   assert.equal(normalized.listing.images[0].url, document.imageUrls[0]);
 });
+
+test("preserves missing odometer separately from an explicitly reported zero", () => {
+  assert.equal(normalizeBlocketListing({ ...document, mileageMil: 0, mileageKnown: false }, undefined, "all-cars").listing.mileageKnown, false);
+  assert.equal(normalizeBlocketListing({ ...document, mileageMil: 0, mileageKnown: true }, undefined, "all-cars").listing.mileageKnown, true);
+});

@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import type { AvailableVehicleFilters } from "@/features/search/types";
 import { Prisma } from "@/generated/prisma/client";
 import { initializeDatabase, prisma } from "./prisma";
+import { freshListingSql, freshListingWhere } from "./listing-freshness";
 
 const activeCatalogSummaryId = "active-catalog";
 const catalogCacheTag = "listing-catalog-count";
@@ -47,6 +48,7 @@ export async function refreshCatalogFacets() {
         FROM "ListingRecord" AS listing
         INNER JOIN "VehicleRecord" AS vehicle ON vehicle."id" = listing."vehicleId"
         WHERE listing."status" = 'active'
+          AND ${freshListingSql(updatedAt)}
         GROUP BY vehicle."make"
       `);
       await transaction.$executeRaw(Prisma.sql`
@@ -55,6 +57,7 @@ export async function refreshCatalogFacets() {
         FROM "ListingRecord" AS listing
         INNER JOIN "VehicleRecord" AS vehicle ON vehicle."id" = listing."vehicleId"
         WHERE listing."status" = 'active'
+          AND ${freshListingSql(updatedAt)}
         GROUP BY vehicle."make", vehicle."model"
       `);
       await transaction.$executeRaw(Prisma.sql`
@@ -63,11 +66,12 @@ export async function refreshCatalogFacets() {
         FROM "ListingRecord" AS listing
         INNER JOIN "VehicleRecord" AS vehicle ON vehicle."id" = listing."vehicleId"
         WHERE listing."status" = 'active'
+          AND ${freshListingSql(updatedAt)}
         GROUP BY vehicle."modelYear"
       `);
 
       const summary = await transaction.listingRecord.aggregate({
-        where: { status: "active" },
+        where: { status: "active", ...freshListingWhere(updatedAt) },
         _count: { id: true },
         _min: { priceAmount: true },
         _max: { priceAmount: true, synchronizedAt: true },

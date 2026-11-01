@@ -71,11 +71,45 @@ jobs:
       - name: Poll Blocket for removals
         run: npm run data:poll
 
+      # Original-host evidence for the other sources. Rotate the oldest checks;
+      # 403/429 stop that source's batch instead of pretending adverts are gone.
+      # Recommendations also verify their own bounded candidate set on demand.
+      - name: Verify non-Blocket adverts on their original sites
+        continue-on-error: true
+        run: |
+          npm run data:availability:write -- --source=wayke --limit=500
+          npm run data:availability:write -- --source=bytbil --limit=500
+          npm run data:availability:write -- --source=hedin --limit=500
+          npm run data:availability:write -- --source=autohero --limit=500
+
+      - name: Freeze the next forward-validation snapshot
+        run: npm run valuation:freeze -- "artifacts/valuation/snapshot-${GITHUB_RUN_ID}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: valuation-snapshot-${{ github.run_id }}
+          path: artifacts/valuation/snapshot-*.json
+          retention-days: 30
+
       # --- sanity: the report query still runs against the live schema.
       - name: Daily report smoke test
         run: npm run report:smoke
 
-      # TODO (phase 2): full reconciliation for Wayke/Bytbil/Hedin/Autohero to
-      # detect their removals too — their :full runs go through the same
-      # markMissingListingsRemovedSafely path. Add once the Blocket poll is
-      # proven, likely as a separate weekly workflow (heavier, resumable).
+  # Independent runtime budget: valuation work must not be cut short by a
+  # slow source sync. Bounded backlog draining, never on a page request.
+  analyze:
+    needs: sync
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Drain pending and expired valuations
+        run: npm run data:analyze -- 50000

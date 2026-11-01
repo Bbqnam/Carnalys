@@ -3,7 +3,7 @@ import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application
 import { exactVehicleMatchEvidence } from "@/application/ingestion/vehicle-match-policy";
 import { meaningfulListingEvents } from "@/domain/market/listing-history";
 import { assessListingDataQuality } from "@/domain/vehicle/analysis/listing-data-quality";
-import { canonicalizeVehicle } from "@/domain/vehicle/taxonomy";
+import { canonicalizeVehicle, CURRENT_NORMALIZATION_VERSION } from "@/domain/vehicle/taxonomy";
 import { Prisma } from "@/generated/prisma/client";
 import { listingImageWritePolicy } from "./listing-image-write-policy";
 import { initializeDatabase, prisma } from "./prisma";
@@ -58,6 +58,7 @@ function listingHashes(normalized: NormalizedVehicleListing) {
         previousPriceAmount: normalized.listing.previousPriceAmount,
         monthlyCostAmount: normalized.listing.monthlyCostAmount,
         mileageKm: normalized.listing.mileageKm,
+        mileageKnown: normalized.listing.mileageKnown ?? normalized.listing.mileageKm > 0,
         location: normalized.listing.location,
         municipality: normalized.listing.municipality,
         latitude: normalized.listing.latitude,
@@ -257,6 +258,7 @@ interface ExistingListingState {
   imageCount: number;
   equipmentHash: string | null;
   validationStatus: string;
+  vehicle: { normalizationVersion: number };
 }
 
 async function writeListing(
@@ -282,6 +284,7 @@ async function writeListing(
   const unchanged =
     existing?.status === "active" &&
     existing.validationStatus !== "unchecked" &&
+    existing.vehicle.normalizationVersion === CURRENT_NORMALIZATION_VERSION &&
     existing.contentHash === hashes.contentHash &&
     existing.imageHash === imagePolicy.imageHash &&
     existing.equipmentHash === hashes.equipmentHash;
@@ -419,6 +422,8 @@ async function writeListing(
       previousPriceAmount: listing.previousPriceAmount,
       monthlyCostAmount: listing.monthlyCostAmount,
       mileageKm: listing.mileageKm,
+      mileageKnown: listing.mileageKnown ?? listing.mileageKm > 0,
+      analysisRequiredAt: synchronizedAt,
       location: listing.location,
       municipality: listing.municipality,
       latitude: listing.latitude,
@@ -449,6 +454,10 @@ async function writeListing(
     },
     update: {
       sourceScope: normalized.source.scope,
+      // Changed source content must be checked again before recommending it.
+      availabilityCheckStatus: null,
+      availabilityConfirmedAt: null,
+      priceConfirmedAt: null,
       vehicleId,
       title: listing.title,
       listingUrl: normalized.source.listingUrl,
@@ -460,6 +469,8 @@ async function writeListing(
       previousPriceAmount: listing.previousPriceAmount,
       monthlyCostAmount: listing.monthlyCostAmount,
       mileageKm: listing.mileageKm,
+      mileageKnown: listing.mileageKnown ?? listing.mileageKm > 0,
+      analysisRequiredAt: synchronizedAt,
       location: listing.location,
       municipality: listing.municipality,
       latitude: listing.latitude,
@@ -571,6 +582,24 @@ async function writeListing(
     skipDuplicates: true,
   });
 
+  await transaction.listingFactObservation.createMany({
+    data: [{
+      listingId, vehicleId, provider: normalized.source.provider, observedAt: synchronizedAt,
+      contentHash: hashes.contentHash, normalizationVersion: String(canonical.normalizationVersion),
+      facts: jsonValue({
+        source: { externalId: normalized.source.externalId, listingUrl: normalized.source.listingUrl,
+          publishedAt: normalized.source.publishedAt, sourceUpdatedAt: normalized.source.updatedAt },
+        vehicle: { ...vehicle, vin: undefined, registrationNumber: undefined },
+        canonical: { ...canonical },
+        listing: { title: listing.title, priceAmount: listing.priceAmount, monthlyCostAmount: listing.monthlyCostAmount,
+          mileageKm: listing.mileageKm, mileageKnown: listing.mileageKnown ?? listing.mileageKm > 0,
+          sellerType: listing.sellerType, ownerCount: listing.ownerCount, serviceHistory: listing.serviceHistory,
+          equipment: hashes.equipment, descriptionFingerprint: digest(listing.description ?? "") },
+        quality,
+      }),
+    }], skipDuplicates: true,
+  });
+
   return { listingId, state: existing ? ("updated" as const) : ("created" as const) };
 }
 
@@ -633,6 +662,7 @@ export async function upsertNormalizedListings(
       imageHash: true,
       equipmentHash: true,
       validationStatus: true,
+      vehicle: { select: { normalizationVersion: true } },
       _count: { select: { images: true } },
     },
   });

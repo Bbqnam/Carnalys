@@ -317,6 +317,21 @@ export function parseAutoheroDetailPage(html: string): AutoheroListingDetail {
   return parseAutoheroDetailData(ad);
 }
 
+/** Read the requested ad's availability, never another car's recommendation. */
+export function parseAutoheroHostState(html: string, adId: string) {
+  const root = object(extractApolloState(html).ROOT_QUERY);
+  const field = (prefix: string) => Object.entries(root ?? {}).find(([key]) => {
+    if (!key.startsWith(`${prefix}(`)) return false;
+    try { return JSON.parse(key.slice(prefix.length + 1, -1)).adId === adId; } catch { return false; }
+  })?.[1];
+  const availability = object(field("adDetailsAvailability"));
+  const sold = object(field("isSoldConclusively"));
+  return {
+    sold: sold?.soldConclusively === true || availability?.isSoldAdDetailsAvailable === true,
+    available: availability?.isAdDetailsAvailable === true && sold?.soldConclusively === false,
+  };
+}
+
 export function autoheroSummaryFingerprint(document: AutoheroSearchDocument) {
   return JSON.stringify({
     price: document.priceAmount,

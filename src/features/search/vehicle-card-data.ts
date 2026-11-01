@@ -50,6 +50,9 @@ export function deriveVehicleCardData(
   const previousPrice = listing.price.previousAskingPrice?.amount;
   const priceReduction = previousPrice ? previousPrice - askingPrice : 0;
   const mileage = listing.mileageKm / 10;
+  const mileageLabel = listing.mileageKnown === false
+    ? (locale === "sv" ? "Miltal saknas" : "Mileage unknown")
+    : `${numberFormatter.format(mileage)} ${copy.card.mileageUnit}`;
 
   const sellerLocation = [listing.seller.name, listing.location.municipality]
     .filter(Boolean)
@@ -109,6 +112,7 @@ export function deriveVehicleCardData(
     previousPrice,
     priceReduction,
     mileage,
+    mileageLabel,
     sellerLocation,
     distanceKm,
     listingDateValue,

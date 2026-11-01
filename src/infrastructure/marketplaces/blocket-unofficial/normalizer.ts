@@ -160,6 +160,7 @@ export function normalizeBlocketListing(
           : "private",
       priceAmount: document.priceAmount,
       mileageKm: document.mileageMil * 10,
+      mileageKnown: document.mileageKnown ?? true,
       location: document.location,
       municipality: document.location,
       latitude: document.coordinates?.latitude,

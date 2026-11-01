@@ -32,6 +32,7 @@ import type {
 import { Prisma } from "@/generated/prisma/client";
 import { getPreparedCatalogFilters } from "./catalog-facet-repository";
 import { initializeDatabase, prisma } from "./prisma";
+import { freshListingWhere } from "./listing-freshness";
 import { getReliabilityAssessmentForVehicle } from "./reliability-repository";
 
 const storedListingSelect = {
@@ -54,6 +55,7 @@ const storedListingSelect = {
   longitude: true,
   description: true,
   mileageKm: true,
+  mileageKnown: true,
   serviceHistory: true,
   ownerCount: true,
   publishedAt: true,
@@ -154,6 +156,7 @@ const cardListingSelect = {
   latitude: true,
   longitude: true,
   mileageKm: true,
+  mileageKnown: true,
   serviceHistory: true,
   ownerCount: true,
   publishedAt: true,
@@ -230,6 +233,7 @@ const comparableListingSelect = {
   latitude: true,
   longitude: true,
   mileageKm: true,
+  mileageKnown: true,
   serviceHistory: true,
   ownerCount: true,
   publishedAt: true,
@@ -333,7 +337,7 @@ function createStoredAnalysis(
 ): VehicleSearchResult["analysis"] {
   // The comparable select omits the analysis row entirely; it reads as absent
   // here, exactly like the card select's missing JSON columns.
-  const stored = (result as Partial<StoredListing>).analysis;
+  const stored = result.mileageKnown ? (result as Partial<StoredListing>).analysis : undefined;
   // The card select omits the three JSON columns behind the scores; they read
   // as absent rather than as a separate branch.
   const narrow = (stored ?? {}) as Partial<
@@ -421,7 +425,7 @@ function createStoredAnalysis(
       kind: "deal",
       // `null` = unrated (no comparable value, or the price was quarantined).
       // Never coerced to a number — the UI must show "not rated", not 50.
-      value: stored?.dealScore ?? null,
+      value: narrow.valuationConfidenceScore != null && narrow.valuationConfidenceScore < 50 ? null : stored?.dealScore ?? null,
       confidence,
       summary:
         stored?.dealScore == null
@@ -531,6 +535,7 @@ function mapStoredListing(
       title: detail.title ?? `${record.vehicle.make} ${record.vehicle.model} ${record.vehicle.variant ?? ""}`.trim(),
       description: detail.description ?? undefined,
       mileageKm: record.mileageKm,
+      mileageKnown: record.mileageKnown,
       serviceHistory: enumValue(
         record.serviceHistory,
         serviceHistories,
@@ -700,12 +705,13 @@ function buildListingWhere(
               ? { lte: filters.maxMileageMil * 10 }
               : {}),
           },
+          mileageKnown: true,
         }
       : {}),
     ...(Object.keys(vehicleFilter).length > 0
       ? { vehicle: { is: vehicleFilter } }
       : {}),
-    ...(andConditions.length > 0 ? { AND: andConditions } : {}),
+    AND: [freshListingWhere(), ...andConditions],
   };
 }
 
@@ -873,7 +879,7 @@ function countActiveListings(
     .digest("hex");
   return unstable_cache(
     () => prisma.listingRecord.count({ where }),
-    ["listing-record-count-v1", key],
+    ["listing-record-count-v2-freshness", key],
     { revalidate: 900, tags: [catalogCountCacheTag] },
   )();
 }
@@ -930,7 +936,7 @@ export function getActiveVehicleListings(
     .digest("hex");
   return unstable_cache(
     () => getActiveVehicleListingsUncached(options),
-    ["vehicle-listing-catalog-v1", key],
+    ["vehicle-listing-catalog-v2-freshness", key],
     // Search results are public and change only when a synchronization writer
     // invalidates this tag. The short TTL also bounds staleness if an external
     // database writer bypasses that application path.

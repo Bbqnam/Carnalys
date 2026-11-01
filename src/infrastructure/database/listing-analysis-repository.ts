@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { createHash } from "node:crypto";
 import { plausibleAskingPriceSql } from "@/domain/vehicle/pricing";
 import { buildOwnershipCostItems } from "@/domain/vehicle/analysis/ownership-cost-items";
 import {
@@ -43,12 +44,14 @@ import {
 import { computeValuationConfidence } from "@/domain/vehicle/analysis/valuation-confidence";
 import type { ServiceHistoryStatus } from "@/domain/vehicle";
 import { initializeDatabase, prisma } from "./prisma";
+import { freshListingSql } from "./listing-freshness";
 
 interface AnalysisTarget {
   id: string;
   vehicleId: string;
   priceAmount: number;
   mileageKm: number;
+  mileageKnown: boolean;
   ownerCount: number | null;
   serviceHistory: string | null;
   monthlyCostAmount: number | null;
@@ -170,11 +173,13 @@ async function loadTargets(
         ? { id: { in: [...listingIds] } }
         : {
             OR: [
+              { analysisRequiredAt: { not: null } },
               { analysis: { is: null } },
               {
                 analysis: {
                   is: {
                     OR: [
+                      { calculatedAt: { lt: new Date(Date.now() - 86_400_000) } },
                       { methodologyVersion: { not: methodologyVersion } },
                       { scoringVersion: { not: scoringVersion } },
                     ],
@@ -189,6 +194,7 @@ async function loadTargets(
       vehicleId: true,
       priceAmount: true,
       mileageKm: true,
+      mileageKnown: true,
       ownerCount: true,
       serviceHistory: true,
       monthlyCostAmount: true,
@@ -218,7 +224,7 @@ async function loadTargets(
         },
       },
     },
-    orderBy: { synchronizedAt: "desc" },
+    orderBy: [{ analysisRequiredAt: { sort: "asc", nulls: "last" } }, { analysis: { calculatedAt: "asc" } }, { id: "asc" }],
     take: limit,
   });
 }
@@ -228,13 +234,13 @@ export async function refreshStoredListingAnalyses(
   limit = 250,
 ) {
   await initializeDatabase();
+  const calculatedAt = new Date();
   const targets = await loadTargets(listingIds, limit);
   if (targets.length === 0) return 0;
 
   // One year for the whole batch, so every plausibility check and age
   // calculation agrees even if the run straddles midnight on New Year.
   const analysisYear = new Date().getFullYear();
-  const calculatedAt = new Date();
 
   const cohorts = [
     ...new Map(
@@ -279,7 +285,8 @@ export async function refreshStoredListingAnalyses(
       ON listing."vehicleId" = vehicle."id"
       AND listing."status" = 'active'
       AND listing."valuationEligible" = TRUE
-    WHERE ${Prisma.raw(
+      AND listing."mileageKnown" = TRUE
+    WHERE ${freshListingSql(calculatedAt)} AND ${Prisma.raw(
       plausibleAskingPriceSql(
         'listing."priceAmount"',
         'vehicle."modelYear"',
@@ -397,27 +404,20 @@ export async function refreshStoredListingAnalyses(
    * far as needed for a real local fit, so a strong exact cohort never gets
    * diluted by weak context it doesn't need, while a sparse one still gets
    * to use everything available rather than falling straight to a
-   * cross-model segment. `widestTierUsed` is the loosest tier actually
-   * pulled in, used downstream only to describe cohort strength for Data
-   * Confidence — it does not affect which comparables are selected.
+   * cross-model segment. Confidence counts are computed after the estimator
+   * has selected and trimmed its final comparables.
    */
   function pickCohort(
     scored: readonly ScoredCandidate[],
-  ): { pool: ScoredCandidate[]; tierCounts: TierCounts; widestTierUsed: ComparableTier | null } {
+  ): ScoredCandidate[] {
     const byTier: Record<ComparableTier, ScoredCandidate[]> = { A: [], B: [], C: [], D: [] };
     for (const c of scored) byTier[c.tier].push(c);
     let pool: ScoredCandidate[] = [];
-    let widestTierUsed: ComparableTier | null = null;
     for (const tier of ["A", "B", "C", "D"] as const) {
       pool = pool.concat(byTier[tier]);
-      if (byTier[tier].length > 0) widestTierUsed = tier;
       if (pool.length >= MIN_FIT_COMPARABLES) break;
     }
-    return {
-      pool,
-      tierCounts: { A: byTier.A.length, B: byTier.B.length, C: byTier.C.length, D: byTier.D.length },
-      widestTierUsed,
-    };
+    return pool;
   }
 
   // Only vehicles with no usable same-family pool at all fall through to same-make.
@@ -459,7 +459,9 @@ export async function refreshStoredListingAnalyses(
           ON listing."vehicleId" = vehicle."id"
           AND listing."status" = 'active'
           AND listing."valuationEligible" = TRUE
+          AND listing."mileageKnown" = TRUE
         WHERE vehicle."make" IN (${Prisma.join(segmentMakes)})
+          AND ${freshListingSql(calculatedAt)}
           AND ${Prisma.raw(
             plausibleAskingPriceSql(
               'listing."priceAmount"',
@@ -496,6 +498,8 @@ export async function refreshStoredListingAnalyses(
     );
     const SEGMENT_FALLBACK_WEIGHT = 0.2;
     const comparables = rows.map((row) => ({
+      listingId: row.id,
+      vehicleId: row.vehicleId,
       priceAmount: Number(row.priceAmount),
       ageYears: analysisYear - row.modelYear,
       mileageKm: Number(row.mileageKm),
@@ -521,34 +525,27 @@ export async function refreshStoredListingAnalyses(
 
   const MAX_INSIGHTS = 8;
 
-  // Coarse cohort-strength label for Data Confidence (Deal Score v11's
-  // formula), derived from the similarity tiers actually needed to fill the
-  // cohort rather than from a separate boolean cascade.
-  type CohortStrength = "exact" | "wide" | "same_fuel" | "segment" | "none";
-
   const contexts = targets.map((target) => {
     const scored = scoredByTarget.get(target.id) ?? [];
-    const { pool, tierCounts, widestTierUsed } = pickCohort(scored);
+    const pool = pickCohort(scored);
 
     let usedSegmentFallback = false;
     let cohortRows: MarketComparableRow[];
     let cohort: ValuationComparable[];
-    let tierCountsUsed: TierCounts;
     let comparableInsights: ComparableInsight[];
-    let strength: CohortStrength;
 
     if (pool.length >= MIN_COMPARABLES) {
       cohortRows = pool.map((c) => c.row);
       cohort = pool.map((c) => ({
+        listingId: c.row.id,
+        vehicleId: c.row.vehicleId,
         priceAmount: Number(c.row.priceAmount),
         ageYears: analysisYear - c.row.modelYear,
         mileageKm: Number(c.row.mileageKm),
         weight: c.weight,
       }));
-      tierCountsUsed = tierCounts;
       comparableInsights = [...pool]
         .sort((a, b) => b.weight - a.weight)
-        .slice(0, MAX_INSIGHTS)
         .map((c) => ({
           listingId: c.row.id,
           provider: c.row.provider,
@@ -563,14 +560,12 @@ export async function refreshStoredListingAnalyses(
           score: c.score,
           reasons: c.reasons,
         }));
-      strength = widestTierUsed === "A" ? "exact" : widestTierUsed === "B" ? "wide" : "same_fuel";
     } else {
       usedSegmentFallback = true;
       const segment = segmentComparables(target);
       cohortRows = segment.rows;
       cohort = segment.comparables;
-      tierCountsUsed = { A: 0, B: 0, C: 0, D: segment.comparables.length };
-      comparableInsights = segment.rows.slice(0, MAX_INSIGHTS).map((row) => ({
+      comparableInsights = segment.rows.map((row) => ({
         listingId: row.id,
         provider: row.provider,
         make: row.make,
@@ -584,11 +579,19 @@ export async function refreshStoredListingAnalyses(
         score: 0,
         reasons: ["Same make, different model — broader market context only"],
       }));
-      strength = cohortRows.length > 0 ? "segment" : "none";
     }
 
     const ageYears = Math.max(0, analysisYear - target.vehicle.modelYear);
     const valuation = valueVehicle({ ageYears, mileageKm: target.mileageKm }, cohort);
+    const usedIds = new Set(valuation.comparables.map(row => row.listingId));
+    cohortRows = cohortRows.filter(row => usedIds.has(row.id));
+    cohort = [...valuation.comparables];
+    comparableInsights = comparableInsights.filter(row => usedIds.has(row.listingId)).slice(0, MAX_INSIGHTS);
+    const tierCountsUsed: TierCounts = { A: 0, B: 0, C: 0, D: 0 };
+    for (const row of cohortRows) {
+      const tier = usedSegmentFallback ? "D" : pool.find(candidate => candidate.row.id === row.id)?.tier;
+      if (tier) tierCountsUsed[tier]++;
+    }
     // Nearest 40 by year/mileage closeness — bounds the equipment-comparison
     // query for a popular model without needing the whole cohort.
     const equipmentCohort = [...cohortRows]
@@ -603,7 +606,6 @@ export async function refreshStoredListingAnalyses(
 
     return {
       target,
-      strength,
       cohortRows,
       cohort,
       equipmentCohort,
@@ -646,10 +648,9 @@ export async function refreshStoredListingAnalyses(
     repair_object: 5,
   } as const;
 
-  await prisma.$transaction(
-    contexts.map(
-      ({ target, strength, cohortRows, cohort, equipmentCohort, ageYears, valuation, tierCountsUsed, usedSegmentFallback, comparableInsights }) => {
-        const weightedPrices = cohort.map((c) => ({ value: c.priceAmount, weight: c.weight ?? 1 }));
+  const records = contexts.map(
+      ({ target, cohortRows, cohort, equipmentCohort, ageYears, valuation, tierCountsUsed, usedSegmentFallback, comparableInsights }) => {
+        const weightedPrices = valuation.comparables.map((c) => ({ value: c.adjustedPriceAmount, weight: c.weight ?? 1 }));
         const dispersionMedian = weightedPrices.length ? weightedMedian(weightedPrices) : 0;
         const priceDispersionRatio =
           dispersionMedian > 0
@@ -679,7 +680,7 @@ export async function refreshStoredListingAnalyses(
         });
 
         const canComparePrice =
-          target.valuationEligible && valuation.marketValue !== null && assessment.usable;
+          target.valuationEligible && target.mileageKnown && !usedSegmentFallback && valuation.marketValue !== null && assessment.usable;
         const priceDelta = canComparePrice
           ? (valuation.marketValue! - target.priceAmount) / valuation.marketValue!
           : 0;
@@ -713,7 +714,6 @@ export async function refreshStoredListingAnalyses(
           title: target.title,
           description: target.description,
         });
-        const targetKind = kindOf({ ...target.vehicle, title: target.title });
         const dealResult = computeDealScore({
           priceDelta,
           canComparePrice,
@@ -726,51 +726,28 @@ export async function refreshStoredListingAnalyses(
           sellerProtectionScore: protectionScore,
           serviceModifier,
           defectModifier: knownDefectModifier,
-          eligibleForRanking: mileageStatus !== "suspicious",
+          eligibleForRanking: mileageStatus !== "suspicious" && target.mileageKnown && (valuationConfidence?.score ?? 0) >= 50,
         });
 
         const condition = conditionScores({
           ageYears,
           mileageKm: target.mileageKm,
+          mileageKnown: target.mileageKnown,
           ownerCount: target.ownerCount,
           serviceHistory,
         });
         const buyConfidenceScore = computeBuyConfidence({ ...condition });
 
-        const providers = new Set(cohortRows.map(({ provider }) => provider)).size;
-        const generationMatches = target.vehicle.generation
-          ? cohortRows.filter(({ generation }) => generation === target.vehicle.generation).length /
-            Math.max(1, cohortRows.length)
-          : 0.5;
-        const dispersion =
-          valuation.marketValue && valuation.rangeLow && valuation.rangeHigh
-            ? (valuation.rangeHigh - valuation.rangeLow) / valuation.marketValue
-            : 1;
-        const strengthPoints: Record<CohortStrength, number> = {
-          exact: 24,
-          wide: 16,
-          same_fuel: 10,
-          segment: 0,
-          none: -20,
-        };
-        let confidenceScore =
-          Math.min(25, valuation.comparableCount * 2) +
-          strengthPoints[strength] +
-          (valuation.method === "adjusted" ? 16 : valuation.method === "raw_median" ? 7 : -20) +
-          (generationMatches >= 0.75 ? 8 : generationMatches < 0.25 ? -5 : 2) +
-          (providers >= 2 ? 5 : 0) +
-          (dispersion <= 0.3 ? 10 : dispersion > 0.65 ? -10 : 2) +
-          (equipment.coverage === "known" ? 4 : -4) +
-          (mileageStatus === "suspicious" ? -30 : mileageStatus === "unknown" ? -12 : 5) +
-          (targetKind === "unknown" ? -8 : 4) +
-          (assessment.cautious ? -20 : 0);
-        confidenceScore = Math.max(0, Math.min(100, confidenceScore));
+        // One evidence diagnostic for the estimate. Condition and seller
+        // protection belong to the separate car-risk score, not a second,
+        // contradictory market-confidence formula. This remains uncalibrated.
+        const confidenceScore = valuationConfidence?.score ?? 0;
         const confidence: "unrated" | "low" | "medium" | "high" =
           !canComparePrice
             ? "unrated"
-            : confidenceScore >= 72
+            : confidenceScore >= 70
               ? "high"
-              : confidenceScore >= 52
+              : confidenceScore >= 50
                 ? "medium"
                 : "low";
         const confidenceRank =
@@ -871,17 +848,72 @@ export async function refreshStoredListingAnalyses(
           scoringVersion,
           calculatedAt,
           sourceSynchronizedAt: target.synchronizedAt,
+          inputFingerprint: createHash("sha256").update(JSON.stringify(target)).digest("hex"),
+          marketAsOf: cohortRows.length ? new Date(Math.max(...cohortRows.map(row => row.synchronizedAt.getTime()))) : null,
+          valuationEvidence: JSON.parse(JSON.stringify({
+            schema: "valuation-evidence-v1",
+            target: {
+              listingId: target.id, vehicleId: target.vehicleId, priceAmount: target.priceAmount,
+              mileageKm: target.mileageKm, mileageKnown: target.mileageKnown, ownerCount: target.ownerCount,
+              serviceHistory, sellerType: target.sellerType, monthlyCostAmount: target.monthlyCostAmount,
+              sourceSynchronizedAt: target.synchronizedAt, valuationEligible: target.valuationEligible,
+              // Preserve calculation facts without copying contact details, VINs,
+              // registration numbers or entire advert descriptions into JSON.
+              vehicle: { ...target.vehicle, vin: undefined, registrationNumber: undefined },
+              identityPresent: { vin: Boolean(target.vehicle.vin), registration: Boolean(target.vehicle.registrationNumber) },
+              textFingerprint: createHash("sha256").update(text).digest("hex"),
+              equipment: target.equipment.map(row => row.label),
+              derived: { defectCategory, mileageStatus, listingTransparencyScore, protectionScore, equipment, serviceModifier, knownDefectModifier },
+            },
+            calculatedAt, method: valuation.method,
+            usedSegmentFallback, effectiveSampleSize: valuation.effectiveSampleSize,
+            perModelYear: valuation.perModelYear, perThousandKm: valuation.perThousandKm,
+            comparables: valuation.comparables.map(row => ({ ...row,
+              source: cohortRows.find(candidate => candidate.id === row.listingId),
+            })),
+            confidence: { ...valuationConfidence, calibrated: false, tierCountsUsed, priceDispersionRatio },
+            askingPriceAssessment: assessment,
+          })) as Prisma.InputJsonValue,
         };
 
-        return prisma.listingAnalysisRecord.upsert({
-          where: { listingId: target.id },
-          create: { listingId: target.id, ...values },
-          update: values,
-        });
+        return { listingId: target.id, ...values };
       },
-    ),
-    { timeout: 60_000 },
   );
+
+  // PostgreSQL converts one bound JSON parameter into the table's actual
+  // column types. Identifiers come solely from the object constructed above;
+  // no listing content is interpolated into SQL. This replaces two sequential
+  // network round trips per car with four queries for the whole batch.
+  const names = Object.keys(records[0]);
+  const columns = names.map(name => Prisma.raw(`"${name}"`));
+  await prisma.$transaction(async tx => {
+    // Lock vehicles, listings, then analyses, matching ingestion and host
+    // checks (which may also refresh a representative sibling listing).
+    // An ingestion/verification committed during calculation must win.
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "VehicleRecord" WHERE "id" IN (${Prisma.join([...new Set(targets.map(row => row.vehicleId))])})
+      ORDER BY "id" FOR UPDATE
+    `);
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "ListingRecord" WHERE "id" IN (${Prisma.join(targets.map(row => row.id))})
+      ORDER BY "id" FOR UPDATE
+    `);
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "ListingAnalysisRecord" (${Prisma.join(columns)})
+      SELECT ${Prisma.join(names.map(name => Prisma.raw(`data."${name}"`)))}
+      FROM jsonb_populate_recordset(NULL::"ListingAnalysisRecord", ${JSON.stringify(records)}::jsonb) AS data
+      JOIN "ListingRecord" AS listing ON listing."id" = data."listingId"
+      WHERE listing."status" = 'active'
+        AND (listing."analysisRequiredAt" IS NULL OR listing."analysisRequiredAt" <= ${calculatedAt})
+      ON CONFLICT ("listingId") DO UPDATE SET
+        ${Prisma.join(names.filter(name => name !== "listingId").map(name => Prisma.raw(`"${name}" = EXCLUDED."${name}"`)))}
+      WHERE "ListingAnalysisRecord"."calculatedAt" <= EXCLUDED."calculatedAt"
+    `);
+    await tx.listingRecord.updateMany({
+      where: { id: { in: targets.map(row => row.id) }, analysisRequiredAt: { lte: calculatedAt } },
+      data: { analysisRequiredAt: null },
+    });
+  }, { timeout: 60_000 });
 
   return targets.length;
 }

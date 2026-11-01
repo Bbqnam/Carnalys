@@ -87,6 +87,7 @@ export function normalizeWaykeListing(
       priceAmount: detail?.priceAmount ? Math.round(detail.priceAmount) : document.priceAmount,
       previousPriceAmount: document.previousPriceAmount,
       mileageKm: detail?.mileageKm ?? Math.round(document.mileageMil * 10),
+      mileageKnown: true,
       location: document.location,
       municipality: document.municipality,
       latitude: document.latitude,

@@ -10,6 +10,10 @@ import type { SearchParameters } from "@/features/search/search-state";
 import { getPreparedCatalogFilters } from "@/infrastructure/database/catalog-facet-repository";
 import { getCachedMarketAnalysis } from "@/infrastructure/database/market-analysis-repository";
 
+// The unfiltered analysis rebuild runs several large PostgreSQL aggregates in
+// parallel and can take tens of seconds after the cache is invalidated.
+export const maxDuration = 60;
+
 export const metadata = {
   title: "Market analysis · Carnalys",
   description:
@@ -24,10 +28,11 @@ export default async function AnalysisPage({ searchParams }: AnalysisPageProps) 
   const filters = parseAnalysisFilters(await searchParams);
   const localeCookie = (await cookies()).get(localeCookieName)?.value;
 
-  const [analysis, catalog] = await Promise.all([
-    getCachedMarketAnalysis(filters),
-    getPreparedCatalogFilters(filters.brands),
-  ]);
+  // Load the small facet set first. Starting it alongside the eight market
+  // aggregates can leave facet queries waiting on the shared eight-connection
+  // pool long enough to hit pg's five-second connection checkout timeout.
+  const catalog = await getPreparedCatalogFilters(filters.brands);
+  const analysis = await getCachedMarketAnalysis(filters);
 
   return (
     <AnalysisExperience

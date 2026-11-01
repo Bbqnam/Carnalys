@@ -54,6 +54,8 @@ export interface VehicleListing {
   title: string;
   description?: string;
   mileageKm: number;
+  /** False when the source did not report an odometer reading. */
+  mileageKnown?: boolean;
   ownerCount?: number;
   serviceHistory: ServiceHistoryStatus;
   warranty?: ListingWarranty;

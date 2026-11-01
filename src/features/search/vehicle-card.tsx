@@ -45,7 +45,6 @@ export function VehicleCard({
     specification,
     copy,
     moneyFormatter,
-    numberFormatter,
     askingPrice,
     marketValue,
     hasMarketEstimate,
@@ -55,7 +54,7 @@ export function VehicleCard({
     financingOffer,
     source,
     priceReduction,
-    mileage,
+    mileageLabel,
     sellerLocation,
     distanceKm,
     listingDateValue,
@@ -99,7 +98,7 @@ export function VehicleCard({
           <p className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm text-ink-muted">
             <span className="shrink-0">{identity.modelYear}</span>
             <span className="shrink-0 text-ink-subtle">•</span>
-            <span className="shrink-0">{numberFormatter.format(mileage)} {copy.card.mileageUnit}</span>
+            <span className="shrink-0">{mileageLabel}</span>
             {specification.powertrain.powerHp ? (
               <>
                 <span className="shrink-0 text-ink-subtle">•</span>

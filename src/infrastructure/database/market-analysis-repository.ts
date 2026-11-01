@@ -26,6 +26,12 @@ import {
 } from "@/domain/market/value-relationships";
 import { Prisma } from "@/generated/prisma/client";
 import { initializeDatabase, prisma } from "./prisma";
+import { freshListingSql } from "./listing-freshness";
+import { createAsyncLimiter } from "./async-limiter";
+
+// Seasonality itself issues two queries. Three analysis tasks therefore leave
+// headroom in the eight-connection pool for car pages and host-check writes.
+const withAnalysisSlot = createAsyncLimiter(3);
 
 /**
  * Every figure on the Analysis page is aggregated inside PostgreSQL. The
@@ -151,6 +157,11 @@ function vehicleConditions(filters: MarketAnalysisFilters): Prisma.Sql[] {
  */
 function activeListingSource(filters: MarketAnalysisFilters) {
   const conditions = [
+    Prisma.sql`listing."status" = 'active'`,
+    Prisma.sql`listing."isVehicleRepresentative" = true`,
+    Prisma.sql`listing."valuationEligible" = true`,
+    Prisma.sql`listing."mileageKnown" = true`,
+    freshListingSql(),
     Prisma.sql`listing."priceAmount" <= ${maximumPrice}`,
     plausiblePriceCondition(new Date().getFullYear()),
     Prisma.sql`listing."mileageKm" BETWEEN 0 AND ${maximumMileageKm}`,
@@ -158,16 +169,7 @@ function activeListingSource(filters: MarketAnalysisFilters) {
   ];
 
   return Prisma.sql`
-    FROM (
-      SELECT DISTINCT ON (candidate."vehicleId") candidate."id"
-      FROM "ListingRecord" AS candidate
-      WHERE candidate."status" = 'active'
-      ORDER BY
-        candidate."vehicleId",
-        candidate."synchronizedAt" DESC,
-        candidate."id" ASC
-    ) AS representative
-    INNER JOIN "ListingRecord" AS listing ON listing."id" = representative."id"
+    FROM "ListingRecord" AS listing
     INNER JOIN "VehicleRecord" AS vehicle ON vehicle."id" = listing."vehicleId"
     WHERE ${Prisma.join(conditions, " AND ")}
   `;
@@ -1245,7 +1247,7 @@ export const getCachedMarketAnalysis = unstable_cache(
   (filters: MarketAnalysisFilters) => getMarketAnalysis(filters),
   // Versioned so deployments do not reuse aggregates produced before active
   // source ads were collapsed to one representative per physical vehicle.
-  ["market-analysis-v2-physical-vehicles"],
+  ["market-analysis-v3-fresh-physical-vehicles"],
   // A day, not an hour. The window is not what keeps the page correct — the
   // tag is, and every writer invalidates it — so a shorter window buys nothing
   // and costs a full rebuild. That rebuild is the most expensive thing the
@@ -1264,14 +1266,14 @@ export async function getMarketAnalysis(
   // Only the value map depends on another query's result (it needs the model
   // year spread to choose its rows), so everything else is issued immediately
   // rather than waiting behind the snapshot.
-  const snapshotPromise = readSnapshot(filters);
-  const priceMileagePromise = readPriceMileage(filters);
-  const crossProductsPromise = readCrossProducts(filters);
-  const seasonalPromise = readSeasonality(filters);
-  const variantPromise = readVariantValue(filters);
-  const depreciationPromise = readDepreciation(filters);
-  const equipmentPromise = readEquipmentValue(filters);
-  const regionalPromise = readRegionalPrices(filters);
+  const snapshotPromise = withAnalysisSlot(() => readSnapshot(filters));
+  const priceMileagePromise = withAnalysisSlot(() => readPriceMileage(filters));
+  const crossProductsPromise = withAnalysisSlot(() => readCrossProducts(filters));
+  const seasonalPromise = withAnalysisSlot(() => readSeasonality(filters));
+  const variantPromise = withAnalysisSlot(() => readVariantValue(filters));
+  const depreciationPromise = withAnalysisSlot(() => readDepreciation(filters));
+  const equipmentPromise = withAnalysisSlot(() => readEquipmentValue(filters));
+  const regionalPromise = withAnalysisSlot(() => readRegionalPrices(filters));
 
   const { snapshot, yearFloor, yearCeiling } = await snapshotPromise;
   const yearGroups = buildYearGroups(yearFloor, yearCeiling);
@@ -1287,7 +1289,7 @@ export async function getMarketAnalysis(
     regionalPrices,
   ] = await Promise.all([
     priceMileagePromise,
-    readValueMap(filters, yearGroups),
+    withAnalysisSlot(() => readValueMap(filters, yearGroups)),
     crossProductsPromise,
     seasonalPromise,
     variantPromise,

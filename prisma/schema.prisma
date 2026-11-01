@@ -86,6 +86,8 @@ model ListingRecord {
   monthlyCostAmount          Int?
   currency                   String                   @default("SEK")
   mileageKm                  Int
+  /// False when a source omitted the odometer; zero is not proof of zero use.
+  mileageKnown               Boolean                  @default(false)
   location                   String
   municipality               String
   latitude                   Float?
@@ -125,6 +127,11 @@ model ListingRecord {
   missingReconciliationCount Int                      @default(0)
   availabilityCheckedAt      DateTime?
   availabilityCheckStatus    String?
+  /// Positive evidence from the original host, separate from a failed check.
+  availabilityConfirmedAt    DateTime?
+  priceConfirmedAt           DateTime?
+  availabilityEvidence       Json?
+  analysisRequiredAt         DateTime?
   vehicleMatchMethod         String?
   vehicleMatchConfidence     Float?
   /// True for the one active listing that represents its physical vehicle in
@@ -149,6 +156,8 @@ model ListingRecord {
   @@index([status, listedAt, id])
   @@index([provider, sourceScope, status, lastSeenAt])
   @@index([provider, status, availabilityCheckedAt])
+  @@index([status, availabilityConfirmedAt])
+  @@index([analysisRequiredAt])
   @@index([mileageKm])
   @@index([lastSeenAt])
   @@index([valuationEligible, status])
@@ -286,6 +295,23 @@ model ListingObservation {
   @@index([kind, observedAt])
 }
 
+/// Immutable normalized facts observed from one source. Canonical vehicle
+/// updates must not erase what another source previously claimed.
+model ListingFactObservation {
+  id                   BigInt   @id @default(autoincrement())
+  listingId            String
+  vehicleId            String
+  provider             String
+  observedAt           DateTime
+  contentHash          String
+  normalizationVersion String
+  facts                Json
+
+  @@unique([listingId, observedAt, contentHash])
+  @@index([listingId, observedAt])
+  @@index([vehicleId, observedAt])
+}
+
 model ListingAnalysisRecord {
   listingId                String        @id
   marketValueAmount        Int
@@ -322,6 +348,9 @@ model ListingAnalysisRecord {
   scoringVersion           String        @default("legacy")
   calculatedAt             DateTime
   sourceSynchronizedAt     DateTime
+  inputFingerprint         String?
+  marketAsOf               DateTime?
+  valuationEvidence        Json          @default("{}")
   listing                  ListingRecord @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@index([calculatedAt])

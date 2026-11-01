@@ -100,6 +100,7 @@ export function normalizeHedinListing(
       priceAmount: detail?.priceAmount ?? document.priceAmount ?? 0,
       monthlyCostAmount: detail?.monthlyCostAmount,
       mileageKm: detail?.mileageKm ?? document.mileageKm ?? 0,
+      mileageKnown: detail?.mileageKm !== undefined || document.mileageKm !== undefined,
       location: place(city),
       municipality: place(city),
       description: detail?.description,

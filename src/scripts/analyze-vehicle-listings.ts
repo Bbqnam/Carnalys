@@ -29,6 +29,11 @@ async function main() {
       ? "Alla aktiva annonser har redan en aktuell sparad analys."
       : `Klart: ${analyzed.toLocaleString("sv-SE")} analyser uppdaterades.`,
   );
+  const [backlog] = await prisma.$queryRaw<{ pending: bigint; oldestPending: Date | null }[]>`
+    SELECT COUNT(*) AS "pending", MIN("analysisRequiredAt") AS "oldestPending"
+    FROM "ListingRecord" WHERE "status" = 'active' AND "analysisRequiredAt" IS NOT NULL
+  `;
+  console.log(JSON.stringify({ pendingChangedListings: Number(backlog.pending), oldestPending: backlog.oldestPending }));
 }
 
 main()
