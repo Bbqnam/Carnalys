@@ -4,6 +4,7 @@ prisma/*.db-shm
 prisma/*.db-wal
 node_modules
 .next
+artifacts/
 .env
 .env.*
 !.env.example
