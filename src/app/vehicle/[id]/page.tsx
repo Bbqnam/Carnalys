@@ -1,3 +1,4 @@
+import { getBlocketListingDescription } from "@/infrastructure/marketplaces/blocket-unofficial/listing-description";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
@@ -81,10 +82,16 @@ export default async function VehiclePage({ params }: VehiclePageProps) {
 
   if (!result) notFound();
 
+  const description = result.listing.description?.trim() || (
+    result.listing.source.provider === "blocket_unofficial"
+      ? await getBlocketListingDescription(result.listing.source.externalId)
+      : undefined
+  );
+
   return (
     <VehicleDetail
       locale={isLocale(localeCookie) ? localeCookie : defaultLocale}
-      result={result}
+      result={{ ...result, listing: { ...result.listing, description } }}
     />
   );
 }

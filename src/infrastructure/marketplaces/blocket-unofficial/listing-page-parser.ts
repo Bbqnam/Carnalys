@@ -78,3 +78,30 @@ export function parseListingPageImageUrls(html: string, externalId: string): rea
 
   return [...imageUrls];
 }
+
+/** Read only the seller's description, excluding surrounding page content. */
+export function parseListingPageDescription(html: string): string | undefined {
+  const heading = /<h2\b[^>]*>\s*Beskrivning\s*<\/h2>/i.exec(html);
+  if (!heading) return undefined;
+  const section = html.slice(heading.index + heading[0].length).split(/<\/section>/i)[0];
+  const content = /<div\b[^>]*class=["'][^"']*\b(?:import-decoration|whitespace-pre-wrap)\b[^"']*["'][^>]*>/i.exec(section);
+  if (!content) return undefined;
+  const start = content.index + content[0].length;
+  const tags = /<\/?div\b[^>]*>/gi;
+  tags.lastIndex = start;
+  let depth = 1;
+  let end = section.length;
+  for (let tag = tags.exec(section); tag; tag = tags.exec(section)) {
+    depth += /^<\//.test(tag[0]) ? -1 : 1;
+    if (depth === 0) { end = tag.index; break; }
+  }
+  const text = decodeHtmlEntities(section.slice(start, end)
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/(?:p|div|li|ul|ol)>/gi, "\n")
+    .replace(/<[^>]*>/g, ""))
+    .replace(/\r\n?/g, "\n")
+    .split("\n").map((line) => line.trim()).join("\n")
+    .replace(/\n{3,}/g, "\n\n").trim();
+  return text || undefined;
+}

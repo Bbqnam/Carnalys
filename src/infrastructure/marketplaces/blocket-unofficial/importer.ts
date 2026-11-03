@@ -9,6 +9,7 @@ import {
   BlocketUnofficialClient,
 } from "./client";
 import {
+  parseListingPageDescription,
   parseListingPageImageUrls,
   parseListingPageSpecifications,
 } from "./listing-page-parser";
@@ -124,6 +125,7 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
       const html = await this.client.getListingPageHtml(document.canonicalUrl);
       this.detailLaneLastRequestAt[laneIndex] = Date.now();
       return {
+        description: parseListingPageDescription(html),
         specifications: parseListingPageSpecifications(html),
         imageUrls: parseListingPageImageUrls(html, document.id),
       };
@@ -149,11 +151,13 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
           isMissingCriticalSpecifications(detail.specifications);
         const needsImageFallback = document.imageUrls.length === 0;
 
-        if (needsSpecificationFallback || needsImageFallback) {
+        if (needsSpecificationFallback || needsImageFallback || !detail.description?.trim()) {
           const page = await this.fetchListingPage(document, laneIndex);
           if (page) {
             return {
               ...detail,
+              description: detail.description?.trim() || page.description,
+              raw: { ...detail.raw, description: detail.description?.trim() || page.description },
               specifications: {
                 ...detail.specifications,
                 ...page.specifications,
@@ -172,18 +176,16 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
       }
     }
 
-    // The detail API failing should not prevent recovery of a gallery that
-    // is already present on Blocket's public page.
-    if (document.imageUrls.length === 0) {
-      const page = await this.fetchListingPage(document, laneIndex);
-      if (page && (page.imageUrls.length > 0 || Object.keys(page.specifications).length > 0)) {
-        return {
-          equipment: [],
-          specifications: page.specifications,
-          imageUrls: page.imageUrls,
-          raw: {},
-        };
-      }
+    // Recover seller text, specifications and photos even if the detail API fails.
+    const page = await this.fetchListingPage(document, laneIndex);
+    if (page && (page.description || page.imageUrls.length > 0 || Object.keys(page.specifications).length > 0)) {
+      return {
+        equipment: [],
+        description: page.description,
+        specifications: page.specifications,
+        imageUrls: page.imageUrls,
+        raw: { description: page.description },
+      };
     }
     return undefined;
   }
@@ -267,7 +269,8 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
           const needsImageFallback = document?.imageUrls.length === 0;
           if (
             !isMissingCriticalSpecifications(parsedDetail.specifications) &&
-            !needsImageFallback
+            !needsImageFallback &&
+            Boolean(parsedDetail.description?.trim())
           ) {
             parsedCachedByExternalId.set(externalId, parsedDetail);
           }

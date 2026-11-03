@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import blocketImageLoader from "@/infrastructure/images/blocket-image-loader";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -730,9 +731,12 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
           ) : null}
 
           {listing.description ? (
-            <p className="mt-5 whitespace-pre-line text-sm leading-relaxed text-ink-muted sm:mt-6">
-              {listing.description}
-            </p>
+            <section className="mt-5 rounded-2xl border border-border bg-surface-subtle p-4 sm:mt-6 sm:p-5">
+              <h2 className="text-sm font-semibold text-ink">{locale === "sv" ? "Beskrivning" : "Description"}</h2>
+              <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-ink-muted">
+                {listing.description}
+              </p>
+            </section>
           ) : null}
 
           <div className="mt-5 rounded-2xl border border-border bg-surface-subtle p-4 sm:mt-6 sm:p-5">
@@ -1158,13 +1162,13 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
         <div
           aria-label={currentImage.alt ?? listing.title}
           aria-modal="true"
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-surface/50 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#191919]"
           onClick={closeFullscreen}
           role="dialog"
         >
           <button
             aria-label={copy.detail.closeFullscreen}
-            className="absolute right-4 top-4 z-10 grid size-11 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95"
+            className="absolute right-4 top-4 z-10 grid size-11 place-items-center rounded-full border border-white/15 bg-black/60 text-white shadow-sm transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95"
             onClick={closeFullscreen}
             ref={fullscreenCloseButton}
             type="button"
@@ -1172,22 +1176,36 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
             <CloseIcon className="size-5" />
           </button>
 
-          {/* A plain <img> so the element is exactly the photo's rendered
-              size: everything around it is bare backdrop, so a click anywhere
-              but the photo itself dismisses the viewer. next/image `fill`
-              can't size to content, which would leave the letterbox
-              un-clickable. The file is already fetched by the inline gallery. */}
+          {/* Explicit viewport dimensions upscale smaller source photos. Contain
+              preserves the complete image without cropping or stretching. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             alt={currentImage.alt ?? listing.title}
-            className="max-h-[88vh] max-w-[94vw] touch-pan-y select-none object-contain"
+            className="h-[88vh] w-[94vw] max-w-none shrink-0 touch-pan-y select-none object-contain supports-[height:100dvh]:h-[88dvh]"
             draggable={false}
             onError={() => markImageFailed(activeImage, currentImage.url)}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              // Keep the empty space around the contained photo dismissible.
+              const image = event.currentTarget;
+              const bounds = image.getBoundingClientRect();
+              const scale = Math.min(bounds.width / image.naturalWidth, bounds.height / image.naturalHeight);
+              const photoWidth = image.naturalWidth * scale;
+              const photoHeight = image.naturalHeight * scale;
+              const x = event.clientX - bounds.left;
+              const y = event.clientY - bounds.top;
+              if (Math.abs(x - bounds.width / 2) <= photoWidth / 2 &&
+                  Math.abs(y - bounds.height / 2) <= photoHeight / 2) {
+                event.stopPropagation();
+              }
+            }}
             onPointerCancel={cancelImageSwipe}
             onPointerDown={startImageSwipe}
             onPointerUp={finishImageSwipe}
-            src={currentImage.url}
+            sizes="94vw"
+            src={blocketImageLoader({ src: currentImage.url, width: 1920 })}
+            srcSet={[640, 1280, 1920].map((width) =>
+              `${blocketImageLoader({ src: currentImage.url, width })} ${width}w`,
+            ).join(", ")}
           />
 
           {usableImageCount > 1 ? (
@@ -1198,7 +1216,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ] as const).map(([delta, label, side, spin]) => (
                 <button
                   aria-label={label}
-                  className={`absolute top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-surface/60 bg-surface/85 text-ink shadow-sm backdrop-blur-md transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95 ${side}`}
+                  className={`absolute top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/60 text-white shadow-sm transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-95 ${side}`}
                   key={delta}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -1211,7 +1229,7 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
               ))}
               <p
                 aria-live="polite"
-                className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-surface/60 bg-surface/85 px-3 py-1 text-xs font-medium tabular-nums text-ink-muted shadow-sm backdrop-blur-md"
+                className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-xs font-medium tabular-nums text-white shadow-sm"
               >
                 {copy.detail.photoPosition(activeImage + 1, imageCount)}
               </p>
