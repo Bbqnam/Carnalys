@@ -35,3 +35,27 @@ test("allows an initial empty gallery for a newly discovered listing", () => {
     { imageHash: "empty", shouldReplaceImages: true },
   );
 });
+
+test("leaves the image hash alone when an existing empty gallery has no new photos", () => {
+  assert.deepEqual(
+    listingImageWritePolicy({
+      existingImageCount: 0,
+      existingImageHash: null,
+      incomingImageCount: 0,
+      incomingImageHash: "empty",
+    }),
+    { imageHash: null, shouldReplaceImages: false },
+  );
+});
+
+test("reinstates missing image rows even if the source hash already matches", () => {
+  assert.deepEqual(
+    listingImageWritePolicy({
+      existingImageCount: 0,
+      existingImageHash: "matching",
+      incomingImageCount: 3,
+      incomingImageHash: "matching",
+    }),
+    { imageHash: "matching", shouldReplaceImages: true },
+  );
+});

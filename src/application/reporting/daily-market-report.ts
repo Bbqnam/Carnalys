@@ -1,3 +1,4 @@
+import { manualCatalogProvider } from "@/application/ingestion/synchronization-status";
 import { plausibleAskingPriceSql } from "@/domain/vehicle/pricing";
 
 const STOCKHOLM_TIME_ZONE = "Europe/Stockholm";
@@ -454,10 +455,11 @@ export async function buildDailyMarketReport(
       `SELECT provider, COUNT(*)::bigint AS runs, SUM("createdCount")::bigint AS "createdCount",
         SUM("updatedCount")::bigint AS "updatedCount", SUM("removedCount")::bigint AS "removedCount",
         SUM("failedCount")::bigint AS "failedCount", COUNT(*) FILTER (WHERE status = 'failed')::bigint AS "failedRuns"
-       FROM "ImportRun" WHERE "startedAt" >= $1 AND "startedAt" < $2
+       FROM "ImportRun" WHERE "startedAt" >= $1 AND "startedAt" < $2 AND provider <> $3
        GROUP BY provider ORDER BY provider ASC`,
       start,
       end,
+      manualCatalogProvider,
     ),
     db.$queryRawUnsafe<VerificationHealthRow[]>(
       `SELECT

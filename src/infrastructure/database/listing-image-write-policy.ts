@@ -18,7 +18,7 @@ export function listingImageWritePolicy({
 }: ListingImageWritePolicyInput) {
   const hasExistingListing = existingImageCount !== undefined;
   const preserveExisting =
-    hasExistingListing && existingImageCount > 0 && incomingImageCount === 0;
+    hasExistingListing && incomingImageCount === 0;
   const imageHash = preserveExisting
     ? (existingImageHash ?? null)
     : incomingImageHash;

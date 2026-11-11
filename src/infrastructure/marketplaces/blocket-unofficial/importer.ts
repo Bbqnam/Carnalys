@@ -149,7 +149,7 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         const needsSpecificationFallback =
           Object.keys(detail.specifications).length === 0 ||
           isMissingCriticalSpecifications(detail.specifications);
-        const needsImageFallback = document.imageUrls.length === 0;
+        const needsImageFallback = document.imageUrls.length === 0 && !detail.imageUrls?.length;
 
         if (needsSpecificationFallback || needsImageFallback || !detail.description?.trim()) {
           const page = await this.fetchListingPage(document, laneIndex);
@@ -157,12 +157,17 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
             return {
               ...detail,
               description: detail.description?.trim() || page.description,
-              raw: { ...detail.raw, description: detail.description?.trim() || page.description },
+              raw: {
+                ...detail.raw,
+                description: detail.description?.trim() || page.description,
+                specifications: { ...detail.specifications, ...page.specifications },
+                publicPageImageUrls: page.imageUrls,
+              },
               specifications: {
                 ...detail.specifications,
                 ...page.specifications,
               },
-              imageUrls: page.imageUrls,
+              imageUrls: page.imageUrls.length ? page.imageUrls : detail.imageUrls,
             };
           }
         }
@@ -184,7 +189,11 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         description: page.description,
         specifications: page.specifications,
         imageUrls: page.imageUrls,
-        raw: { description: page.description },
+        raw: {
+          description: page.description,
+          specifications: page.specifications,
+          publicPageImageUrls: page.imageUrls,
+        },
       };
     }
     return undefined;
@@ -266,13 +275,17 @@ export class BlocketUnofficialImporter implements MarketplaceImporter {
         for (const [externalId, rawDetail] of cachedDetailByExternalId) {
           const parsedDetail = parseBlocketDetail(rawDetail);
           const document = documentByExternalId.get(externalId);
-          const needsImageFallback = document?.imageUrls.length === 0;
+          if (!document) continue;
+          const needsImageFallback = document.imageUrls.length === 0 && !parsedDetail.imageUrls?.length;
           if (
             !isMissingCriticalSpecifications(parsedDetail.specifications) &&
             !needsImageFallback &&
             Boolean(parsedDetail.description?.trim())
           ) {
-            parsedCachedByExternalId.set(externalId, parsedDetail);
+            parsedCachedByExternalId.set(externalId, {
+              ...parsedDetail,
+              imageUrls: document.imageUrls.length > 0 ? undefined : parsedDetail.imageUrls,
+            });
           }
         }
 

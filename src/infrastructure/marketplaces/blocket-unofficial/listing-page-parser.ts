@@ -64,13 +64,11 @@ export function parseListingPageImageUrls(html: string, externalId: string): rea
   while ((match = blocketImageUrlPattern.exec(html)) !== null) {
     try {
       const url = new URL(decodeHtmlEntities(match[0]));
-      if (
-        url.hostname !== "images.blocketcdn.se" ||
-        !url.pathname.includes(expectedPath)
-      ) {
-        continue;
+      const variant = /^\/dynamic\/(?:default|\d+w)(\/item\/[^/]+\/[\w.-]+)\/?$/.exec(url.pathname);
+      const itemPath = variant?.[1];
+      if (itemPath?.startsWith(expectedPath)) {
+        imageUrls.add(`${url.origin}/dynamic/default${itemPath}`);
       }
-      imageUrls.add(`${url.origin}${url.pathname}`);
     } catch {
       // Ignore malformed source URLs and keep scanning the rest of the page.
     }

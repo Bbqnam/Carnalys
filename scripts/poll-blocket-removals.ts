@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { prisma, initializeDatabase } from "../src/infrastructure/database/prisma";
 import { BlocketUnofficialClient } from "../src/infrastructure/marketplaces/blocket-unofficial/client";
+import { restoreMissingBlocketGallery } from "../src/infrastructure/database/listing-write-repository";
+import { parseListingPageImageUrls } from "../src/infrastructure/marketplaces/blocket-unofficial/listing-page-parser";
 import type { BlocketMissingKind } from "../src/infrastructure/marketplaces/blocket-unofficial/availability";
 
 // Layered removal poll:
@@ -32,6 +34,8 @@ type Row = {
   id: string;
   externalId: string;
   listingUrl: string;
+  title: string;
+  missingGallery: boolean;
   priceAmount: number;
   previousPriceAmount: number | null;
   mileageKm: number;
@@ -43,14 +47,18 @@ type Row = {
 };
 
 type Outcome =
-  | { kind: "active" }
+  | { kind: "active"; imageUrls?: readonly string[] }
   | { kind: "inconclusive"; reason: string }
   | { kind: "missing"; missingKind: BlocketMissingKind; reason: string; via: "api" | "page" };
 
 async function check(client: BlocketUnofficialClient, row: Row): Promise<Outcome> {
+  let imageUrls: readonly string[] | undefined;
   const verdict = await client.checkListingAvailability({
     externalId: row.externalId,
     listingUrl: row.listingUrl,
+    onActivePage: row.missingGallery
+      ? (html) => { imageUrls = parseListingPageImageUrls(html, row.externalId); }
+      : undefined,
   });
   if (verdict.availability === "missing") {
     return {
@@ -60,7 +68,7 @@ async function check(client: BlocketUnofficialClient, row: Row): Promise<Outcome
       via: verdict.via,
     };
   }
-  if (verdict.availability === "active") return { kind: "active" };
+  if (verdict.availability === "active") return { kind: "active", imageUrls };
   return { kind: "inconclusive", reason: verdict.reason };
 }
 
@@ -102,9 +110,10 @@ async function recordMissing(row: Row, outcome: Extract<Outcome, { kind: "missin
 async function main() {
   await initializeDatabase();
   const rows = await prisma.$queryRawUnsafe<Row[]>(
-    `SELECT id, "externalId", "listingUrl", "priceAmount", "previousPriceAmount", "mileageKm",
-            "sellerType", "vehicleId", "firstSeenAt", "lastSeenAt", "availabilityCheckedAt"
-     FROM "ListingRecord"
+    `SELECT id, "externalId", "listingUrl", title, "priceAmount", "previousPriceAmount", "mileageKm",
+            "sellerType", "vehicleId", "firstSeenAt", "lastSeenAt", "availabilityCheckedAt",
+            NOT EXISTS (SELECT FROM "ListingImageRecord" i WHERE i."listingId" = l.id) AS "missingGallery"
+     FROM "ListingRecord" l
      WHERE provider = $1 AND status = 'active'
      ORDER BY "availabilityCheckedAt" ASC NULLS FIRST, "missingReconciliationCount" DESC, "lastSeenAt" ASC
      LIMIT $2`,
@@ -115,7 +124,7 @@ async function main() {
   const client = new BlocketUnofficialClient();
   const started = Date.now();
   const stats = {
-    checked: 0, active: 0, inconclusive: 0,
+    checked: 0, active: 0, inconclusive: 0, recoveredGalleries: 0,
     missingApi: 0, missingPurged: 0, missingDeactivated: 0,
     newlyRemoved: 0, newObservations: 0, neverChecked: rows.filter((r) => !r.availabilityCheckedAt).length,
   };
@@ -137,6 +146,11 @@ async function main() {
 
       if (outcome.kind === "active") {
         stats.active++;
+        if (outcome.imageUrls?.length) {
+          if (!WRITE || await restoreMissingBlocketGallery(row.id, row.externalId, row.listingUrl, row.title, outcome.imageUrls)) {
+            stats.recoveredGalleries++;
+          }
+        }
         if (WRITE) await prisma.listingRecord.updateMany({ where: { id: row.id, status: "active" }, data: { availabilityCheckedAt: checkedAt, availabilityCheckStatus: "active" } });
       } else if (outcome.kind === "inconclusive") {
         stats.inconclusive++;
@@ -168,6 +182,7 @@ async function main() {
   console.log(`\n=== Blocket removal poll ${WRITE ? "(WRITE)" : "(dry run)"} — ${rows.length} listings, ${elapsed}s ===`);
   console.log(`checked            ${stats.checked}`);
   console.log(`active             ${stats.active}`);
+  console.log(`galleries ${WRITE ? "recovered" : "recoverable"}  ${stats.recoveredGalleries}`);
   console.log(`inconclusive       ${stats.inconclusive}`);
   console.log(`missing (total)    ${stats.missingApi + stats.missingPurged + stats.missingDeactivated}`);
   console.log(`  · via API 404    ${stats.missingApi}   (proxy said gone, kind unknown)`);

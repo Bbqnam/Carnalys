@@ -191,6 +191,9 @@ export function parseBlocketDetail(payload: unknown): BlocketListingDetail {
     description: stringValue(payload.description),
     equipment,
     specifications,
+    imageUrls: Array.isArray(payload.publicPageImageUrls)
+      ? payload.publicPageImageUrls.flatMap((url) => stringValue(url) ?? [])
+      : undefined,
     raw: payload,
   };
 }

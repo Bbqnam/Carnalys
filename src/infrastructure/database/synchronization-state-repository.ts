@@ -4,10 +4,14 @@ import type {
   SynchronizationMode,
   VehicleSearchPartition,
 } from "@/application/ingestion/types";
+import {
+  manualCatalogProvider,
+  summarizeSynchronization,
+  synchronizationHeartbeatTimeoutMs,
+} from "@/application/ingestion/synchronization-status";
 import { Prisma } from "@/generated/prisma/client";
 import { initializeDatabase, prisma } from "./prisma";
 
-const staleHeartbeatMilliseconds = 5 * 60 * 1_000;
 const manualSynchronizationCooldownMilliseconds = 30 * 1_000;
 
 export class SynchronizationAlreadyRunningError extends Error {
@@ -53,7 +57,7 @@ async function releaseStaleOrAssertAvailable(
   provider: string,
   now: Date,
 ) {
-  const staleBefore = new Date(now.getTime() - staleHeartbeatMilliseconds);
+  const staleBefore = new Date(now.getTime() - synchronizationHeartbeatTimeoutMs);
   const lock = await transaction.synchronizationLock.findUnique({
     where: { provider },
   });
@@ -635,16 +639,40 @@ export async function getActiveSynchronization(provider: string) {
   if (
     !lock ||
     lock.heartbeatAt <
-      new Date(Date.now() - staleHeartbeatMilliseconds)
+      new Date(Date.now() - synchronizationHeartbeatTimeoutMs)
   ) {
     return undefined;
   }
 
   return {
+    runId: lock.runId,
     mode: lock.mode,
     phase: lock.run.phase,
     fetchedCount: lock.run.fetchedCount,
     pagesProcessed: lock.run.pagesProcessed,
     heartbeatAt: lock.heartbeatAt.toISOString(),
   };
+}
+
+export async function getPublicSynchronizationStatus(runId: string) {
+  const run = await prisma.importRun.findFirst({
+    where: { id: runId, provider: { in: [manualCatalogProvider, "blocket_unofficial"] } },
+    select: { provider: true, status: true, heartbeatAt: true, fetchedCount: true, createdCount: true, updatedCount: true },
+  });
+  if (!run) return undefined;
+  const status = summarizeSynchronization(run);
+  if (status.outcome === "running" && run.provider === manualCatalogProvider) {
+    const blocket = await getActiveSynchronization("blocket_unofficial");
+    return { ...status, fetchedCount: blocket?.fetchedCount ?? status.fetchedCount };
+  }
+  return status;
+}
+
+export async function getManualCatalogRevision() {
+  const run = await prisma.importRun.findFirst({
+    where: { provider: manualCatalogProvider, status: { in: ["completed", "completed_with_errors"] } },
+    orderBy: { startedAt: "desc" },
+    select: { id: true },
+  });
+  return run?.id ?? "";
 }

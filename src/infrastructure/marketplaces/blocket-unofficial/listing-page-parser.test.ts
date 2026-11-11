@@ -38,3 +38,18 @@ test("does not invent a description from metadata or surrounding page text", () 
   assert.equal(parseListingPageDescription('<meta name="description" content="Find cars">'), undefined);
   assert.equal(parseListingPageDescription('<section><h2>Beskrivning</h2><div class="import-decoration"> </div></section>'), undefined);
 });
+
+test("deduplicates Blocket responsive renditions into one photo per gallery item", () => {
+  const cdn = "https://images.blocketcdn.se/dynamic";
+  const html = `
+    <img srcset="${cdn}/320w/item/123/front 320w, ${cdn}/640w/item/123/front 640w">
+    <img src="${cdn}/default/item/123/front?width=1280">
+    <img src="${cdn}/960w/item/123/side">
+    <img src="${cdn}/960w/item/1234/another-car">
+    <img src="${cdn}/320w/item/123/side/extra">
+  `;
+  assert.deepEqual(parseListingPageImageUrls(html, "123"), [
+    `${cdn}/default/item/123/front`,
+    `${cdn}/default/item/123/side`,
+  ]);
+});

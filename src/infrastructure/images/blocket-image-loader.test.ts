@@ -49,3 +49,12 @@ test("adds responsive width parameters to imgix and static assets", () => {
   );
   assert.equal(imageLoader({ src: "/logo.svg", width: 48 }), "/logo.svg?width=48");
 });
+
+test("sets a single Blocket width and preserves other CDN parameters", () => {
+  const base = "https://images.blocketcdn.se/dynamic/default/item/123/front";
+  assert.equal(imageLoader({ src: base, width: 640 }), `${base}?width=640`);
+  assert.equal(
+    imageLoader({ src: `${base}?width=320&quality=80`, width: 640 }),
+    `${base}?width=640&quality=80`,
+  );
+});

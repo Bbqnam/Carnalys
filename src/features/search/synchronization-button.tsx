@@ -1,19 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState } from "react";
-import {
-  getSynchronizationProgress,
-  synchronizeLatestListings,
-  type ManualSynchronizationState,
-  type SynchronizationProgress,
-} from "@/app/actions";
+import { useActionState, useEffect, useState } from "react";
+import { synchronizeLatestListings, type ManualSynchronizationState } from "@/app/actions";
+import type { SynchronizationStatus } from "@/application/ingestion/synchronization-status";
 import type { Locale } from "./copy";
 import { RefreshIcon } from "./icons";
 
 const initialState: ManualSynchronizationState = { outcome: "idle" };
 const autoDismissMilliseconds = 6_000;
 const progressPollMilliseconds = 3_000;
+const maximumPollMilliseconds = 6 * 60 * 1_000;
+
+type FinishedUpdate = {
+  runId: string;
+  status: Exclude<SynchronizationStatus, { outcome: "running" }> | { outcome: "unavailable" };
+};
 
 function SynchronizationStatusMessage({ message }: { message: string }) {
   const [dismissed, setDismissed] = useState(false);
@@ -38,6 +40,7 @@ function SynchronizationStatusMessage({ message }: { message: string }) {
 
 interface SynchronizationButtonProps {
   activeSynchronization?: {
+    runId: string;
     mode: string;
     fetchedCount: number;
   };
@@ -53,98 +56,92 @@ export function SynchronizationButton({
     initialState,
   );
   const router = useRouter();
-  const [progress, setProgress] = useState<SynchronizationProgress | undefined>(
-    activeSynchronization
-      ? {
-          mode: activeSynchronization.mode,
-          phase: "",
-          fetchedCount: activeSynchronization.fetchedCount,
-          pagesProcessed: 0,
-          totalListings: 0,
-        }
-      : undefined,
-  );
-  // The sweep runs after the response, so the button can't learn it finished
-  // from the action result — it polls the sync lock instead. `syncActive` keeps
-  // the button in its running state from the click until polling sees the lock
-  // clear (tolerating a few empty polls while the background job starts up).
-  const [syncActive, setSyncActive] = useState(Boolean(activeSynchronization));
-  const emptyPolls = useRef(0);
-
-  const action = () => {
-    setSyncActive(true);
-    emptyPolls.current = 0;
-    formAction();
-  };
+  const [progress, setProgress] = useState<{ runId: string; fetchedCount: number }>();
+  const [finishedUpdate, setFinishedUpdate] = useState<FinishedUpdate>();
+  const runId = state.runId ?? activeSynchronization?.runId;
+  const isBusy = Boolean(runId && finishedUpdate?.runId !== runId);
 
   useEffect(() => {
-    if (!syncActive && !progress) return;
-    const interval = setInterval(async () => {
-      const next = await getSynchronizationProgress();
-      if (next) {
-        emptyPolls.current = 0;
-        setProgress(next);
+    if (!runId || !isBusy) return;
+    let controller: AbortController | undefined;
+    let cancelled = false;
+    const deadline = Date.now() + maximumPollMilliseconds;
+    let timeout: ReturnType<typeof setTimeout>;
+
+    async function poll(id: string) {
+      controller = new AbortController();
+      const requestTimeout = setTimeout(() => controller?.abort(), 10_000);
+      try {
+        const response = await fetch(`/api/sync-status?runId=${encodeURIComponent(id)}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Sync status returned ${response.status}`);
+        const status: SynchronizationStatus = await response.json();
+        if (cancelled) return;
+
+        if (status.outcome !== "running") {
+          setFinishedUpdate({ runId: id, status });
+          router.refresh();
+          return;
+        }
+        setProgress({ runId: id, fetchedCount: status.fetchedCount });
+      } catch {
+        if (cancelled) return;
+      } finally {
+        clearTimeout(requestTimeout);
+      }
+
+      if (Date.now() >= deadline) {
+        setFinishedUpdate({ runId: id, status: { outcome: "unavailable" } });
         return;
       }
-      // The background sweep can take a few seconds to register its lock;
-      // only conclude it finished after several consecutive empty polls.
-      emptyPolls.current += 1;
-      if (emptyPolls.current >= 3) {
-        setSyncActive(false);
-        setProgress(undefined);
-        router.refresh();
-      }
-    }, progressPollMilliseconds);
-    return () => clearInterval(interval);
-  }, [syncActive, progress, router]);
+      timeout = setTimeout(() => void poll(id), progressPollMilliseconds);
+    }
+
+    void poll(runId);
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      clearTimeout(timeout);
+    };
+  }, [runId, isBusy, router]);
 
   const english = locale === "en";
-  const isBusy = syncActive || Boolean(progress);
   const label = pending
-    ? english
-      ? "Updating…"
-      : "Uppdaterar…"
+    ? english ? "Updating…" : "Uppdaterar…"
     : isBusy
-      ? progress?.mode === "reconciliation"
-        ? english
-          ? "Full sync running"
-          : "Full synk körs"
-        : english
-          ? "Update running"
-          : "Uppdatering körs"
-      : english
-        ? "Update listings"
-        : "Uppdatera annonser";
+      ? activeSynchronization?.mode === "reconciliation"
+        ? english ? "Full sync running" : "Full synk körs"
+        : english ? "Update running" : "Uppdatering körs"
+      : english ? "Update listings" : "Uppdatera annonser";
 
+  const status = !pending && finishedUpdate?.runId === runId ? finishedUpdate?.status : undefined;
   const actionMessage =
-    state.outcome === "started"
+    status?.outcome === "completed"
       ? english
-        ? "Update started — the list refreshes when it finishes."
-        : "Uppdatering startad — listan uppdateras när den är klar."
-      : state.outcome === "completed"
-      ? english
-        ? `Done: ${state.createdCount ?? 0} new and ${state.updatedCount ?? 0} updated.`
-        : `Klart: ${state.createdCount ?? 0} nya och ${state.updatedCount ?? 0} uppdaterade.`
-      : state.outcome === "warning"
+        ? `Done. ${status.createdCount} new and ${status.updatedCount} updated.`
+        : `Klart. ${status.createdCount} nya och ${status.updatedCount} uppdaterade.`
+      : status?.outcome === "warning"
         ? english
-          ? `Updated, but ${state.failedCount ?? 0} ads could not be read.`
-          : `Uppdaterat, men ${state.failedCount ?? 0} annonser kunde inte läsas.`
-        : state.outcome === "busy"
-          ? english
-            ? "Another synchronization is already running."
-            : "En annan synkronisering körs redan."
-          : state.outcome === "failed"
-            ? english
-              ? "The update failed. Existing listings are unchanged."
-              : "Uppdateringen misslyckades. Befintliga annonser är kvar."
-            : undefined;
+          ? "The catalogue was refreshed. Some sources or listings could not be fully updated."
+          : "Katalogen uppdaterades. Vissa källor eller annonser kunde inte uppdateras helt."
+        : status?.outcome === "unavailable"
+          ? english ? "Could not confirm the update status." : "Kunde inte bekräfta uppdateringens status."
+          : status?.outcome === "failed" || state.outcome === "failed"
+            ? english ? "The update failed. Try again." : "Uppdateringen misslyckades. Försök igen."
+            : isBusy
+              ? english ? "The list refreshes when the update finishes." : "Listan uppdateras när synkroniseringen är klar."
+              : state.outcome === "busy"
+                ? english ? "An update just ran. Try again shortly." : "En uppdatering kördes nyss. Försök igen om en stund."
+                : undefined;
 
-  const progressLabel =
-    progress && progress.totalListings > 0
-      ? `${progress.fetchedCount.toLocaleString(english ? "en-SE" : "sv-SE")} / ${progress.totalListings.toLocaleString(english ? "en-SE" : "sv-SE")}`
-      : progress
-        ? progress.fetchedCount.toLocaleString(english ? "en-SE" : "sv-SE")
-        : undefined;
+  const fetchedCount = progress?.runId === runId
+    ? progress?.fetchedCount
+    : activeSynchronization?.fetchedCount;
+  const progressLabel = isBusy && fetchedCount
+    ? fetchedCount.toLocaleString(english ? "en-SE" : "sv-SE")
+    : undefined;
 
   return (
     <div className="relative flex items-center gap-2">
@@ -153,7 +150,7 @@ export function SynchronizationButton({
           {progressLabel}
         </span>
       ) : null}
-      <form action={action}>
+      <form action={formAction}>
         <button
           aria-describedby={
             actionMessage && !pending ? "synchronization-status" : undefined

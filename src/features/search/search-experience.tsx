@@ -68,6 +68,7 @@ function saveSearchState(url: string) {
 
 interface SearchExperienceProps {
   activeSynchronization?: {
+    runId: string;
     mode: string;
     fetchedCount: number;
   };

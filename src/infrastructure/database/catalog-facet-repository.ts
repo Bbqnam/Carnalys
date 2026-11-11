@@ -8,7 +8,8 @@ const activeCatalogSummaryId = "active-catalog";
 const catalogCacheTag = "listing-catalog-count";
 
 const findCatalogModelOptions = unstable_cache(
-  async (selectedBrands: readonly string[]) => {
+  async (selectedBrands: readonly string[], _revision: string) => {
+    void _revision;
     const modelGroups = await prisma.catalogModelFacet.groupBy({
       by: ["model"],
       where:
@@ -27,9 +28,9 @@ const findCatalogModelOptions = unstable_cache(
   { revalidate: 900, tags: [catalogCacheTag] },
 );
 
-export async function getCatalogModelOptions(selectedBrands: readonly string[]) {
+export async function getCatalogModelOptions(selectedBrands: readonly string[], revision = "") {
   await initializeDatabase();
-  return findCatalogModelOptions([...new Set(selectedBrands)].sort());
+  return findCatalogModelOptions([...new Set(selectedBrands)].sort(), revision);
 }
 
 export async function refreshCatalogFacets() {
@@ -102,6 +103,7 @@ export async function refreshCatalogFacets() {
 async function readPreparedCatalogFilters(
   selectedBrands: readonly string[],
   includeUnscopedModels: boolean,
+  revision: string,
 ): Promise<{
   filters: AvailableVehicleFilters;
   lastSynchronizedAt?: string;
@@ -109,7 +111,7 @@ async function readPreparedCatalogFilters(
   const [brands, models, years, summary] = await Promise.all([
     prisma.catalogMakeFacet.findMany({ orderBy: { make: "asc" } }),
     selectedBrands.length > 0 || includeUnscopedModels
-      ? getCatalogModelOptions(selectedBrands)
+      ? getCatalogModelOptions(selectedBrands, revision)
       : Promise.resolve([]),
     prisma.catalogYearFacet.findMany({ orderBy: { modelYear: "desc" } }),
     prisma.catalogSummary.findUnique({ where: { id: activeCatalogSummaryId } }),
@@ -138,6 +140,7 @@ const findPreparedCatalogFilters = unstable_cache(
 export async function getPreparedCatalogFilters(
   selectedBrands: readonly string[],
   includeUnscopedModels = true,
+  revision = "",
 ): Promise<{
   filters: AvailableVehicleFilters;
   lastSynchronizedAt?: string;
@@ -146,5 +149,6 @@ export async function getPreparedCatalogFilters(
   return findPreparedCatalogFilters(
     [...new Set(selectedBrands)].sort(),
     includeUnscopedModels,
+    revision,
   );
 }

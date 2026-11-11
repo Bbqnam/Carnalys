@@ -7,7 +7,8 @@ import {
   type SearchParameters,
 } from "@/features/search/search-state";
 import { getActiveVehicleListings } from "@/infrastructure/database/vehicle-listing-repository";
-import { getActiveSynchronization } from "@/infrastructure/database/synchronization-state-repository";
+import { manualCatalogProvider } from "@/application/ingestion/synchronization-status";
+import { getActiveSynchronization, getManualCatalogRevision } from "@/infrastructure/database/synchronization-state-repository";
 import { getCurrentUser } from "@/features/auth/session";
 
 interface HomeProps {
@@ -29,8 +30,10 @@ export default async function Home({ searchParams }: HomeProps) {
   if (!user?.isAdmin) search.filters.licensePlate = "";
   const localeCookie = (await cookies()).get(localeCookieName)?.value;
   const [catalog, activeSynchronization] = await Promise.all([
-    getActiveVehicleListings(search),
-    getActiveSynchronization("blocket_unofficial"),
+    getManualCatalogRevision().then((revision) => getActiveVehicleListings(search, revision)),
+    getActiveSynchronization(manualCatalogProvider).then((active) =>
+      active ?? getActiveSynchronization("blocket_unofficial"),
+    ),
   ]);
 
   return (

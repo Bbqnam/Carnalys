@@ -287,6 +287,7 @@ async function writeListing(
     existing.vehicle.normalizationVersion === CURRENT_NORMALIZATION_VERSION &&
     existing.contentHash === hashes.contentHash &&
     existing.imageHash === imagePolicy.imageHash &&
+    !imagePolicy.shouldReplaceImages &&
     existing.equipmentHash === hashes.equipmentHash;
 
   if (unchanged) {
@@ -495,7 +496,7 @@ async function writeListing(
       vehicleMatchConfidence: match.confidence,
       searchText,
       contentHash: hashes.contentHash,
-      imageHash: imagePolicy.imageHash,
+      imageHash: listing.images.length > 0 ? imagePolicy.imageHash : undefined,
       equipmentHash: hashes.equipmentHash,
       validationStatus: quality.status,
       validationReasonCodes: [...quality.reasonCodes],
@@ -504,13 +505,11 @@ async function writeListing(
     },
   });
 
-  if (imagePolicy.shouldReplaceImages) {
+  if (imagePolicy.shouldReplaceImages && listing.images.length > 0) {
     await transaction.listingImageRecord.deleteMany({ where: { listingId } });
-    if (listing.images.length > 0) {
-      await transaction.listingImageRecord.createMany({
-        data: listing.images.map((image) => ({ ...image, listingId })),
-      });
-    }
+    await transaction.listingImageRecord.createMany({
+      data: listing.images.map((image) => ({ ...image, listingId })),
+    });
   }
 
   if (!existing || existing.equipmentHash !== hashes.equipmentHash) {
@@ -827,6 +826,46 @@ export async function existingListingExternalIds(
     select: { externalId: true },
   });
   return new Set(rows.map(({ externalId }) => externalId));
+}
+
+/** Fill an empty gallery from an already-verified public Blocket page. */
+export async function restoreMissingBlocketGallery(
+  listingId: string,
+  externalId: string,
+  listingUrl: string,
+  title: string,
+  imageUrls: readonly string[],
+) {
+  const images = imageUrls.slice(0, MAX_LISTING_IMAGES).map((url, position) => ({
+    url,
+    alt: title,
+    position,
+  }));
+  if (images.length === 0) return false;
+
+  return prisma.$transaction(async (transaction) => {
+    // Lock the parent before checking the gallery. Normal ingestion also
+    // updates that row before writing photos, so the two writes serialize.
+    const locked = await transaction.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "ListingRecord"
+      WHERE id = ${listingId} AND "externalId" = ${externalId}
+        AND "listingUrl" = ${listingUrl}
+        AND provider = 'blocket_unofficial' AND status = 'active'
+      FOR UPDATE
+    `;
+    if (locked.length === 0 ||
+      await transaction.listingImageRecord.findFirst({ where: { listingId }, select: { id: true } })) {
+      return false;
+    }
+    await transaction.listingRecord.update({
+      where: { id: listingId },
+      data: { imageHash: digest(images) },
+    });
+    await transaction.listingImageRecord.createMany({
+      data: images.map((image) => ({ ...image, listingId })),
+    });
+    return true;
+  });
 }
 
 /**

@@ -174,6 +174,7 @@ export class BlocketUnofficialClient {
   async checkListingAvailability(input: {
     externalId: string;
     listingUrl: string;
+    onActivePage?: (html: string) => void;
   }): Promise<BlocketListingAvailability> {
     const api = await this.inspectCarAvailability(input.externalId);
     if (api.availability === "missing") {
@@ -198,6 +199,7 @@ export class BlocketUnofficialClient {
       };
     }
     if (verdict.availability === "active") {
+      if (page.html) input.onActivePage?.(page.html);
       return { availability: "active", missingKind: null, reason: verdict.reason, via: "page" };
     }
     // Page inconclusive — defer to the proxy.
@@ -234,7 +236,7 @@ export class BlocketUnofficialClient {
   }
 
   async getListingPageHtml(url: string) {
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: {
         Accept: "text/html",
         "User-Agent": "CarnalysDevelopmentImporter/1.0",

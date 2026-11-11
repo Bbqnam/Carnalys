@@ -870,6 +870,7 @@ export const catalogCountCacheTag = "listing-catalog-count";
 
 function countActiveListings(
   where: Prisma.ListingRecordWhereInput,
+  revision: string,
 ): Promise<number> {
   // `where` can hold Date instances (the "posted within" cutoff), so it is not
   // round-tripped through the cache — the closure keeps the real object and the
@@ -879,13 +880,14 @@ function countActiveListings(
     .digest("hex");
   return unstable_cache(
     () => prisma.listingRecord.count({ where }),
-    ["listing-record-count-v2-freshness", key],
+    ["listing-record-count-v2-freshness", key, revision],
     { revalidate: 900, tags: [catalogCountCacheTag] },
   )();
 }
 
 async function getActiveVehicleListingsUncached(
   options: VehicleSearchOptions,
+  revision: string,
 ): Promise<VehicleListingCatalog> {
   await initializeDatabase();
   const where = buildListingWhere(options.filters);
@@ -896,14 +898,14 @@ async function getActiveVehicleListingsUncached(
   // on the queries where the count is slowest.
   const requestedPage = Math.max(1, Math.trunc(options.page));
   const [totalListings, records, preparedCatalog] = await Promise.all([
-    countActiveListings(where),
+    countActiveListings(where, revision),
     findCatalogRecords(
       options.sort,
       where,
       (requestedPage - 1) * pageSize,
       pageSize,
     ),
-    getPreparedCatalogFilters(options.filters.brands, false),
+    getPreparedCatalogFilters(options.filters.brands, false, revision),
   ]);
   const totalPages = Math.max(1, Math.ceil(totalListings / pageSize));
   const page = Math.min(requestedPage, totalPages);
@@ -930,13 +932,16 @@ async function getActiveVehicleListingsUncached(
 
 export function getActiveVehicleListings(
   options: VehicleSearchOptions,
+  revision = "",
 ): Promise<VehicleListingCatalog> {
   const key = createHash("sha1")
     .update(JSON.stringify(options))
     .digest("hex");
   return unstable_cache(
-    () => getActiveVehicleListingsUncached(options),
-    ["vehicle-listing-catalog-v2-freshness", key],
+    () => getActiveVehicleListingsUncached(options, revision),
+    // The completed sweep is visible in Postgres before Next finishes flushing
+    // queued tag invalidations. Its revision also versions the cache key.
+    ["vehicle-listing-catalog-v2-freshness", key, revision],
     // Search results are public and change only when a synchronization writer
     // invalidates this tag. The short TTL also bounds staleness if an external
     // database writer bypasses that application path.

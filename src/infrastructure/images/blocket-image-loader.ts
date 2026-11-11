@@ -41,7 +41,9 @@ export default function blocketImageLoader({
   quality?: number;
 }) {
   if (src.startsWith(blocketImageHost)) {
-    return `${src}?width=${width}`;
+    const url = new URL(src);
+    url.searchParams.set("width", String(width));
+    return url.toString();
   }
   if (src.startsWith(waykeImageHost)) {
     const url = new URL(src);
