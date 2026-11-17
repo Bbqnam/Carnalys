@@ -819,10 +819,15 @@ export async function refreshAllVehicleRepresentatives(
 export async function existingListingExternalIds(
   provider: string,
   externalIds: readonly string[],
+  firstSeenBefore?: Date,
 ) {
   if (externalIds.length === 0) return new Set<string>();
   const rows = await prisma.listingRecord.findMany({
-    where: { provider, externalId: { in: [...externalIds] } },
+    where: {
+      provider,
+      externalId: { in: [...externalIds] },
+      firstSeenAt: firstSeenBefore && { lte: firstSeenBefore },
+    },
     select: { externalId: true },
   });
   return new Set(rows.map(({ externalId }) => externalId));

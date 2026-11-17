@@ -88,6 +88,7 @@ async function runOnce() {
   const result = await synchronizeMarketplace(importer, {
     mode,
     resumeOnly,
+    incrementalCatchUp: process.argv.includes("--catch-up"),
     incrementalLookbackHours: environmentInteger(
       "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
       72,

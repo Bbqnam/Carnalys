@@ -618,6 +618,19 @@ export async function interruptSynchronizationRun(
   });
 }
 
+export async function getLatestIncrementalCoverage(provider: string) {
+  return prisma.importRun.findFirst({
+    where: {
+      provider,
+      mode: "incremental",
+      status: "completed",
+      stopReason: { in: ["covered_previous_sync", "source_exhausted"] },
+    },
+    orderBy: { startedAt: "desc" },
+    select: { startedAt: true },
+  });
+}
+
 export async function synchronizationRunResult(runId: string) {
   return prisma.importRun.findUniqueOrThrow({ where: { id: runId } });
 }

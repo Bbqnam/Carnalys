@@ -27,6 +27,7 @@ export interface AllSourcesIncrementalOptions {
    *  both fully known and older than the lookback window. */
   maximumPagesPerSource?: number;
   lookbackHours?: number;
+  catchUp?: boolean;
   knownPageThreshold?: number;
   /** Apply the manual cooldown before each source (used by the UI button so a
    *  scripted double-click can't re-scrape back to back). */
@@ -81,6 +82,7 @@ export async function synchronizeAllSourcesIncrementally(
     providers,
     maximumPagesPerSource = 4,
     lookbackHours = 6,
+    catchUp = false,
     knownPageThreshold = 1,
     throttle = false,
     onProgress,
@@ -105,6 +107,7 @@ export async function synchronizeAllSourcesIncrementally(
       const run = await synchronizeMarketplace(importer, {
         mode: "incremental",
         incrementalLookbackHours: lookbackHours,
+        incrementalCatchUp: catchUp,
         incrementalKnownPageThreshold: knownPageThreshold,
         incrementalMaximumPages: maximumPagesPerSource,
         deferDerivedData: true,

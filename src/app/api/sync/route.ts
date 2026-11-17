@@ -44,10 +44,7 @@ export async function GET(request: Request) {
           "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
           72,
         ),
-        incrementalMaximumPages: environmentInteger(
-          "BLOCKET_INCREMENTAL_MAX_PAGES",
-          10,
-        ),
+        incrementalCatchUp: true,
         incrementalKnownPageThreshold: environmentInteger(
           "BLOCKET_INCREMENTAL_KNOWN_PAGES",
           2,

@@ -39,10 +39,7 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
       BLOCKET_UNOFFICIAL_API_URL: ${{ secrets.BLOCKET_UNOFFICIAL_API_URL || 'https://blocket-api.se' }}
-      BLOCKET_INCREMENTAL_LOOKBACK_HOURS: ${{ github.event_name == 'push' && '30' || github.event.schedule == '0 2 * * *' && '24' || '6' }}
-      BLOCKET_INCREMENTAL_MAX_PAGES: ${{ github.event_name == 'push' && '100' || '60' }}
-      BYTBIL_INCREMENTAL_MAX_PAGES: ${{ github.event_name == 'push' && '100' || '60' }}
-      HEDIN_INCREMENTAL_MAX_PAGES: ${{ github.event_name == 'push' && '60' || '20' }}
+      BLOCKET_INCREMENTAL_LOOKBACK_HOURS: "30"
       BLOCKET_POLL_LIMIT: ${{ github.event.inputs.poll_limit || '12000' }}
       BLOCKET_POLL_CONCURRENCY: "15"
 
@@ -59,19 +56,19 @@ jobs:
       #     one source being down does not block the others or the removal poll.
       - name: Sync Blocket (incremental)
         continue-on-error: true
-        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up
       - name: Sync Wayke (incremental)
         continue-on-error: true
-        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=wayke
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up --source=wayke
       - name: Sync Bytbil (incremental)
         continue-on-error: true
-        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up --source=bytbil
       - name: Sync Hedin (incremental)
         continue-on-error: true
-        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up --source=hedin
       - name: Sync Autohero (incremental)
         continue-on-error: true
-        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=autohero
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up --source=autohero
 
       # --- removals: the layered availability poll (API 404 + real ad page
       #     "sold or removed" notice). Rotates oldest-checked-first, so ~2 weeks

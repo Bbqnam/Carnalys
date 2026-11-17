@@ -17,6 +17,7 @@ import {
   failCheckpoint,
   failSynchronizationRun,
   finishSynchronizationRun,
+  getLatestIncrementalCoverage,
   interruptSynchronizationRun,
   nextReconciliationCheckpoint,
   reconciliationCompletion,
@@ -36,6 +37,7 @@ export interface SynchronizationOptions {
   resumeOnly?: boolean;
   incrementalLookbackHours?: number;
   incrementalMaximumPages?: number;
+  incrementalCatchUp?: boolean;
   incrementalKnownPageThreshold?: number;
   analysisRefreshLimit?: number;
   onProgress?: (message: string) => void;
@@ -190,14 +192,23 @@ async function runIncrementalSynchronization(
   run: SynchronizationRunHandle,
   options: SynchronizationOptions,
 ) {
-  const maximumPages = positiveInteger(options.incrementalMaximumPages, 40);
+  const catchUp = options.incrementalCatchUp;
+  const maximumPages = catchUp
+    ? Infinity
+    : positiveInteger(options.incrementalMaximumPages, 40);
   const knownPageThreshold = positiveInteger(
     options.incrementalKnownPageThreshold,
     2,
   );
   const lookbackHours = positiveInteger(options.incrementalLookbackHours, 72);
   const analysisLimit = positiveInteger(options.analysisRefreshLimit, 250);
-  const cutoff = new Date(Date.now() - lookbackHours * 60 * 60 * 1_000);
+  const previousCoverage = catchUp
+    ? await getLatestIncrementalCoverage(importer.provider)
+    : undefined;
+  // Overlap the previous run to account for late indexing and rounded source dates.
+  const cutoff = previousCoverage
+    ? new Date(previousCoverage.startedAt.getTime() - 15 * 60 * 1_000)
+    : new Date(run.startedAt.getTime() - lookbackHours * 60 * 60 * 1_000);
   const changedListingIds: string[] = [];
   let consecutiveKnownOldPages = 0;
   let stopReason = "maximum_pages";
@@ -219,6 +230,7 @@ async function runIncrementalSynchronization(
     const knownIds = await existingListingExternalIds(
       importer.provider,
       externalIds,
+      catchUp ? cutoff : undefined,
     );
     const writeResult = await upsertNormalizedListings(
       page.listings,
@@ -256,8 +268,10 @@ async function runIncrementalSynchronization(
     );
     const pageWasAlreadyKnown =
       externalIds.length > 0 && externalIds.every((id) => knownIds.has(id));
-    const pageReachedLookback =
-      oldestPublishedAt !== undefined && oldestPublishedAt <= cutoff;
+    const pageReachedLookback = catchUp
+      ? page.rejectedCount === 0 && page.listings.every(({ source }) =>
+          !source.publishedAt || source.publishedAt <= cutoff)
+      : oldestPublishedAt !== undefined && oldestPublishedAt <= cutoff;
     consecutiveKnownOldPages =
       pageWasAlreadyKnown && pageReachedLookback
         ? consecutiveKnownOldPages + 1
@@ -269,7 +283,7 @@ async function runIncrementalSynchronization(
     );
 
     if (consecutiveKnownOldPages >= knownPageThreshold) {
-      stopReason = "known_lookback_boundary";
+      stopReason = catchUp ? "covered_previous_sync" : "known_lookback_boundary";
       break;
     }
     if (page.currentPage >= page.lastPage) {

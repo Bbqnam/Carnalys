@@ -49,9 +49,8 @@ export async function synchronizeLatestListings(): Promise<ManualSynchronization
   after(async () => {
     try {
       const result = await synchronizeAllSourcesIncrementally({
-        maximumPagesPerSource: 4,
-        lookbackHours: 3,
-        knownPageThreshold: 1,
+        catchUp: true,
+        lookbackHours: 30,
         throttle: true,
       });
       // The catalogue uses unstable_cache. Expire its data immediately so
