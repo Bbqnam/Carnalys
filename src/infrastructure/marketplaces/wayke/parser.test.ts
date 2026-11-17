@@ -140,3 +140,45 @@ test("recovers the Next gallery when Schema.org omits images", () => {
     "https://cdn.wayke.se/cfit/v3/gallery/second",
   ]);
 });
+
+test("reads the current paginated search and skips offers without a cash price", () => {
+  const id = searchDocument._id;
+  const item = {
+    url: `https://www.wayke.se/objekt/${id}`,
+    name: searchDocument.title,
+    vehicleModelDate: "2026",
+    mileageFromOdometer: { value: 250, unitCode: "KMT" },
+    offers: {
+      price: 2363000,
+      seller: { name: "Porsche Center Malmö", address: { addressLocality: "Malmö" } },
+    },
+  };
+  const list = {
+    "@type": "ItemList",
+    numberOfItems: 26,
+    itemListElement: [
+      { position: 25, item },
+      { position: 26, item: { ...item, url: "https://www.wayke.se/objekt/lease-ad", offers: {} } },
+    ],
+  };
+  const flight = JSON.stringify({
+    legacyItem: { id, manufacturer: "Porsche", model: "911" },
+    body: { advertisementId: id, image: "https://cdn.wayke.se/cfit/v3/gallery/first" },
+    sibling: { legacyItem: { id: "lease-ad", manufacturer: "Porsche", price: 0 } },
+  });
+  const html = `<script type="application/ld+json">${JSON.stringify(list)}</script><script>self.__next_f.push([1,${JSON.stringify(flight)}])</script>`;
+  const page = parseWaykeSearchPage(html);
+  assert.equal(page.offset, 24);
+  assert.equal(page.totalMatches, 26);
+  assert.equal(page.rejectedCount, 0);
+  assert.equal(page.documents.length, 1);
+  assert.equal(page.documents[0].mileageMil, 25);
+  assert.equal(page.documents[0].model, "911");
+  assert.equal(page.documents[0].featuredImageUrl, "https://cdn.wayke.se/cfit/v3/gallery/first");
+});
+
+test("uses the rendered Wayke publication time when the offer has no date", () => {
+  const html = detailHtml.replace('"validFrom":"2026-08-28T11:04:24Z",', "") +
+    '<div data-testid="item-v2-published-at">Publicerad <time dateTime="2026-11-17T10:16:48.696Z">2026-11-17 11:16</time></div>';
+  assert.equal(parseWaykeDetailPage(html).publishedAt?.toISOString(), "2026-11-17T10:16:48.696Z");
+});

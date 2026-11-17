@@ -38,15 +38,83 @@ function decodeHtml(value: string) {
     .trim();
 }
 
-/** Parse Wayke's server-rendered React Query hydration payload. */
-export function parseWaykeSearchPage(html: string): WaykeSearchPage {
+function structuredData(html: string, type: string) {
+  const scripts = html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g);
+  for (const match of scripts) {
+    try {
+      const data = object(JSON.parse(match[1]));
+      if (data?.["@type"] === type) return data;
+    } catch {
+      // An unrelated structured block can be malformed.
+    }
+  }
+}
+
+function parseCurrentSearchData(html: string) {
+  const list = structuredData(html, "ItemList");
+  if (!Array.isArray(list?.itemListElement)) return undefined;
+
+  const flight = waykeFlightData(html);
+  const vehicles = new Map<string, JsonObject>();
+  const images = new Map<string, string>();
+  for (const match of flight.matchAll(/"(legacyItem|body)":\{/g)) {
+    const start = match.index + match[0].length - 1;
+    const candidate = extractJsonObject(flight, start);
+    if (!candidate) continue;
+    const data = object(JSON.parse(candidate));
+    if (match[1] === "legacyItem") {
+      const id = text(data?.id);
+      if (data && id && text(data.manufacturer)) vehicles.set(id, data);
+    } else {
+      const id = text(data?.advertisementId);
+      const image = text(data?.image);
+      if (id && image) images.set(id, image);
+    }
+  }
+
+  const pageSize = 24;
+  const firstPosition = number(object(list.itemListElement[0])?.position);
+  if (firstPosition === undefined && number(list.numberOfItems) !== 0) return undefined;
+  const documents = list.itemListElement.flatMap((entry: unknown) => {
+    const car = object(object(entry)?.item);
+    const id = text(car?.url)?.match(/\/objekt\/([\w-]+)\/?$/)?.[1];
+    const vehicle = id ? vehicles.get(id) : undefined;
+    const mileage = object(car?.mileageFromOdometer);
+    const distance = number(mileage?.value);
+    const offers = object(car?.offers);
+    // Wayke also shows lease and made-to-order offers without a cash price.
+    if (offers && number(offers.price) === undefined && number(vehicle?.price) === 0) return [];
+    const seller = object(offers?.seller);
+    const address = object(seller?.address);
+    return {
+      _id: id,
+      title: car?.name,
+      manufacturer: vehicle?.manufacturer,
+      modelSeries: vehicle?.model,
+      modelYear: car?.vehicleModelDate,
+      mileage: text(mileage?.unitCode) === "KMT" && distance !== undefined
+        ? distance / 10
+        : vehicle?.mileage,
+      price: offers?.price,
+      fuelType: vehicle?.fuelType,
+      gearboxType: vehicle?.gearboxType,
+      branches: [seller],
+      position: { city: address?.addressLocality },
+      featuredImage: id && images.has(id) ? { files: [{ url: images.get(id) }] } : undefined,
+    };
+  });
+  return {
+    documents,
+    numberOfHits: list.numberOfItems,
+    pagination: { offset: (firstPosition ?? 1) - 1, hitsPerPage: pageSize },
+  };
+}
+
+function parseLegacySearchData(html: string) {
   const payloadMatch = html.match(
     /<script>window\["__RQ_R_lb_"\][\s\S]*?\.push\((\{"mutations":[\s\S]*?\})\);<\/script>/,
   );
-  if (!payloadMatch) {
-    throw new Error("Wayke-sökningens strukturerade siddata saknas; importen pausas.");
-  }
-
+  if (!payloadMatch) return undefined;
   const payload = JSON.parse(payloadMatch[1]) as {
     queries?: { state?: { data?: unknown } }[];
   };
@@ -54,14 +122,17 @@ export function parseWaykeSearchPage(html: string): WaykeSearchPage {
     ?.map((query) => object(query.state?.data))
     .find((candidate) => {
       const list = object(candidate?.documentList);
-      const candidatePagination = object(list?.pagination);
-      return (
-        Array.isArray(list?.documents) &&
-        list.documents.length > 0 &&
-        (number(candidatePagination?.hitsPerPage) ?? 0) > 0
-      );
+      const pagination = object(list?.pagination);
+      return Array.isArray(list?.documents) && (number(pagination?.hitsPerPage) ?? 0) > 0;
     });
-  const documentList = object(state?.documentList);
+  return object(state?.documentList);
+}
+
+export function parseWaykeSearchPage(html: string): WaykeSearchPage {
+  const documentList = parseCurrentSearchData(html) ?? parseLegacySearchData(html);
+  if (!documentList) {
+    throw new Error("Wayke-sökningens strukturerade siddata saknas; importen pausas.");
+  }
   const pagination = object(documentList?.pagination);
   const rawDocuments = Array.isArray(documentList?.documents)
     ? documentList.documents
@@ -249,8 +320,8 @@ function extractJsonObject(value: string, start: number) {
   return undefined;
 }
 
-function parseWaykeNextVehicle(html: string) {
-  const flight = [
+function waykeFlightData(html: string) {
+  return [
     ...html.matchAll(
       /self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)<\/script>/g,
     ),
@@ -263,6 +334,10 @@ function parseWaykeNextVehicle(html: string) {
       }
     })
     .join("");
+}
+
+function parseWaykeNextVehicle(html: string) {
+  const flight = waykeFlightData(html);
   for (const match of flight.matchAll(/"vehicle":\{/g)) {
     const start = match.index + '"vehicle":'.length;
     const candidate = extractJsonObject(flight, start);
@@ -286,29 +361,16 @@ function parseWaykeNextVehicle(html: string) {
 
 /** Parse only structured Schema.org data and the rendered equipment list. */
 export function parseWaykeDetailPage(html: string): WaykeListingDetail {
-  const scripts = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)];
-  let raw: JsonObject | undefined;
-  for (const match of scripts) {
-    try {
-      const candidate = object(JSON.parse(match[1]));
-      if (candidate?.["@type"] === "Car") {
-        raw = candidate;
-        break;
-      }
-    } catch {
-      // Ignore unrelated malformed structured blocks; the required Car block
-      // is validated below.
-    }
-  }
   const nextVehicle = parseWaykeNextVehicle(html);
-  if (!raw) {
-    raw = nextVehicle;
-  }
+  const raw = structuredData(html, "Car") ?? nextVehicle;
   if (!raw) throw new Error("Wayke-annonsens strukturerade fordonsdata saknas.");
   const equipment = [...html.matchAll(/data-testid="equipment-list-item-[^"]*"[^>]*>([\s\S]*?)<\/li>/g)]
     .map((match) => decodeHtml(match[1]))
     .filter(Boolean);
   const parsed = parseWaykeDetailData(raw);
+  const publishedTime = html.match(
+    /data-testid="item-v2-published-at"[^>]*>[^<]*<time[^>]*\sdatetime="([^"]+)"/i,
+  )?.[1];
   // Some Wayke pages publish a valid Schema.org Car block without its image
   // field while including the full gallery in the server-component vehicle
   // prop. Prefer Schema.org for the core fields, but recover that gallery so a
@@ -318,6 +380,7 @@ export function parseWaykeDetailPage(html: string): WaykeListingDetail {
     : [];
   return {
     ...parsed,
+    publishedAt: parsed.publishedAt ?? date(publishedTime),
     images: parsed.images.length > 0 ? parsed.images : nextImages,
     equipment: equipment.length > 0 ? [...new Set(equipment)] : parsed.equipment,
   };

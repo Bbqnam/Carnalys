@@ -24,11 +24,10 @@ export class WaykeClient {
   }
 
   search(page: number, sort: "itemSortDesc" | "priceDefaultDesc") {
-    const params = new URLSearchParams({
-      offset: String(Math.max(0, page - 1) * 24),
-      sort,
-    });
-    return this.html(`/sok?${params}`);
+    const params = new URLSearchParams();
+    if (page > 1) params.set("page", String(page));
+    if (sort === "priceDefaultDesc") params.set("sort", "price-desc");
+    return this.html(params.size ? `/sok?${params}` : "/sok");
   }
 
   detail(externalId: string) {

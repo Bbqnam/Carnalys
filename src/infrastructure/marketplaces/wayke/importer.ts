@@ -127,6 +127,10 @@ export class WaykeImporter implements MarketplaceImporter {
         const html = await this.client.search(request.page, sort);
         this.lastRequestAt = Date.now();
         const page = parseWaykeSearchPage(html);
+        const currentPage = Math.floor(page.offset / page.hitsPerPage) + 1;
+        if (currentPage !== request.page) {
+          throw new Error(`Wayke returnerade sida ${currentPage} i stället för sida ${request.page}.`);
+        }
         const cached = this.knownPayloadLookup
           ? await this.knownPayloadLookup(this.provider, page.documents.map(({ id }) => id))
           : new Map<string, unknown>();
@@ -157,7 +161,7 @@ export class WaykeImporter implements MarketplaceImporter {
           listings,
           rejectedCount: page.rejectedCount,
           totalMatches: page.totalMatches,
-          currentPage: Math.floor(page.offset / page.hitsPerPage) + 1,
+          currentPage,
           lastPage: Math.max(1, Math.ceil(page.totalMatches / page.hitsPerPage)),
         };
       } catch (error) {
