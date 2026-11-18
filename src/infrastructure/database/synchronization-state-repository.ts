@@ -177,7 +177,7 @@ export async function startSynchronizationRun({
         : resumeIncremental
           ? await transaction.importRun.findFirst({
               where: {
-                provider, sourceScope, mode: "incremental",
+                provider, mode: "incremental",
                 status: { in: ["interrupted", "failed"] },
                 OR: [
                   { stopReason: { in: ["stop_requested", "stale_heartbeat"] } },
@@ -201,6 +201,9 @@ export async function startSynchronizationRun({
             completedAt: null,
             heartbeatAt: now,
             resumedCount: { increment: 1 },
+            sourceScope: resumeIncremental && sourceScope.includes(":recoveryHours=")
+              ? sourceScope
+              : undefined,
             stopReason: null,
             errorMessage: null,
           },
@@ -232,7 +235,7 @@ export async function startSynchronizationRun({
     return {
       id: run.id,
       provider,
-      sourceScope,
+      sourceScope: run.sourceScope,
       mode,
       startedAt: run.startedAt,
       resumed: Boolean(resumable),

@@ -210,8 +210,9 @@ async function runIncrementalSynchronization(
     ? await getLatestIncrementalCoverage(importer.provider)
     : undefined;
   // Overlap the previous run to account for late indexing and rounded source dates.
-  const cutoff = options.incrementalRecoveryHours
-    ? new Date(run.startedAt.getTime() - options.incrementalRecoveryHours * 3_600_000)
+  const recoveryHours = Number(run.sourceScope.split(":recoveryHours=")[1]) || options.incrementalRecoveryHours;
+  const cutoff = recoveryHours
+    ? new Date(run.startedAt.getTime() - recoveryHours * 3_600_000)
     : previousCoverage
     ? new Date(previousCoverage.startedAt.getTime() - 15 * 60 * 1_000)
     : new Date(run.startedAt.getTime() - lookbackHours * 60 * 60 * 1_000);
@@ -335,8 +336,9 @@ async function runReconciliation(
   const changedListingIds: string[] = [];
   const catchUp = run.mode === "incremental" && options.incrementalCatchUp;
   const previousCoverage = catchUp ? await getLatestIncrementalCoverage(importer.provider) : undefined;
-  const cutoff = options.incrementalRecoveryHours
-    ? new Date(run.startedAt.getTime() - options.incrementalRecoveryHours * 3_600_000)
+  const recoveryHours = Number(run.sourceScope.split(":recoveryHours=")[1]) || options.incrementalRecoveryHours;
+  const cutoff = recoveryHours
+    ? new Date(run.startedAt.getTime() - recoveryHours * 3_600_000)
     : previousCoverage
     ? new Date(previousCoverage.startedAt.getTime() - 15 * 60 * 1_000)
     : new Date(run.startedAt.getTime() - positiveInteger(options.incrementalLookbackHours, 72) * 3_600_000);
@@ -500,7 +502,9 @@ export async function synchronizeMarketplace(
   const mode = options.mode ?? "incremental";
   const run = await startSynchronizationRun({
     provider: importer.provider,
-    sourceScope: importer.scope,
+    sourceScope: options.incrementalRecoveryHours
+      ? `${importer.scope}:recoveryHours=${options.incrementalRecoveryHours}`
+      : importer.scope,
     mode,
     resumeOnly: options.resumeOnly,
     resumeIncremental: options.incrementalCatchUp,
