@@ -630,6 +630,22 @@ export async function upsertNormalizedListings(
   synchronizedAt: Date,
 ): Promise<ListingWriteResult> {
   await initializeDatabase();
+  // Sources fetch independently, but identity resolution and page writes share
+  // one database mutex. Two sources must not both create a vehicle before
+  // either can see the other's VIN or registration number.
+  return prisma.$transaction(async (transaction) => {
+    await transaction.$executeRawUnsafe("SET LOCAL lock_timeout = '90s'");
+    await transaction.$queryRaw`
+      SELECT pg_advisory_xact_lock(hashtext('catalogue-listing-page-writes'))::text
+    `;
+    return writeNormalizedListingPage(listings, synchronizedAt);
+  }, { timeout: 180_000, maxWait: 10_000 });
+}
+
+async function writeNormalizedListingPage(
+  listings: readonly NormalizedVehicleListing[],
+  synchronizedAt: Date,
+): Promise<ListingWriteResult> {
   if (listings.length === 0) {
     return {
       createdCount: 0,
