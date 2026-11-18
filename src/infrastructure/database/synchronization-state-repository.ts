@@ -548,12 +548,20 @@ export async function reconciliationCompletion(runId: string) {
     }),
   ]);
 
+  const rejected = run.mode === "incremental"
+    ? await prisma.importCheckpoint.aggregate({
+        where: { runId },
+        _sum: { rejectedCount: true },
+      })
+    : undefined;
   return {
     cleanupEligible:
       run.cleanupEligible &&
       unfinishedCheckpointCount === 0 &&
       run.fetchedCount > 0,
-    failedCount: run.failedCount,
+    // Resolved fetch failures remain in ImportRunError. Only rejected rows
+    // and unfinished checkpoints prevent a resumed catch up from completing.
+    failedCount: rejected ? rejected._sum.rejectedCount ?? 0 : run.failedCount,
     fetchedCount: run.fetchedCount,
     cleanupAppliedAt: run.cleanupAppliedAt,
     removedCount: run.removedCount,
@@ -566,6 +574,7 @@ export async function finishSynchronizationRun(
   result: {
     status: "completed" | "completed_with_errors";
     removedCount?: number;
+    failedCount?: number;
     stopReason: string;
   },
 ) {
@@ -580,6 +589,7 @@ export async function finishSynchronizationRun(
         heartbeatAt: now,
         completedAt: now,
         removedCount: result.removedCount ?? 0,
+        failedCount: result.failedCount,
         stopReason: result.stopReason,
       },
     });

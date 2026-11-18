@@ -179,15 +179,15 @@ export function parseBytbilSearchPage(html: string): BytbilSearchPage {
     });
   }
 
-  const totalMatches =
+  const reportedTotal =
     integer(html.match(/"numResults"\s*:\s*"?([\d\s]+?)"?[,}]/)?.[1]) ??
-    integer(html.match(/result-count-label[^>]*>\s*<strong>([\s\S]*?)<\/strong>/)?.[1]) ??
-    documents.length;
+    integer(html.match(/result-count-label[^>]*>\s*<strong>([\s\S]*?)<\/strong>/)?.[1]);
+  const totalMatches = reportedTotal ?? documents.length;
   const currentPage =
     integer(html.match(/<li[^>]*class="[^"]*\b(?:uk-active|active)\b[^"]*"[^>]*>\s*<a[^>]*>\s*(\d+)\s*</)?.[1]) ??
     1;
 
-  if (documents.length === 0 && rejectedCount === 0) {
+  if (documents.length === 0 && rejectedCount === 0 && reportedTotal !== 0) {
     throw new Error("Bytbils sökträffar kunde inte läsas; strukturen kan ha ändrats.");
   }
 

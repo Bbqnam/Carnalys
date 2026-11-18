@@ -482,6 +482,7 @@ async function runReconciliation(
           ? "completed_with_errors"
           : "completed",
       removedCount,
+      failedCount: catchUp ? completion.failedCount : undefined,
       stopReason: catchUp ? "covered_previous_sync" : completion.cleanupEligible
         ? "full_traversal_verified"
         : "full_traversal_cleanup_withheld",

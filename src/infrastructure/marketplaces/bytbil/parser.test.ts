@@ -233,3 +233,10 @@ test("reads the active page instead of the first pagination link", () => {
     '<div class="pagination"><li><a href="/bil?Page=1">1</a></li><li class="uk-active active"><a href="/bil?Page=7">7</a></li></div>');
   assert.equal(parseBytbilSearchPage(html).currentPage, 7);
 });
+
+test("accepts an explicitly empty search partition while rejecting a malformed page", () => {
+  const page = parseBytbilSearchPage('<script>{"numResults":"0"}</script>');
+  assert.equal(page.totalMatches, 0);
+  assert.deepEqual(page.documents, []);
+  assert.throws(() => parseBytbilSearchPage("<html>upstream error</html>"));
+});

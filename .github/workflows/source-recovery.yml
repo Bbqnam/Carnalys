@@ -1,0 +1,37 @@
+name: Recover a marketplace source
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/source-recovery.yml]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Source to recover
+        type: choice
+        options: [bytbil, blocket, wayke, hedin, autohero]
+        default: bytbil
+
+concurrency:
+  group: catalogue-source-${{ inputs.source || 'bytbil' }}
+  cancel-in-progress: true
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      BLOCKET_UNOFFICIAL_API_URL: ${{ secrets.BLOCKET_UNOFFICIAL_API_URL || 'https://blocket-api.se' }}
+      SYNC_RECOVERY_HOURS: "48"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx --test src/infrastructure/marketplaces/bytbil/parser.test.ts
+      - name: Resume saved coverage
+        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up --source=${{ inputs.source || 'bytbil' }}
