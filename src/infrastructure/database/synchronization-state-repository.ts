@@ -644,11 +644,14 @@ export async function interruptSynchronizationRun(
 }
 
 export async function getLatestIncrementalCoverage(provider: string) {
+  // Completed traversal establishes coverage even when individual source rows
+  // fail quality checks. Unfinished work and failed runs cannot advance it.
   return prisma.importRun.findFirst({
     where: {
       provider,
       mode: "incremental",
-      status: "completed",
+      status: { in: ["completed", "completed_with_errors"] },
+      checkpoints: { none: { status: { notIn: ["completed", "split"] } } },
       stopReason: { in: ["covered_previous_sync", "source_exhausted"] },
     },
     orderBy: { startedAt: "desc" },

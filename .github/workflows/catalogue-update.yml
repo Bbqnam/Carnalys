@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/catalogue-update.yml
+      - src/infrastructure/database/synchronization-state-repository.ts
   schedule:
     - cron: "7,37 * * * *"
   workflow_dispatch:
