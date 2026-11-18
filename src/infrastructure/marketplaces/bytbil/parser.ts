@@ -81,6 +81,29 @@ function relativePublishedAt(label: string | undefined, now = Date.now()) {
   return new Date(now - amount * scale);
 }
 
+export function calendarPublicationUpperBound(label: string | undefined, now = new Date()) {
+  if (!label) return undefined;
+  const value = label.toLocaleLowerCase("sv-SE").trim();
+  const today = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+  const offset = new Intl.DateTimeFormat("en", {
+    timeZone: "Europe/Stockholm", timeZoneName: "shortOffset",
+  }).formatToParts(new Date(today + "T00:00:00Z")).find((part) => part.type === "timeZoneName")?.value;
+  const offsetHours = Number(offset?.replace("GMT", "") || 0);
+  if (value === "idag") return now;
+  if (value === "igår") {
+    return new Date(Date.parse(today + "T00:00:00Z") - offsetHours * 3_600_000 - 1);
+  }
+  const match = value.match(/^(\d{1,2})\s+([a-zåäö]+)\.?\s+(\d{4})$/);
+  if (!match) return undefined;
+  const month = ["jan", "feb", "mars", "apr", "maj", "juni", "juli", "aug", "sep", "okt", "nov", "dec"]
+    .findIndex((name) => name === match[2]);
+  if (month < 0) return undefined;
+  // The end of the UTC day is a conservative upper bound for a Swedish date.
+  return new Date(Date.UTC(Number(match[3]), month, Number(match[1]) + 1) - 1);
+}
+
 export function parseBytbilSearchPage(html: string): BytbilSearchPage {
   const rows = [
     ...html.matchAll(
@@ -151,6 +174,7 @@ export function parseBytbilSearchPage(html: string): BytbilSearchPage {
       location,
       featuredImageUrl,
       publishedAt: relativePublishedAt(publishedLabel),
+      publishedBefore: calendarPublicationUpperBound(publishedLabel),
       raw: { id, detailPath, title, specLine, priceAmount, publishedLabel },
     });
   }
@@ -160,8 +184,7 @@ export function parseBytbilSearchPage(html: string): BytbilSearchPage {
     integer(html.match(/result-count-label[^>]*>\s*<strong>([\s\S]*?)<\/strong>/)?.[1]) ??
     documents.length;
   const currentPage =
-    integer(html.match(/[?&]Page=(\d+)/)?.[1]) ??
-    integer(html.match(/pagination[\s\S]*?uk-active[\s\S]*?>(\d+)</)?.[1]) ??
+    integer(html.match(/<li[^>]*class="[^"]*\b(?:uk-active|active)\b[^"]*"[^>]*>\s*<a[^>]*>\s*(\d+)\s*</)?.[1]) ??
     1;
 
   if (documents.length === 0 && rejectedCount === 0) {

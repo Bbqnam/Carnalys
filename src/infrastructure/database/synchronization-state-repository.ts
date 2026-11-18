@@ -148,11 +148,13 @@ export async function startSynchronizationRun({
   sourceScope,
   mode,
   resumeOnly = false,
+  resumeIncremental = false,
 }: {
   provider: string;
   sourceScope: string;
   mode: SynchronizationMode;
   resumeOnly?: boolean;
+  resumeIncremental?: boolean;
 }): Promise<SynchronizationRunHandle> {
   await initializeDatabase();
   const now = new Date();
@@ -172,7 +174,16 @@ export async function startSynchronizationRun({
             },
             orderBy: { startedAt: "desc" },
           })
-        : null;
+        : resumeIncremental
+          ? await transaction.importRun.findFirst({
+              where: {
+                provider, sourceScope, mode: "incremental",
+                status: { in: ["interrupted", "failed"] },
+                stopReason: { in: ["stop_requested", "stale_heartbeat"] },
+              },
+              orderBy: { startedAt: "desc" },
+            })
+          : null;
 
     if (resumeOnly && !resumable) {
       throw new NoResumableSynchronizationError(provider, sourceScope);
@@ -670,13 +681,25 @@ export async function getActiveSynchronization(provider: string) {
 export async function getPublicSynchronizationStatus(runId: string) {
   const run = await prisma.importRun.findFirst({
     where: { id: runId, provider: { in: [manualCatalogProvider, "blocket_unofficial"] } },
-    select: { provider: true, status: true, heartbeatAt: true, fetchedCount: true, createdCount: true, updatedCount: true },
+    select: { provider: true, status: true, startedAt: true, heartbeatAt: true, fetchedCount: true, createdCount: true, updatedCount: true },
   });
   if (!run) return undefined;
   const status = summarizeSynchronization(run);
   if (status.outcome === "running" && run.provider === manualCatalogProvider) {
-    const blocket = await getActiveSynchronization("blocket_unofficial");
-    return { ...status, fetchedCount: blocket?.fetchedCount ?? status.fetchedCount };
+    const children = await prisma.importRun.findMany({
+      where: { provider: { not: manualCatalogProvider }, startedAt: { gte: run.startedAt } },
+      select: { fetchedCount: true },
+    });
+    return { ...status, fetchedCount: children.reduce((sum, child) => sum + child.fetchedCount, 0) };
+
+  }
+  if (status.outcome === "warning" && run.provider === manualCatalogProvider) {
+    const failed = await prisma.importRun.findMany({
+      where: { provider: { not: manualCatalogProvider }, startedAt: { gte: run.startedAt }, status: { in: ["failed", "completed_with_errors"] } },
+      select: { provider: true },
+      distinct: ["provider"],
+    });
+    return { ...status, failedSources: failed.map(({ provider }) => provider) };
   }
   return status;
 }

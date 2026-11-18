@@ -219,3 +219,11 @@ test("summary fingerprint changes only when a market-relevant field changes", ()
     bytbilSummaryFingerprint({ ...a, priceAmount: 199000 }),
   );
 });
+
+test("calendar publication labels retain a safe upper bound", async () => {
+  const { calendarPublicationUpperBound } = await import("./parser");
+  const now = new Date("2026-11-18T00:30Z");
+  assert.equal(calendarPublicationUpperBound("Igår", now)?.toISOString(), "2026-11-17T22:59:59.999Z");
+  assert.equal(calendarPublicationUpperBound("10 aug. 2026", now)?.toISOString(), "2026-08-10T23:59:59.999Z");
+  assert.equal(calendarPublicationUpperBound("unknown", now), undefined);
+});

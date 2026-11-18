@@ -107,6 +107,7 @@ export function normalizeBytbilListing(
       listingUrl: `https://www.bytbil.com${document.detailPath}`,
       observedAt,
       publishedAt: document.publishedAt,
+      publishedBefore: document.publishedBefore,
     },
     vehicle: {
       registrationNumber: detail?.registrationNumber,

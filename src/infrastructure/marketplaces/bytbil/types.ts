@@ -11,6 +11,7 @@ export interface BytbilSearchDocument {
   featuredImageUrl?: string;
   /** Best-effort absolute time derived from the row's relative "publicerad" label. */
   publishedAt?: Date;
+  publishedBefore?: Date;
   raw: Record<string, unknown>;
 }
 

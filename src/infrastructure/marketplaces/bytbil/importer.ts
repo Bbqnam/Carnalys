@@ -159,6 +159,9 @@ export class BytbilImporter implements MarketplaceImporter {
         const html = await this.client.search(request.page, order);
         this.lastRequestAt = Date.now();
         const page = parseBytbilSearchPage(html);
+        if (page.currentPage !== request.page) {
+          throw new Error(`Bytbil returned page ${page.currentPage} for requested page ${request.page}.`);
+        }
         const cached = this.knownPayloadLookup
           ? await this.knownPayloadLookup(
               this.provider,

@@ -19,7 +19,6 @@ on:
     paths: [.github/workflows/nightly.yml]
   schedule:
     - cron: "0 2 * * *"
-    - cron: "17 0,4,6,8,10,12,14,16,18,20,22 * * *"
   workflow_dispatch:
     inputs:
       poll_limit:

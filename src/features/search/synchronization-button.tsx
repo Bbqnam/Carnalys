@@ -10,7 +10,6 @@ import { RefreshIcon } from "./icons";
 const initialState: ManualSynchronizationState = { outcome: "idle" };
 const autoDismissMilliseconds = 6_000;
 const progressPollMilliseconds = 3_000;
-const maximumPollMilliseconds = 6 * 60 * 1_000;
 
 type FinishedUpdate = {
   runId: string;
@@ -65,7 +64,6 @@ export function SynchronizationButton({
     if (!runId || !isBusy) return;
     let controller: AbortController | undefined;
     let cancelled = false;
-    const deadline = Date.now() + maximumPollMilliseconds;
     let timeout: ReturnType<typeof setTimeout>;
 
     async function poll(id: string) {
@@ -86,16 +84,13 @@ export function SynchronizationButton({
           return;
         }
         setProgress({ runId: id, fetchedCount: status.fetchedCount });
+        router.refresh();
       } catch {
         if (cancelled) return;
       } finally {
         clearTimeout(requestTimeout);
       }
 
-      if (Date.now() >= deadline) {
-        setFinishedUpdate({ runId: id, status: { outcome: "unavailable" } });
-        return;
-      }
       timeout = setTimeout(() => void poll(id), progressPollMilliseconds);
     }
 
@@ -124,8 +119,8 @@ export function SynchronizationButton({
         : `Klart. ${status.createdCount} nya och ${status.updatedCount} uppdaterade.`
       : status?.outcome === "warning"
         ? english
-          ? "The catalogue was refreshed. Some sources or listings could not be fully updated."
-          : "Katalogen uppdaterades. Vissa källor eller annonser kunde inte uppdateras helt."
+          ? `Update incomplete. Sources requiring attention: ${status.failedSources?.join(", ") || "see source status"}.`
+          : `Uppdateringen är ofullständig. Källor som behöver åtgärdas: ${status.failedSources?.join(", ") || "se källstatus"}.`
         : status?.outcome === "unavailable"
           ? english ? "Could not confirm the update status." : "Kunde inte bekräfta uppdateringens status."
           : status?.outcome === "failed" || state.outcome === "failed"

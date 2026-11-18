@@ -1,3 +1,4 @@
+import { pageCoversPreviousUpdate } from "./incremental-coverage";
 import type {
   MarketplaceImporter,
   SynchronizationMode,
@@ -38,6 +39,7 @@ export interface SynchronizationOptions {
   incrementalLookbackHours?: number;
   incrementalMaximumPages?: number;
   incrementalCatchUp?: boolean;
+  incrementalSinglePage?: boolean;
   incrementalKnownPageThreshold?: number;
   analysisRefreshLimit?: number;
   onProgress?: (message: string) => void;
@@ -214,7 +216,9 @@ async function runIncrementalSynchronization(
   let stopReason = "maximum_pages";
 
   await setSynchronizationPhase(run, "incremental");
-  for (let pageNumber = 1; pageNumber <= maximumPages; pageNumber += 1) {
+  const savedRun = await synchronizationRunResult(run.id);
+  const firstPage = catchUp ? savedRun.pagesProcessed + 1 : 1;
+  for (let pageNumber = firstPage; pageNumber <= maximumPages; pageNumber += 1) {
     stopIfRequested(options);
     const page = await importer.fetchPage(
       { page: pageNumber, sortOrder: "PUBLISHED_DESC" },
@@ -272,8 +276,11 @@ async function runIncrementalSynchronization(
       ? page.rejectedCount === 0 && page.listings.every(({ source }) =>
           !source.publishedAt || source.publishedAt <= cutoff)
       : oldestPublishedAt !== undefined && oldestPublishedAt <= cutoff;
+    const coveredPage = catchUp
+      ? pageCoversPreviousUpdate(page.listings, page.rejectedCount, knownIds, cutoff)
+      : pageWasAlreadyKnown && pageReachedLookback;
     consecutiveKnownOldPages =
-      pageWasAlreadyKnown && pageReachedLookback
+      coveredPage
         ? consecutiveKnownOldPages + 1
         : 0;
 
@@ -282,13 +289,17 @@ async function runIncrementalSynchronization(
       `Sida ${pageNumber}/${Math.min(page.lastPage, maximumPages)}: ${writeResult.createdCount} nya, ${writeResult.updatedCount} ändrade, ${writeResult.unchangedCount} oförändrade.`,
     );
 
-    if (consecutiveKnownOldPages >= knownPageThreshold) {
+    if (consecutiveKnownOldPages >= (options.incrementalSinglePage ? 1 : knownPageThreshold)) {
       stopReason = catchUp ? "covered_previous_sync" : "known_lookback_boundary";
       break;
     }
     if (page.currentPage >= page.lastPage) {
       stopReason = "source_exhausted";
       break;
+    }
+    if (options.incrementalSinglePage) {
+      await interruptSynchronizationRun(run, "Continue from the next saved page.");
+      return { changedListingIds } satisfies IncrementalRunResult;
     }
   }
 
@@ -462,6 +473,7 @@ export async function synchronizeMarketplace(
     sourceScope: importer.scope,
     mode,
     resumeOnly: options.resumeOnly,
+    resumeIncremental: options.incrementalCatchUp,
   });
 
   try {

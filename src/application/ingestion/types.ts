@@ -33,6 +33,7 @@ export interface NormalizedVehicleListing {
     listingUrl: string;
     observedAt: Date;
     publishedAt?: Date;
+    publishedBefore?: Date;
     updatedAt?: Date;
   };
   vehicle: {

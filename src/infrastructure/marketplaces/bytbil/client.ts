@@ -38,10 +38,8 @@ export class BytbilClient {
 
   search(page: number, order: "published" | "priceDesc") {
     const params = new URLSearchParams({ Page: String(Math.max(1, page)) });
-    if (order === "priceDesc") {
-      params.set("SortParams.SortField", "Price");
-      params.set("SortParams.IsAscending", "false");
-    }
+    params.set("SortParams.SortField", order === "priceDesc" ? "price_value" : "publishedDate");
+    params.set("SortParams.IsAscending", "false");
     return this.html(`/bil?${params}`);
   }
 

@@ -3,7 +3,7 @@ export const synchronizationHeartbeatTimeoutMs = 5 * 60 * 1_000;
 
 export type SynchronizationStatus =
   | { outcome: "running"; fetchedCount: number }
-  | { outcome: "completed" | "warning"; createdCount: number; updatedCount: number }
+  | { outcome: "completed" | "warning"; createdCount: number; updatedCount: number; failedSources?: string[] }
   | { outcome: "failed" };
 
 export function summarizeSynchronization(

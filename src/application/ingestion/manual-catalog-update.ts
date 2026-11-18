@@ -1,0 +1,102 @@
+import { prisma } from "@/infrastructure/database/prisma";
+import { existingListingDetailPayloads, existingListingPayloads } from "@/infrastructure/database/listing-write-repository";
+import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
+import { WaykeImporter } from "@/infrastructure/marketplaces/wayke/importer";
+import { BytbilImporter } from "@/infrastructure/marketplaces/bytbil/importer";
+import { HedinImporter } from "@/infrastructure/marketplaces/hedin/importer";
+import { AutoheroImporter } from "@/infrastructure/marketplaces/autohero/importer";
+import { SynchronizationAlreadyRunningError } from "@/infrastructure/database/synchronization-state-repository";
+import { refreshBatchDerivedData, synchronizeMarketplace } from "./synchronize-marketplace";
+import { manualCatalogProvider } from "./synchronization-status";
+
+// Each invocation saves one source page. Polling continues the persisted queue.
+export async function continueManualCatalogUpdate(runId: string) {
+  const parent = await prisma.importRun.findFirst({
+    where: { id: runId, provider: manualCatalogProvider, status: "running" },
+  });
+  if (!parent) return;
+  const index = Number(parent.phase.split(":")[1] ?? 0);
+  let completedSources = Number(parent.phase.split(":")[2] ?? 0);
+  const now = new Date();
+  const claimed = await prisma.importRun.updateMany({
+    where: {
+      id: runId, status: "running", phase: parent.phase,
+      OR: [
+        { phase: { startsWith: "queued:" } },
+        { heartbeatAt: { lt: new Date(now.getTime() - 180_000) } },
+      ],
+    },
+    data: { phase: `working:${index}:${completedSources}`, heartbeatAt: now },
+  });
+  if (!claimed.count) return;
+
+  const importers = [
+    new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
+    new WaykeImporter(undefined, existingListingPayloads),
+    new BytbilImporter(undefined, existingListingPayloads),
+    new HedinImporter(undefined, existingListingPayloads),
+    new AutoheroImporter(undefined, existingListingPayloads),
+  ];
+  let sourceFinished = false;
+  let createdCount = 0;
+  let updatedCount = 0;
+  let failedCount = 0;
+  try {
+    const result = await synchronizeMarketplace(importers[index], {
+      mode: "incremental",
+      incrementalCatchUp: true,
+      incrementalSinglePage: true,
+      incrementalLookbackHours: 30,
+      analysisRefreshLimit: 10,
+      deferDerivedData: true,
+    });
+    if (result.status !== "interrupted") {
+      // A resumed older job must be followed by a fresh head scan for this click.
+      sourceFinished = result.startedAt >= parent.startedAt;
+      createdCount = result.createdCount;
+      updatedCount = result.updatedCount;
+      failedCount = result.status === "completed" ? 0 : 1;
+    }
+  } catch (error) {
+    if (!(error instanceof SynchronizationAlreadyRunningError)) {
+      sourceFinished = true;
+      failedCount = 1;
+      console.error(`Catalogue source ${importers[index].provider} failed`, error);
+    }
+  }
+
+  if (sourceFinished) completedSources |= 1 << index;
+  const finished = completedSources === (1 << importers.length) - 1;
+  let nextIndex = (index + 1) % importers.length;
+  while (!finished && (completedSources & (1 << nextIndex))) {
+    nextIndex = (nextIndex + 1) % importers.length;
+  }
+  if (finished && await refreshBatchDerivedData([])) failedCount++;
+  await prisma.$transaction(async (transaction) => {
+    await transaction.importRun.update({
+      where: { id: runId },
+      data: {
+        phase: finished ? "completed" : `queued:${nextIndex}:${completedSources}`,
+        heartbeatAt: new Date(),
+        createdCount: { increment: createdCount },
+        updatedCount: { increment: updatedCount },
+        failedCount: { increment: failedCount },
+        status: finished
+          ? parent.failedCount + failedCount > 0 ? "completed_with_errors" : "completed"
+          : "running",
+        completedAt: finished ? new Date() : undefined,
+        stopReason: finished ? "catalog_update_finished" : undefined,
+      },
+    });
+    if (finished) {
+      await transaction.synchronizationLock.deleteMany({
+        where: { provider: manualCatalogProvider, runId },
+      });
+    } else {
+      await transaction.synchronizationLock.updateMany({
+        where: { provider: manualCatalogProvider, runId },
+        data: { heartbeatAt: new Date() },
+      });
+    }
+  });
+}
