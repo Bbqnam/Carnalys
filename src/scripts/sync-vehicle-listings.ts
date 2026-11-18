@@ -89,6 +89,9 @@ async function runOnce() {
     mode,
     resumeOnly,
     incrementalCatchUp: process.argv.includes("--catch-up"),
+    incrementalRecoveryHours: process.env.SYNC_RECOVERY_HOURS
+      ? environmentInteger("SYNC_RECOVERY_HOURS", 48)
+      : undefined,
     incrementalLookbackHours: environmentInteger(
       "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
       72,
@@ -120,7 +123,16 @@ async function waitForNextRun(milliseconds: number) {
 async function main() {
   await initializeDatabase();
   if (!watch) {
-    await runOnce();
+    while (!stopping) {
+      try {
+        await runOnce();
+        return;
+      } catch (error) {
+        if (!(error instanceof SynchronizationAlreadyRunningError)) throw error;
+        console.log("Another writer owns this source. Waiting before continuing coverage.");
+        await waitForNextRun(10_000);
+      }
+    }
     return;
   }
 

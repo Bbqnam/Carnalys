@@ -73,8 +73,8 @@ export async function continueManualCatalogUpdate(runId: string) {
   }
   if (finished && await refreshBatchDerivedData([])) failedCount++;
   await prisma.$transaction(async (transaction) => {
-    await transaction.importRun.update({
-      where: { id: runId },
+    const updated = await transaction.importRun.updateMany({
+      where: { id: runId, phase: `working:${index}:${Number(parent.phase.split(":")[2] ?? 0)}`, heartbeatAt: now },
       data: {
         phase: finished ? "completed" : `queued:${nextIndex}:${completedSources}`,
         heartbeatAt: new Date(),
@@ -88,6 +88,8 @@ export async function continueManualCatalogUpdate(runId: string) {
         stopReason: finished ? "catalog_update_finished" : undefined,
       },
     });
+    // A later invocation can reclaim a timed out lease. Its state takes priority.
+    if (!updated.count) return;
     if (finished) {
       await transaction.synchronizationLock.deleteMany({
         where: { provider: manualCatalogProvider, runId },

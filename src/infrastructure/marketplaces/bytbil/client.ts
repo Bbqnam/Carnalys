@@ -1,3 +1,4 @@
+import type { VehicleSearchPartition } from "@/application/ingestion/types";
 export class BytbilRequestError extends Error {
   constructor(message: string, readonly status?: number, readonly url?: string) {
     super(message);
@@ -36,10 +37,18 @@ export class BytbilClient {
     return response.text();
   }
 
-  search(page: number, order: "published" | "priceDesc") {
+  search(page: number, order: "published" | "priceDesc", partition?: VehicleSearchPartition) {
     const params = new URLSearchParams({ Page: String(Math.max(1, page)) });
     params.set("SortParams.SortField", order === "priceDesc" ? "price_value" : "publishedDate");
     params.set("SortParams.IsAscending", "false");
+    if (partition) {
+      params.set("ModelYearRange.From", String(partition.yearFrom));
+      params.set("ModelYearRange.To", String(partition.yearTo));
+      params.set("PriceRange.From", String(partition.priceFrom));
+      if (!partition.unboundedPriceTo) params.set("PriceRange.To", String(partition.priceTo));
+      params.set("MilageRange.From", String(partition.mileageFrom));
+      params.set("MilageRange.To", String(partition.mileageTo));
+    }
     return this.html(`/bil?${params}`);
   }
 

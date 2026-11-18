@@ -179,7 +179,10 @@ export async function startSynchronizationRun({
               where: {
                 provider, sourceScope, mode: "incremental",
                 status: { in: ["interrupted", "failed"] },
-                stopReason: { in: ["stop_requested", "stale_heartbeat"] },
+                OR: [
+                  { stopReason: { in: ["stop_requested", "stale_heartbeat"] } },
+                  { checkpoints: { some: {} } },
+                ],
               },
               orderBy: { startedAt: "desc" },
             })
@@ -640,6 +643,10 @@ export async function getLatestIncrementalCoverage(provider: string) {
     orderBy: { startedAt: "desc" },
     select: { startedAt: true },
   });
+}
+
+export async function hasSynchronizationCheckpoints(runId: string) {
+  return await prisma.importCheckpoint.count({ where: { runId } }) > 0;
 }
 
 export async function synchronizationRunResult(runId: string) {

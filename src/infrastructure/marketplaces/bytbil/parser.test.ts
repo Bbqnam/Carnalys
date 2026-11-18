@@ -227,3 +227,9 @@ test("calendar publication labels retain a safe upper bound", async () => {
   assert.equal(calendarPublicationUpperBound("10 aug. 2026", now)?.toISOString(), "2026-08-10T23:59:59.999Z");
   assert.equal(calendarPublicationUpperBound("unknown", now), undefined);
 });
+
+test("reads the active page instead of the first pagination link", () => {
+  const html = searchHtml().replace('<div class="pagination"></div>',
+    '<div class="pagination"><li><a href="/bil?Page=1">1</a></li><li class="uk-active active"><a href="/bil?Page=7">7</a></li></div>');
+  assert.equal(parseBytbilSearchPage(html).currentPage, 7);
+});

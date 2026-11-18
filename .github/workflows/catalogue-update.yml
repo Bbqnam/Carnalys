@@ -25,6 +25,7 @@ jobs:
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
       BLOCKET_UNOFFICIAL_API_URL: ${{ secrets.BLOCKET_UNOFFICIAL_API_URL || 'https://blocket-api.se' }}
       BLOCKET_INCREMENTAL_LOOKBACK_HOURS: "30"
+      SYNC_RECOVERY_HOURS: ${{ github.event_name == 'push' && '48' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

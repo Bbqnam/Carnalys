@@ -19,6 +19,7 @@ import {
   failSynchronizationRun,
   finishSynchronizationRun,
   getLatestIncrementalCoverage,
+  hasSynchronizationCheckpoints,
   interruptSynchronizationRun,
   nextReconciliationCheckpoint,
   reconciliationCompletion,
@@ -40,6 +41,7 @@ export interface SynchronizationOptions {
   incrementalMaximumPages?: number;
   incrementalCatchUp?: boolean;
   incrementalSinglePage?: boolean;
+  incrementalRecoveryHours?: number;
   incrementalKnownPageThreshold?: number;
   analysisRefreshLimit?: number;
   onProgress?: (message: string) => void;
@@ -208,7 +210,9 @@ async function runIncrementalSynchronization(
     ? await getLatestIncrementalCoverage(importer.provider)
     : undefined;
   // Overlap the previous run to account for late indexing and rounded source dates.
-  const cutoff = previousCoverage
+  const cutoff = options.incrementalRecoveryHours
+    ? new Date(run.startedAt.getTime() - options.incrementalRecoveryHours * 3_600_000)
+    : previousCoverage
     ? new Date(previousCoverage.startedAt.getTime() - 15 * 60 * 1_000)
     : new Date(run.startedAt.getTime() - lookbackHours * 60 * 60 * 1_000);
   const changedListingIds: string[] = [];
@@ -293,6 +297,10 @@ async function runIncrementalSynchronization(
       stopReason = catchUp ? "covered_previous_sync" : "known_lookback_boundary";
       break;
     }
+    if (catchUp && page.currentPage >= page.lastPage &&
+        page.totalMatches > importer.maximumResultsPerPartition) {
+      return runReconciliation(importer, run, options);
+    }
     if (page.currentPage >= page.lastPage) {
       stopReason = "source_exhausted";
       break;
@@ -325,13 +333,20 @@ async function runReconciliation(
 ) {
   const analysisLimit = positiveInteger(options.analysisRefreshLimit, 250);
   const changedListingIds: string[] = [];
+  const catchUp = run.mode === "incremental" && options.incrementalCatchUp;
+  const previousCoverage = catchUp ? await getLatestIncrementalCoverage(importer.provider) : undefined;
+  const cutoff = options.incrementalRecoveryHours
+    ? new Date(run.startedAt.getTime() - options.incrementalRecoveryHours * 3_600_000)
+    : previousCoverage
+    ? new Date(previousCoverage.startedAt.getTime() - 15 * 60 * 1_000)
+    : new Date(run.startedAt.getTime() - positiveInteger(options.incrementalLookbackHours, 72) * 3_600_000);
   let activeCheckpoint:
     | Awaited<ReturnType<typeof nextReconciliationCheckpoint>>
     | undefined;
 
   try {
     await setSynchronizationPhase(run, run.resumed ? "resuming" : "discovering");
-    if (!run.resumed) {
+    if (!run.resumed || catchUp && !await hasSynchronizationCheckpoints(run.id)) {
       const maximumPrice = await importer.discoverCurrentMaximumPrice((failure) =>
         recordRequestFailure(run, failure, { phase: "price_discovery", page: 1 }),
       );
@@ -363,7 +378,11 @@ async function runReconciliation(
         page.listings,
       );
 
-      if (page.totalMatches > importer.maximumResultsPerPartition) {
+      const knownIds = catchUp
+        ? await existingListingExternalIds(importer.provider, page.listings.map(({ source }) => source.externalId), cutoff)
+        : new Set<string>();
+      const covered = catchUp && pageCoversPreviousUpdate(page.listings, page.rejectedCount, knownIds, cutoff);
+      if (!covered && page.totalMatches > importer.maximumResultsPerPartition) {
         const partitions = importer.splitPartition(partition);
         await splitCheckpoint(run, activeCheckpoint, partitions);
         progress(
@@ -371,6 +390,10 @@ async function runReconciliation(
           `Delade överfull partition ${activeCheckpoint.sequence} (${page.totalMatches.toLocaleString("sv-SE")} träffar).`,
         );
         activeCheckpoint = undefined;
+        if (options.incrementalSinglePage) {
+          await interruptSynchronizationRun(run, "Continue the saved search partitions.");
+          return { changedListingIds };
+        }
         continue;
       }
 
@@ -386,7 +409,7 @@ async function runReconciliation(
       await advanceCheckpoint(
         run,
         activeCheckpoint.id,
-        page,
+        covered ? { ...page, lastPage: page.currentPage } : page,
         {
           processedCount: page.listings.length,
           rejectedCount: page.rejectedCount + partitionedListings.outside.length,
@@ -429,6 +452,10 @@ async function runReconciliation(
         `Partition ${activeCheckpoint.sequence}, sida ${page.currentPage}/${page.lastPage}: ${writeResult.createdCount} nya, ${writeResult.updatedCount} ändrade, ${writeResult.unchangedCount} oförändrade.`,
       );
       activeCheckpoint = undefined;
+      if (options.incrementalSinglePage && await nextReconciliationCheckpoint(run.id)) {
+        await interruptSynchronizationRun(run, "Continue the saved search partitions.");
+        return { changedListingIds };
+      }
     }
 
     const completion = await reconciliationCompletion(run.id);
@@ -442,7 +469,9 @@ async function runReconciliation(
         run.startedAt,
       );
     }
-    const derivedDataFailed = await refreshDerivedData(run, changedListingIds);
+    const derivedDataFailed = options.deferDerivedData
+      ? false
+      : await refreshDerivedData(run, changedListingIds);
     await finishSynchronizationRun(run, {
       status:
         completion.failedCount > 0 ||
@@ -451,10 +480,11 @@ async function runReconciliation(
           ? "completed_with_errors"
           : "completed",
       removedCount,
-      stopReason: completion.cleanupEligible
+      stopReason: catchUp ? "covered_previous_sync" : completion.cleanupEligible
         ? "full_traversal_verified"
         : "full_traversal_cleanup_withheld",
     });
+    return { changedListingIds };
   } catch (error) {
     if (activeCheckpoint) {
       await failCheckpoint(run, activeCheckpoint.id, error);
@@ -478,8 +508,9 @@ export async function synchronizeMarketplace(
 
   try {
     let incrementalRun: IncrementalRunResult | undefined;
-    if (mode === "reconciliation") {
-      await runReconciliation(importer, run, options);
+    if (mode === "reconciliation" ||
+        options.incrementalCatchUp && await hasSynchronizationCheckpoints(run.id)) {
+      incrementalRun = await runReconciliation(importer, run, options);
     } else {
       incrementalRun = await runIncrementalSynchronization(importer, run, options);
     }

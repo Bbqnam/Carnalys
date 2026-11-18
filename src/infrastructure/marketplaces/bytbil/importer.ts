@@ -1,3 +1,4 @@
+import { splitVehicleSearchPartition } from "../search-partition";
 import type {
   MarketplaceImporter,
   MarketplacePageRequest,
@@ -96,7 +97,7 @@ export class BytbilImporter implements MarketplaceImporter {
   // Bytbil is one complete `?Page=` paginated result set, like Wayke — kept as
   // a single reconciliation checkpoint so the existing resume/removal machinery
   // works unchanged.
-  readonly maximumResultsPerPartition = Number.MAX_SAFE_INTEGER;
+  readonly maximumResultsPerPartition = 2_400;
   private lastRequestAt = 0;
   private readonly detailLaneAt = new Array<number>(detailConcurrency).fill(0);
 
@@ -156,7 +157,7 @@ export class BytbilImporter implements MarketplaceImporter {
     for (let attempt = 1; attempt <= this.source.requestPolicy.maximumAttempts; attempt += 1) {
       await this.pace(this.lastRequestAt);
       try {
-        const html = await this.client.search(request.page, order);
+        const html = await this.client.search(request.page, order, request.partition);
         this.lastRequestAt = Date.now();
         const page = parseBytbilSearchPage(html);
         if (page.currentPage !== request.page) {
@@ -216,7 +217,7 @@ export class BytbilImporter implements MarketplaceImporter {
           rejectedCount: page.rejectedCount,
           totalMatches: page.totalMatches,
           currentPage: page.currentPage,
-          lastPage: Math.max(1, Math.ceil(page.totalMatches / page.pageSize)),
+          lastPage: Math.min(100, Math.max(1, Math.ceil(page.totalMatches / page.pageSize))),
         };
       } catch (error) {
         lastError = error;
@@ -260,7 +261,7 @@ export class BytbilImporter implements MarketplaceImporter {
     };
   }
 
-  splitPartition(): readonly VehicleSearchPartition[] {
-    throw new Error("Bytbils fullständiga resultatuppsättning ska inte delas.");
+  splitPartition(partition: VehicleSearchPartition): readonly VehicleSearchPartition[] {
+    return splitVehicleSearchPartition(partition);
   }
 }
