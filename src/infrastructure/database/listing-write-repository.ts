@@ -744,7 +744,7 @@ export async function upsertNormalizedListings(
 
   // One representative listing per physical vehicle for the results grid.
   // Runs after the page's listings have all committed so it sees every new
-  // sibling; a listing whose vehicle gained or lost a newer-synced sibling
+  // sibling; a listing whose vehicle gained or lost a newer advertisement
   // this run has its flag corrected here.
   await refreshVehicleRepresentatives([...touchedVehicleIds]);
 
@@ -765,7 +765,7 @@ export async function upsertNormalizedListings(
 /**
  * Recomputes `isVehicleRepresentative` for the given vehicles in one statement:
  * the most recently synchronized active listing wins (id as tie-breaker, the
- * same rule as `selectRepresentativeListings`), every other listing for that
+ * using the newest publication or discovery date), every other listing for that
  * vehicle is cleared. Rows already carrying the correct value are skipped so a
  * steady-state sync writes nothing here. If a vehicle has no active listing
  * left the flags are untouched — search filters those rows out by status, and
@@ -784,7 +784,8 @@ export async function refreshVehicleRepresentatives(
       FROM "ListingRecord" AS r
       WHERE r."vehicleId" IN (${Prisma.join([...vehicleIds])})
         AND r."status" = 'active'
-      ORDER BY r."vehicleId", r."synchronizedAt" DESC, r."id" ASC
+      ORDER BY r."vehicleId", COALESCE(r."listedAt", r."publishedAt", r."firstSeenAt") DESC,
+        r."synchronizedAt" DESC, r."id" ASC
     ) AS w
     WHERE l."vehicleId" = w."vehicleId"
       AND l."isVehicleRepresentative" <> (l."id" = w."id")
@@ -808,7 +809,8 @@ export async function refreshAllVehicleRepresentatives(
       SELECT DISTINCT ON (r."vehicleId") r."vehicleId", r."id"
       FROM "ListingRecord" AS r
       WHERE r."status" = 'active'
-      ORDER BY r."vehicleId", r."synchronizedAt" DESC, r."id" ASC
+      ORDER BY r."vehicleId", COALESCE(r."listedAt", r."publishedAt", r."firstSeenAt") DESC,
+        r."synchronizedAt" DESC, r."id" ASC
     ) AS w
     WHERE l."vehicleId" = w."vehicleId"
       AND l."status" = 'active'

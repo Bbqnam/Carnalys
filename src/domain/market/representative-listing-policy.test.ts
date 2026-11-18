@@ -37,3 +37,17 @@ test("newest sync wins across sources, smallest id breaks a tie", () => {
   ]);
   assert.equal(tied[0].id, "blocket-9");
 });
+
+test("refreshing an older duplicate cannot hide a newly posted advertisement", () => {
+  const newestAd = {
+    id: "new-ad", vehicleId: "car-1",
+    listedAt: new Date("2026-11-18T00:30Z"),
+    synchronizedAt: new Date("2026-11-18T00:31Z"),
+  };
+  const refreshedOldAd = {
+    id: "old-ad", vehicleId: "car-1",
+    listedAt: new Date("2026-11-17T11:30Z"),
+    synchronizedAt: new Date("2026-11-18T00:32Z"),
+  };
+  assert.deepEqual(selectRepresentativeListings([refreshedOldAd, newestAd]), [newestAd]);
+});

@@ -2,12 +2,15 @@ export interface RepresentativeListingCandidate {
   id: string;
   vehicleId: string;
   synchronizedAt: Date;
+  listedAt?: Date | null;
+  publishedAt?: Date | null;
+  firstSeenAt?: Date;
 }
 
 /**
  * Market cohorts count one ad per physical vehicle: the most recently
- * synchronized active listing wins, with listing id as a deterministic tie
- * breaker. Every source listing remains stored and visible; only statistical
+ * published or discovered active listing wins. Refresh time and listing id
+ * break ties. Every source listing remains stored and visible; only statistical
  * input is deduplicated.
  */
 export function selectRepresentativeListings<T extends RepresentativeListingCandidate>(
@@ -16,10 +19,13 @@ export function selectRepresentativeListings<T extends RepresentativeListingCand
   const selected = new Map<string, T>();
   for (const listing of listings) {
     const current = selected.get(listing.vehicleId);
+    const listingDate = listing.listedAt ?? listing.publishedAt ?? listing.firstSeenAt ?? listing.synchronizedAt;
+    const currentDate = current && (current.listedAt ?? current.publishedAt ?? current.firstSeenAt ?? current.synchronizedAt);
     if (
-      !current ||
-      listing.synchronizedAt > current.synchronizedAt ||
-      (listing.synchronizedAt.valueOf() === current.synchronizedAt.valueOf() && listing.id < current.id)
+      !currentDate || listingDate > currentDate ||
+      (listingDate.valueOf() === currentDate.valueOf() &&
+        (listing.synchronizedAt > current.synchronizedAt ||
+          (listing.synchronizedAt.valueOf() === current.synchronizedAt.valueOf() && listing.id < current.id)))
     ) {
       selected.set(listing.vehicleId, listing);
     }
