@@ -688,8 +688,8 @@ export async function getActiveSynchronization(provider: string) {
   });
   if (
     !lock ||
-    lock.heartbeatAt <
-      new Date(Date.now() - synchronizationHeartbeatTimeoutMs)
+    (provider !== manualCatalogProvider && lock.heartbeatAt <
+      new Date(Date.now() - synchronizationHeartbeatTimeoutMs))
   ) {
     return undefined;
   }
@@ -710,7 +710,10 @@ export async function getPublicSynchronizationStatus(runId: string) {
     select: { provider: true, status: true, startedAt: true, heartbeatAt: true, fetchedCount: true, createdCount: true, updatedCount: true },
   });
   if (!run) return undefined;
-  const status = summarizeSynchronization(run);
+  const status = summarizeSynchronization({
+    ...run,
+    persistent: run.provider === manualCatalogProvider,
+  });
   if (status.outcome === "running" && run.provider === manualCatalogProvider) {
     const children = await prisma.importRun.findMany({
       where: { provider: { not: manualCatalogProvider }, startedAt: { gte: run.startedAt } },

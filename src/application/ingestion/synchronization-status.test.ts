@@ -27,3 +27,10 @@ test("reports failed, interrupted and abandoned runs as terminal failures", () =
   }
   assert.equal(summarizeSynchronization(run, now + synchronizationHeartbeatTimeoutMs + 1).outcome, "failed");
 });
+
+
+test("a saved manual queue remains pending across a browser reconnection", () => {
+  const later = now + synchronizationHeartbeatTimeoutMs + 60_000;
+  assert.equal(summarizeSynchronization({ ...run, persistent: true }, later).outcome, "running");
+  assert.equal(summarizeSynchronization({ ...run, persistent: true, status: "failed" }, later).outcome, "failed");
+});

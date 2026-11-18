@@ -13,11 +13,12 @@ export function summarizeSynchronization(
     fetchedCount: number;
     createdCount: number;
     updatedCount: number;
+    persistent?: boolean;
   },
   now = Date.now(),
 ): SynchronizationStatus {
-  if (run.status === "running" && run.heartbeatAt &&
-    run.heartbeatAt.getTime() >= now - synchronizationHeartbeatTimeoutMs) {
+  if (run.status === "running" && (run.persistent ||
+    (run.heartbeatAt && run.heartbeatAt.getTime() >= now - synchronizationHeartbeatTimeoutMs))) {
     return { outcome: "running", fetchedCount: run.fetchedCount };
   }
   if (run.status === "completed" || run.status === "completed_with_errors") {
