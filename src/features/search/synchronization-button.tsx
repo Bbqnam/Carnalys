@@ -84,7 +84,6 @@ export function SynchronizationButton({
           return;
         }
         setProgress({ runId: id, fetchedCount: status.fetchedCount });
-        router.refresh();
       } catch {
         if (cancelled) return;
       } finally {
