@@ -201,9 +201,6 @@ export async function startSynchronizationRun({
             completedAt: null,
             heartbeatAt: now,
             resumedCount: { increment: 1 },
-            sourceScope: resumeIncremental && sourceScope.includes(":recoveryHours=")
-              ? sourceScope
-              : undefined,
             stopReason: null,
             errorMessage: null,
           },
@@ -656,6 +653,15 @@ export async function getLatestIncrementalCoverage(provider: string) {
     orderBy: { startedAt: "desc" },
     select: { startedAt: true },
   });
+}
+
+export async function freezeIncrementalCutoff(run: SynchronizationRunHandle, cutoff: Date) {
+  const sourceScope = `${run.sourceScope}:cutoff=${cutoff.getTime()}`;
+  await prisma.importRun.update({
+    where: { id: run.id },
+    data: { sourceScope },
+  });
+  run.sourceScope = sourceScope;
 }
 
 export async function hasSynchronizationCheckpoints(runId: string) {

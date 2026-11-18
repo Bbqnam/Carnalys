@@ -23,8 +23,8 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      BLOCKET_INCREMENTAL_LOOKBACK_HOURS: "30"
       BLOCKET_UNOFFICIAL_API_URL: ${{ secrets.BLOCKET_UNOFFICIAL_API_URL || 'https://blocket-api.se' }}
-      SYNC_RECOVERY_HOURS: "48"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -20,6 +20,7 @@ import {
   finishSynchronizationRun,
   getLatestIncrementalCoverage,
   hasSynchronizationCheckpoints,
+  freezeIncrementalCutoff,
   interruptSynchronizationRun,
   nextReconciliationCheckpoint,
   reconciliationCompletion,
@@ -41,7 +42,6 @@ export interface SynchronizationOptions {
   incrementalMaximumPages?: number;
   incrementalCatchUp?: boolean;
   incrementalSinglePage?: boolean;
-  incrementalRecoveryHours?: number;
   incrementalKnownPageThreshold?: number;
   analysisRefreshLimit?: number;
   onProgress?: (message: string) => void;
@@ -69,6 +69,20 @@ class SynchronizationStopRequestedError extends Error {
 
 function positiveInteger(value: number | undefined, fallback: number) {
   return value && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+async function incrementalCoverageCutoff(
+  run: SynchronizationRunHandle,
+  options: SynchronizationOptions,
+) {
+  const frozen = Number(run.sourceScope.split(":cutoff=")[1]);
+  if (Number.isFinite(frozen) && frozen > 0) return new Date(frozen);
+  const previous = await getLatestIncrementalCoverage(run.provider);
+  const cutoff = previous
+    ? new Date(previous.startedAt.getTime() - 15 * 60_000)
+    : new Date(run.startedAt.getTime() - positiveInteger(options.incrementalLookbackHours, 30) * 3_600_000);
+  await freezeIncrementalCutoff(run, cutoff);
+  return cutoff;
 }
 
 function progress(options: SynchronizationOptions, message: string) {
@@ -206,16 +220,9 @@ async function runIncrementalSynchronization(
   );
   const lookbackHours = positiveInteger(options.incrementalLookbackHours, 72);
   const analysisLimit = positiveInteger(options.analysisRefreshLimit, 250);
-  const previousCoverage = catchUp
-    ? await getLatestIncrementalCoverage(importer.provider)
-    : undefined;
-  // Overlap the previous run to account for late indexing and rounded source dates.
-  const recoveryHours = Number(run.sourceScope.split(":recoveryHours=")[1]) || options.incrementalRecoveryHours;
-  const cutoff = recoveryHours
-    ? new Date(run.startedAt.getTime() - recoveryHours * 3_600_000)
-    : previousCoverage
-    ? new Date(previousCoverage.startedAt.getTime() - 15 * 60 * 1_000)
-    : new Date(run.startedAt.getTime() - lookbackHours * 60 * 60 * 1_000);
+  const cutoff = catchUp
+    ? await incrementalCoverageCutoff(run, options)
+    : new Date(run.startedAt.getTime() - lookbackHours * 3_600_000);
   const changedListingIds: string[] = [];
   let consecutiveKnownOldPages = 0;
   let stopReason = "maximum_pages";
@@ -335,13 +342,7 @@ async function runReconciliation(
   const analysisLimit = positiveInteger(options.analysisRefreshLimit, 250);
   const changedListingIds: string[] = [];
   const catchUp = run.mode === "incremental" && options.incrementalCatchUp;
-  const previousCoverage = catchUp ? await getLatestIncrementalCoverage(importer.provider) : undefined;
-  const recoveryHours = Number(run.sourceScope.split(":recoveryHours=")[1]) || options.incrementalRecoveryHours;
-  const cutoff = recoveryHours
-    ? new Date(run.startedAt.getTime() - recoveryHours * 3_600_000)
-    : previousCoverage
-    ? new Date(previousCoverage.startedAt.getTime() - 15 * 60 * 1_000)
-    : new Date(run.startedAt.getTime() - positiveInteger(options.incrementalLookbackHours, 72) * 3_600_000);
+  const cutoff = catchUp ? await incrementalCoverageCutoff(run, options) : run.startedAt;
   let activeCheckpoint:
     | Awaited<ReturnType<typeof nextReconciliationCheckpoint>>
     | undefined;
@@ -503,9 +504,7 @@ export async function synchronizeMarketplace(
   const mode = options.mode ?? "incremental";
   const run = await startSynchronizationRun({
     provider: importer.provider,
-    sourceScope: options.incrementalRecoveryHours
-      ? `${importer.scope}:recoveryHours=${options.incrementalRecoveryHours}`
-      : importer.scope,
+    sourceScope: importer.scope,
     mode,
     resumeOnly: options.resumeOnly,
     resumeIncremental: options.incrementalCatchUp,

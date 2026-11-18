@@ -89,9 +89,6 @@ async function runOnce() {
     mode,
     resumeOnly,
     incrementalCatchUp: process.argv.includes("--catch-up"),
-    incrementalRecoveryHours: process.env.SYNC_RECOVERY_HOURS
-      ? environmentInteger("SYNC_RECOVERY_HOURS", 48)
-      : undefined,
     incrementalLookbackHours: environmentInteger(
       "BLOCKET_INCREMENTAL_LOOKBACK_HOURS",
       72,
