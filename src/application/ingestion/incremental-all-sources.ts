@@ -10,7 +10,6 @@ import { AutoheroImporter } from "@/infrastructure/marketplaces/autohero/importe
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
 import { BytbilImporter } from "@/infrastructure/marketplaces/bytbil/importer";
 import { HedinImporter } from "@/infrastructure/marketplaces/hedin/importer";
-import { WaykeImporter } from "@/infrastructure/marketplaces/wayke/importer";
 import {
   refreshBatchDerivedData,
   synchronizeMarketplace,
@@ -50,7 +49,6 @@ export interface AllSourcesIncrementalResult {
 function buildImporters(providers?: readonly string[]): MarketplaceImporter[] {
   const all: MarketplaceImporter[] = [
     new BlocketUnofficialImporter(undefined, existingListingDetailPayloads),
-    new WaykeImporter(undefined, existingListingPayloads),
     new BytbilImporter(undefined, existingListingPayloads),
     new HedinImporter(undefined, existingListingPayloads),
     new AutoheroImporter(undefined, existingListingPayloads),

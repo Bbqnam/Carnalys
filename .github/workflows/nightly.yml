@@ -58,9 +58,6 @@ jobs:
       - name: Sync Blocket (incremental)
         continue-on-error: true
         run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up
-      - name: Sync Wayke (incremental)
-        continue-on-error: true
-        run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up --source=wayke
       - name: Sync Bytbil (incremental)
         continue-on-error: true
         run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --catch-up --source=bytbil
@@ -85,7 +82,6 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '0 2 * * *' }}
         continue-on-error: true
         run: |
-          npm run data:availability:write -- --source=wayke --limit=500
           npm run data:availability:write -- --source=bytbil --limit=500
           npm run data:availability:write -- --source=hedin --limit=500
           npm run data:availability:write -- --source=autohero --limit=500

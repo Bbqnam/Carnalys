@@ -6,7 +6,7 @@ instead (`.github/workflows/nightly.yml`); Vercel just serves the site.
 
 ## What it does, ~03:00–04:00 Europe/Stockholm
 
-1. **Incremental sync**, one step per source (Blocket, Wayke, Bytbil, Hedin,
+1. **Incremental sync**, one step per source (Blocket, Bytbil, Hedin,
    Autohero) — newest-first, picks up new listings. A source being down does
    not block the others.
 2. **Blocket removal poll** (`npm run data:poll`) — the layered availability
@@ -46,7 +46,7 @@ The 06:00 / 07:00 UTC report cron on Vercel then serves / emails the result.
 
 ## Phase 2
 
-Full reconciliation for Wayke/Bytbil/Hedin/Autohero to detect their removals
+Full reconciliation for Bytbil/Hedin/Autohero to detect their removals
 too (their `:full` runs already go through the same
 `markMissingListingsRemovedSafely` path). Add as a separate weekly workflow —
 heavier, resumable — once the Blocket poll is proven.

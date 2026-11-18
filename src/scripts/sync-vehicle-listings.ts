@@ -12,7 +12,6 @@ import {
   existingListingPayloads,
 } from "@/infrastructure/database/listing-write-repository";
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
-import { WaykeImporter } from "@/infrastructure/marketplaces/wayke/importer";
 import { BytbilImporter } from "@/infrastructure/marketplaces/bytbil/importer";
 import { HedinImporter } from "@/infrastructure/marketplaces/hedin/importer";
 import { AutoheroImporter } from "@/infrastructure/marketplaces/autohero/importer";
@@ -27,13 +26,12 @@ const sourceArgument = process.argv.find((argument) => argument.startsWith("--so
 const source = sourceArgument?.split("=", 2)[1] ?? "blocket";
 if (
   source !== "blocket" &&
-  source !== "wayke" &&
   source !== "bytbil" &&
   source !== "hedin" &&
   source !== "autohero"
 ) {
   throw new Error(
-    `Okänd källa: ${source}. Välj blocket, wayke, bytbil, hedin eller autohero.`,
+    `Okänd källa: ${source}. Välj blocket, bytbil, hedin eller autohero.`,
   );
 }
 const watch = command === "watch" || process.argv.includes("--watch");
@@ -64,9 +62,7 @@ async function runOnce() {
       : "Hämtar de senaste fordonsannonserna…",
   );
   const importer =
-    source === "wayke"
-      ? new WaykeImporter(undefined, existingListingPayloads)
-      : source === "bytbil"
+    source === "bytbil"
         ? new BytbilImporter(undefined, existingListingPayloads)
         : source === "hedin"
           ? new HedinImporter(undefined, existingListingPayloads)
@@ -74,9 +70,7 @@ async function runOnce() {
             ? new AutoheroImporter(undefined, existingListingPayloads)
             : new BlocketUnofficialImporter(undefined, existingListingDetailPayloads);
   const envPrefix =
-    source === "wayke"
-      ? "WAYKE"
-      : source === "bytbil"
+    source === "bytbil"
         ? "BYTBIL"
         : source === "hedin"
           ? "HEDIN"

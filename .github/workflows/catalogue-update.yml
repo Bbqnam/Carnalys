@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        source: [blocket, wayke, bytbil, hedin, autohero]
+        source: [blocket, bytbil, hedin, autohero]
     concurrency:
       group: catalogue-source-${{ matrix.source }}
       cancel-in-progress: true

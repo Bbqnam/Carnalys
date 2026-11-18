@@ -8,7 +8,7 @@ import { sourceListingLabel } from "./source-label";
 // the accessible label and the per-source logo key.
 
 test("every shipped source resolves to a provenance label, no seller wording", () => {
-  for (const provider of ["blocket_unofficial", "wayke", "bytbil", "hedin"]) {
+  for (const provider of ["blocket_unofficial", "bytbil", "hedin", "autohero"]) {
     const source = listingSource(provider);
     assert.equal(sourceListingLabel(source.displayName, "sv"), `Annons från ${source.displayName}`);
     assert.equal(sourceListingLabel(source.displayName, "en"), `Listing from ${source.displayName}`);
@@ -18,7 +18,7 @@ test("every shipped source resolves to a provenance label, no seller wording", (
 
 test("shipped sources carry a logo key; unknown providers degrade to their name", () => {
   assert.equal(listingSource("blocket_unofficial").logoKey, "blocket");
-  assert.equal(listingSource("wayke").logoKey, "wayke");
+  assert.equal(listingSource("autohero").logoKey, "autohero");
   assert.equal(listingSource("bytbil").logoKey, "bytbil");
   assert.equal(listingSource("hedin").logoKey, "hedin");
 

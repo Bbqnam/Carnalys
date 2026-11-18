@@ -9,7 +9,7 @@
  * count, service-book flag, branch, first-published date. The detail page adds
  * only what search omits: VIN, registration number, body type, the full image
  * gallery and the categorised equipment list. It is parsed from the
- * `window.__APOLLO_STATE__` blob the page ships (same approach as Wayke/Hedin).
+ * `window.__APOLLO_STATE__` blob the page ships (same approach as Hedin).
  */
 export interface AutoheroSearchDocument {
   id: string;

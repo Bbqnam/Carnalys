@@ -45,7 +45,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             (DNS + TLS) in parallel with the document shaves that off the
             first image's critical path. */}
         <link rel="preconnect" href="https://images.blocketcdn.se" crossOrigin="" />
-        <link rel="preconnect" href="https://cdn.wayke.se" crossOrigin="" />
         <link rel="dns-prefetch" href="https://vl.imgix.net" />
         {/* Must run before first paint, synchronously, to avoid a flash
             of the wrong theme; can't wait for a hydrated component. */}

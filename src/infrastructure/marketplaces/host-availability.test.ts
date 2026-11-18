@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { allowedListingUrl, checkHostListing, classifyHostListing } from "./host-availability";
 
-const listing = { provider: "wayke", externalId: "car-123", listingUrl: "https://www.wayke.se/objekt/car-123" };
+const listing = { provider: "hedin", externalId: "car-123", listingUrl: "https://hedinautomotive.se/bilar/kop-bil/car-123" };
 function html(availability = "InStock", url = listing.listingUrl) {
-  return `<html><head><link rel="canonical" href="${url}"><script type="application/ld+json">${JSON.stringify({
+  return `<html><head><script id="__NEXT_DATA__" type="application/json">{}</script><link rel="canonical" href="${url}"><script type="application/ld+json">${JSON.stringify({
     "@type": "Car", name: "Test car", url, vehicleModelDate: 2021, offers: { price: 219900, availability: `https://schema.org/${availability}` },
   })}</script></head><body><h1>Test car</h1><aside>Recently sold cars</aside></body></html>`;
 }
@@ -26,7 +26,7 @@ test("blocked, challenged, throttled and failed responses never mean sold or act
 });
 test("original-host hard removal is distinguished from a different page", () => {
   assert.equal(classifyHostListing(listing, { status: 404, html: "", url: listing.listingUrl }).availability, "missing");
-  assert.equal(classifyHostListing(listing, { status: 200, html: html("InStock", "https://www.wayke.se/objekt/other"), url: listing.listingUrl }).availability, "inconclusive");
+  assert.equal(classifyHostListing(listing, { status: 200, html: html("InStock", "https://hedinautomotive.se/bilar/kop-bil/other"), url: listing.listingUrl }).availability, "inconclusive");
 });
 
 test("a sold Autohero advert cannot be accepted just because its detail payload still renders", () => {
@@ -41,11 +41,20 @@ test("a sold Autohero advert cannot be accepted just because its detail payload 
   assert.equal(classifyHostListing(car, { status: 200, html: page(false, "other-car"), url: car.listingUrl }).availability, "inconclusive");
 });
 test("availability requests never follow an off-host redirect or fetch an arbitrary URL", async () => {
-  assert.equal(allowedListingUrl("wayke", "https://example.com/objekt/car-123"), null);
-  assert.equal(allowedListingUrl("wayke", "http://www.wayke.se/objekt/car-123"), null);
-  assert.equal(allowedListingUrl("wayke", "https://www.wayke.se:444/objekt/car-123"), null);
+  assert.equal(allowedListingUrl("hedin", "https://example.com/objekt/car-123"), null);
+  assert.equal(allowedListingUrl("hedin", "http://hedinautomotive.se/bilar/kop-bil/car-123"), null);
+  assert.equal(allowedListingUrl("hedin", "https://hedinautomotive.se:444/bilar/kop-bil/car-123"), null);
   let calls = 0;
   const fake: typeof fetch = async () => { calls++; return new Response(null, { status: 302, headers: { location: "http://127.0.0.1/admin" } }); };
   assert.equal((await checkHostListing(listing, fake)).availability, "inconclusive");
   assert.equal(calls, 1);
+});
+
+test("the retired Wayke source cannot issue availability requests", async () => {
+  let calls = 0;
+  const response = await checkHostListing({
+    provider: "wayke", externalId: "old-ad", listingUrl: "https://www.wayke.se/objekt/old-ad",
+  }, async () => { calls++; return new Response("unreachable"); });
+  assert.equal(calls, 0);
+  assert.equal(response.availability, "inconclusive");
 });

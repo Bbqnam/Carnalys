@@ -6,7 +6,7 @@ on:
       source:
         description: Source to recover
         type: choice
-        options: [bytbil, blocket, wayke, hedin, autohero]
+        options: [bytbil, blocket, hedin, autohero]
         default: bytbil
 
 concurrency:

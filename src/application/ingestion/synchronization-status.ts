@@ -30,3 +30,33 @@ export function summarizeSynchronization(
   }
   return { outcome: "failed" };
 }
+
+export function manualCatalogQueueState(
+  phase: string,
+  failedCount: number,
+  providers: readonly string[],
+  latestRuns: readonly { provider: string; status: string }[],
+) {
+  const parts = phase.split(":");
+  if (parts[3] === "v2") {
+    return {
+      index: Number(parts[1] ?? 0),
+      completedSources: Number(parts[2] ?? 0) & ((1 << providers.length) - 1),
+      inheritedFailures: failedCount,
+    };
+  }
+
+  // Legacy jobs used five positional sources. Rebuild their state using
+  // successful runs from the remaining providers instead of shifting bits.
+  let completedSources = 0;
+  let inheritedFailures = 0;
+  for (const [position, provider] of providers.entries()) {
+    const child = latestRuns.find((run) => run.provider === provider);
+    if (child?.status === "completed" || child?.status === "completed_with_errors") {
+      completedSources |= 1 << position;
+      if (child.status === "completed_with_errors") inheritedFailures++;
+    }
+  }
+  const unfinished = providers.findIndex((_, position) => !(completedSources & (1 << position)));
+  return { index: unfinished < 0 ? 0 : unfinished, completedSources, inheritedFailures };
+}

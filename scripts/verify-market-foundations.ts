@@ -62,7 +62,7 @@ async function main() {
   assert.equal(eventCount, 1);
   await recordHostEvidence(row, { ...fixture, availability: "inconclusive", checkedAt: new Date().toISOString(), reason: "Fixture verification completed" });
 
-  const missing = await prisma.listingRecord.findFirstOrThrow({ where: { provider: "wayke", status: "active" }, orderBy: { lastSeenAt: "desc" }, select: { id: true } });
+  const missing = await prisma.listingRecord.findFirstOrThrow({ where: { provider: "bytbil", status: "active" }, orderBy: { lastSeenAt: "desc" }, select: { id: true } });
   const [stale] = await loadAvailabilityListings([missing.id]);
   const host = await checkHostListing(stale);
   if (host.availability === "missing") {
@@ -73,6 +73,6 @@ async function main() {
     assert.equal(removed.isVehicleRepresentative, false);
     assert.equal(await prisma.listingObservation.count({ where: { listingId: stale.id, observedAt: new Date(host.checkedAt), kind: "disappeared" } }), 1);
   }
-  console.log(JSON.stringify({ database: expected, immutableFacts: "passed", analysis: "passed", priceInvalidation: "passed", staleResponse: "passed", history: "passed", liveWaykeVerdict: host.availability }));
+  console.log(JSON.stringify({ database: expected, immutableFacts: "passed", analysis: "passed", priceInvalidation: "passed", staleResponse: "passed", history: "passed", liveSourceVerdict: host.availability }));
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());

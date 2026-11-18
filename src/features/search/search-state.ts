@@ -184,7 +184,7 @@ export function parseVehicleSearchOptions(
       // resolves to the canonical brand the catalogue is indexed under.
       brands: [...new Set(stringValues(parameters.make).map((brand) => resolveBrandAlias(brand) ?? brand))],
       models: stringValues(parameters.model),
-      sources: stringValues(parameters.source, 50),
+      sources: stringValues(parameters.source, 50).filter((source) => source !== "wayke"),
       fuelType: enumValue(parameters.fuel, fuelTypes),
       transmission: enumValue(parameters.transmission, transmissions),
       minYear:

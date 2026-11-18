@@ -94,9 +94,7 @@ export class BytbilImporter implements MarketplaceImporter {
   readonly source = listingSources.bytbil;
   readonly provider = this.source.key;
   readonly scope = "all-vehicles";
-  // Bytbil is one complete `?Page=` paginated result set, like Wayke — kept as
-  // a single reconciliation checkpoint so the existing resume/removal machinery
-  // works unchanged.
+  // Filtered result sets are split before the source pagination limit.
   readonly maximumResultsPerPartition = 2_400;
   private lastRequestAt = 0;
   private readonly detailLaneAt = new Array<number>(detailConcurrency).fill(0);

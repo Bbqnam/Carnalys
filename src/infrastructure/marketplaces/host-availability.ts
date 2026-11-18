@@ -1,14 +1,12 @@
 import type { HostAvailability, HostAvailabilityEvidence } from "@/domain/market/listing-availability";
 import { classifyBlocketListingPage } from "./blocket-unofficial/availability";
 import { parseListingPageSpecifications } from "./blocket-unofficial/listing-page-parser";
-import { parseWaykeDetailPage } from "./wayke/parser";
 import { parseBytbilDetailPage } from "./bytbil/parser";
 import { parseHedinDetailPage } from "./hedin/parser";
 import { parseAutoheroDetailPage, parseAutoheroHostState } from "./autohero/parser";
 
 const hosts: Record<string, readonly string[]> = {
   blocket_unofficial: ["www.blocket.se", "blocket.se"],
-  wayke: ["www.wayke.se", "wayke.se"],
   bytbil: ["www.bytbil.com", "bytbil.com"],
   hedin: ["hedinautomotive.se", "www.hedinautomotive.se"],
   autohero: ["www.autohero.com", "autohero.com"],
@@ -23,7 +21,6 @@ export function allowedListingUrl(provider: string, value: string): URL | null {
         !hosts[provider]?.includes(url.hostname)) return null;
     const paths: Record<string, RegExp> = {
       blocket_unofficial: /^\/(?:mobility\/)?(?:item|annons)\//,
-      wayke: /^\/objekt\//,
       bytbil: /^\/(?!bil\/?$|api\/|car\/).+/,
       hedin: /^\/bilar\/kop-bil\/(?!begagnade-bilar-i-lager).+/,
       autohero: /^\/se\/.+\/id\/.+/,
@@ -113,7 +110,7 @@ export function classifyHostListing(
 
   try {
     const parse = {
-      wayke: parseWaykeDetailPage, bytbil: parseBytbilDetailPage,
+      bytbil: parseBytbilDetailPage,
       hedin: parseHedinDetailPage, autohero: parseAutoheroDetailPage,
     }[listing.provider];
     const detail = parse?.(html);

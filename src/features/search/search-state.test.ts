@@ -15,3 +15,8 @@ test("market discount is an accepted, shareable catalogue sort", () => {
 test("unknown catalogue sorts still fall back safely", () => {
   assert.equal(parseVehicleSearchOptions({ sort: "not-a-sort" }).sort, "newest");
 });
+
+test("saved Wayke filters are removed while remaining source filters survive", () => {
+  const options = parseVehicleSearchOptions({ source: ["wayke", "bytbil"] });
+  assert.deepEqual(options.filters.sources, ["bytbil"]);
+});

@@ -1,3 +1,4 @@
+import { listingSources } from "@/infrastructure/marketplaces/source-registry";
 import { randomUUID } from "node:crypto";
 import type {
   MarketplaceRequestFailure,
@@ -716,7 +717,7 @@ export async function getPublicSynchronizationStatus(runId: string) {
   });
   if (status.outcome === "running" && run.provider === manualCatalogProvider) {
     const children = await prisma.importRun.findMany({
-      where: { provider: { not: manualCatalogProvider }, startedAt: { gte: run.startedAt } },
+      where: { provider: { in: Object.keys(listingSources) }, startedAt: { gte: run.startedAt } },
       select: { fetchedCount: true },
     });
     return { ...status, fetchedCount: children.reduce((sum, child) => sum + child.fetchedCount, 0) };
@@ -724,7 +725,7 @@ export async function getPublicSynchronizationStatus(runId: string) {
   }
   if (status.outcome === "warning" && run.provider === manualCatalogProvider) {
     const failed = await prisma.importRun.findMany({
-      where: { provider: { not: manualCatalogProvider }, startedAt: { gte: run.startedAt }, status: { in: ["failed", "completed_with_errors"] } },
+      where: { provider: { in: Object.keys(listingSources) }, startedAt: { gte: run.startedAt }, status: { in: ["failed", "completed_with_errors"] } },
       select: { provider: true },
       distinct: ["provider"],
     });

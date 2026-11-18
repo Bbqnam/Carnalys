@@ -20,13 +20,6 @@ ad remains unique on `(provider, externalId)` and retains its original URL.
 evidence merges cross-source listings, with method/confidence stored on the
 listing. Similar-looking cars are never silently merged.
 
-Wayke is the second real adapter. It reads the public server-rendered React
-Query search payload, then Schema.org Car data or the newer Next
-server-component vehicle payload on detail pages. Detail is fetched only for a
-new or apparently changed summary; unchanged ads reuse structured cached data.
-No HTML or image bytes are stored. Wayke is opt-in only and is not invoked by
-Vercel cron, the Blocket watcher, or request-serving code.
-
 ## Why the previous pipeline became slow and stale
 
 The original command attempted a roughly 142,000-listing crawl every time. It
@@ -192,10 +185,6 @@ npm run data:sync:incremental
 npm run data:sync:full
 npm run data:sync:resume
 npm run data:sync:watch
-npm run data:sync:wayke:sample
-npm run data:sync:wayke:incremental
-npm run data:sync:wayke:full
-npm run data:sync:wayke:resume
 npm run data:analyze
 ```
 

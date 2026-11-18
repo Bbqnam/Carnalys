@@ -45,7 +45,7 @@ export async function synchronizeLatestListings(): Promise<ManualSynchronization
 
   await prisma.importRun.update({
     where: { id: run.id },
-    data: { phase: "queued:0" },
+    data: { phase: "queued:0:0:v2" },
   });
   after(async () => {
     await continueManualCatalogUpdate(run.id);

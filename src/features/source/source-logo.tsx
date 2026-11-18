@@ -2,7 +2,6 @@ import Image, { type StaticImageData } from "next/image";
 import blocketMark from "@/logos/sources/blocket.svg";
 import bytbilMark from "@/logos/sources/bytbil.svg";
 import hedinMark from "@/logos/sources/hedin.svg";
-import waykeMark from "@/logos/sources/wayke.svg";
 import { listingSource } from "@/infrastructure/marketplaces/source-registry";
 import { sourceListingLabel } from "./source-label";
 
@@ -16,7 +15,6 @@ export interface SourceLogoProps {
 /** Official wordmark per source, keyed by the registry's `logoKey`. */
 const sourceMarks: Record<string, StaticImageData> = {
   blocket: blocketMark,
-  wayke: waykeMark,
   bytbil: bytbilMark,
   hedin: hedinMark,
 };
@@ -38,7 +36,7 @@ const MARK_SCALE: Record<string, number> = { bytbil: 1.6 };
  *  light backing chip behind the mark, transparent in light mode (see
  *  `--brand-chip` in globals.css) so nothing changes there. Blocket's red is
  *  left alone — it already reads fine on both themes. */
-const NEEDS_DARK_CHIP = new Set(["bytbil", "hedin", "wayke"]);
+const NEEDS_DARK_CHIP = new Set(["bytbil", "hedin"]);
 
 function Mark({
   provider,

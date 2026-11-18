@@ -20,10 +20,6 @@
     "data:sync:full": "tsx src/scripts/sync-vehicle-listings.ts full",
     "data:sync:resume": "tsx src/scripts/sync-vehicle-listings.ts resume",
     "data:sync:watch": "tsx src/scripts/sync-vehicle-listings.ts watch",
-    "data:sync:wayke:sample": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=wayke --sample",
-    "data:sync:wayke:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=wayke",
-    "data:sync:wayke:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=wayke",
-    "data:sync:wayke:resume": "tsx src/scripts/sync-vehicle-listings.ts resume --source=wayke",
     "data:sync:bytbil:sample": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil --sample",
     "data:sync:bytbil:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil",
     "data:sync:bytbil:full": "tsx src/scripts/sync-vehicle-listings.ts full --source=bytbil",
@@ -50,7 +46,7 @@
     "data:poll:dry": "tsx scripts/poll-blocket-removals.ts",
     "data:availability": "tsx scripts/poll-host-availability.ts",
     "data:availability:write": "tsx scripts/poll-host-availability.ts --write",
-    "data:sync:all:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental && tsx src/scripts/sync-vehicle-listings.ts incremental --source=wayke && tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil && tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin && tsx src/scripts/sync-vehicle-listings.ts incremental --source=autohero"
+    "data:sync:all:incremental": "tsx src/scripts/sync-vehicle-listings.ts incremental && tsx src/scripts/sync-vehicle-listings.ts incremental --source=bytbil && tsx src/scripts/sync-vehicle-listings.ts incremental --source=hedin && tsx src/scripts/sync-vehicle-listings.ts incremental --source=autohero"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

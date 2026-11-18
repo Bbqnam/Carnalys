@@ -353,7 +353,7 @@ export function SearchExperience({
       labels.push({
         id: `source-${source}`,
         key: "sources",
-        label: source === "blocket_unofficial" ? "Blocket" : source === "wayke" ? "Wayke" : source,
+        label: source === "blocket_unofficial" ? "Blocket" : source,
         value: source,
       }),
     );

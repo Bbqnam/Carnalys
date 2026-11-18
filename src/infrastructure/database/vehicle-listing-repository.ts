@@ -1,3 +1,4 @@
+import { listingSources } from "@/infrastructure/marketplaces/source-registry";
 import "server-only";
 
 import { createHash } from "node:crypto";
@@ -974,7 +975,7 @@ async function _getListingSummaryById(
 ): Promise<ListingSummary | null> {
   await initializeDatabase();
   const record = await prisma.listingRecord.findUnique({
-    where: { id: listingId },
+    where: { id: listingId, provider: { in: Object.keys(listingSources) } },
     select: {
       status: true,
       mileageKm: true,
@@ -1010,7 +1011,7 @@ async function _getListingById(
 ): Promise<VehicleSearchResult | null> {
   await initializeDatabase();
   const record = await prisma.listingRecord.findUnique({
-    where: { id: listingId },
+    where: { id: listingId, provider: { in: Object.keys(listingSources) } },
     select: storedListingSelect,
   });
   if (!record || record.status !== "active") return null;

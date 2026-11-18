@@ -15,20 +15,6 @@ export const listingSources = {
     },
     requestPolicy: { minimumIntervalMs: 120, maximumAttempts: 7 },
   },
-  wayke: {
-    key: "wayke",
-    displayName: "Wayke",
-    type: "marketplace",
-    logoKey: "wayke",
-    capabilities: {
-      discovery: "offset",
-      details: true,
-      equipment: true,
-      images: true,
-      removalDetection: true,
-    },
-    requestPolicy: { minimumIntervalMs: 500, maximumAttempts: 5 },
-  },
   bytbil: {
     key: "bytbil",
     displayName: "Bytbil",
