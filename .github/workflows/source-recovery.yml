@@ -1,9 +1,6 @@
 name: Recover a marketplace source
 
 on:
-  push:
-    branches: [main]
-    paths: [.github/workflows/source-recovery.yml]
   workflow_dispatch:
     inputs:
       source:
@@ -29,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: node --import tsx --test src/infrastructure/marketplaces/bytbil/parser.test.ts
