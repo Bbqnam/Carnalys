@@ -51,3 +51,24 @@ test("refreshing an older duplicate cannot hide a newly posted advertisement", (
   };
   assert.deepEqual(selectRepresentativeListings([refreshedOldAd, newestAd]), [newestAd]);
 });
+
+test("a stale duplicate cannot hide a fresh advertisement for the same car", () => {
+  const now = new Date("2026-11-18T01:00Z");
+  const stale = {
+    id: "stale", vehicleId: "car-1",
+    listedAt: new Date("2026-11-10T00:00Z"),
+    synchronizedAt: new Date("2026-11-18T00:30Z"),
+    lastSeenAt: new Date("2026-11-10T00:00Z"),
+  };
+  const fresh = {
+    id: "fresh", vehicleId: "car-1",
+    listedAt: new Date("2026-11-01T00:00Z"),
+    synchronizedAt: new Date("2026-11-18T00:00Z"),
+    lastSeenAt: new Date("2026-11-18T00:00Z"),
+  };
+  assert.deepEqual(selectRepresentativeListings([stale, fresh], now), [fresh]);
+  assert.deepEqual(selectRepresentativeListings([
+    { ...stale, availabilityCheckStatus: "active:host", availabilityConfirmedAt: now },
+    fresh,
+  ], now).map((ad) => ad.id), ["stale"]);
+});

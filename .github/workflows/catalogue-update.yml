@@ -33,7 +33,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Check coverage and duplicate selection
-        run: node --import tsx --test src/application/ingestion/incremental-coverage.test.ts src/domain/market/representative-listing-policy.test.ts
+      - name: Check catalogue regressions
+        run: npm test
       - name: Import all listings since the last covered update
         run: npx tsx src/scripts/sync-vehicle-listings.ts incremental --source=${{ matrix.source }} --catch-up

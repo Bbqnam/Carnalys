@@ -50,6 +50,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
+      - name: Check duplicate visibility
+        run: node --import tsx --test src/domain/market/representative-listing-policy.test.ts
 
       # --- additions: newest-first incremental refresh, one step per source so
       #     one source being down does not block the others or the removal poll.

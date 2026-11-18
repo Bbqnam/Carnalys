@@ -1,3 +1,4 @@
+import { freshListingSql } from "./listing-freshness";
 import { createHash } from "node:crypto";
 import { MAX_LISTING_IMAGES, type NormalizedVehicleListing } from "@/application/ingestion/types";
 import { exactVehicleMatchEvidence } from "@/application/ingestion/vehicle-match-policy";
@@ -796,12 +797,13 @@ export async function refreshVehicleRepresentatives(
     UPDATE "ListingRecord" AS l
     SET "isVehicleRepresentative" = (l."id" = w."id")
     FROM (
-      SELECT DISTINCT ON (r."vehicleId") r."vehicleId", r."id"
-      FROM "ListingRecord" AS r
-      WHERE r."vehicleId" IN (${Prisma.join([...vehicleIds])})
-        AND r."status" = 'active'
-      ORDER BY r."vehicleId", COALESCE(r."listedAt", r."publishedAt", r."firstSeenAt") DESC,
-        r."synchronizedAt" DESC, r."id" ASC
+      SELECT DISTINCT ON (listing."vehicleId") listing."vehicleId", listing."id"
+      FROM "ListingRecord" AS listing
+      WHERE listing."vehicleId" IN (${Prisma.join([...vehicleIds])})
+        AND listing."status" = 'active'
+        AND ${freshListingSql()}
+      ORDER BY listing."vehicleId", COALESCE(listing."listedAt", listing."publishedAt", listing."firstSeenAt") DESC,
+        listing."synchronizedAt" DESC, listing."id" ASC
     ) AS w
     WHERE l."vehicleId" = w."vehicleId"
       AND l."isVehicleRepresentative" <> (l."id" = w."id")
@@ -822,11 +824,12 @@ export async function refreshAllVehicleRepresentatives(
     UPDATE "ListingRecord" AS l
     SET "isVehicleRepresentative" = (l."id" = w."id")
     FROM (
-      SELECT DISTINCT ON (r."vehicleId") r."vehicleId", r."id"
-      FROM "ListingRecord" AS r
-      WHERE r."status" = 'active'
-      ORDER BY r."vehicleId", COALESCE(r."listedAt", r."publishedAt", r."firstSeenAt") DESC,
-        r."synchronizedAt" DESC, r."id" ASC
+      SELECT DISTINCT ON (listing."vehicleId") listing."vehicleId", listing."id"
+      FROM "ListingRecord" AS listing
+      WHERE listing."status" = 'active'
+        AND ${freshListingSql()}
+      ORDER BY listing."vehicleId", COALESCE(listing."listedAt", listing."publishedAt", listing."firstSeenAt") DESC,
+        listing."synchronizedAt" DESC, listing."id" ASC
     ) AS w
     WHERE l."vehicleId" = w."vehicleId"
       AND l."status" = 'active'
