@@ -1,3 +1,4 @@
+import { refreshStoredListingAnalyses } from "@/infrastructure/database/listing-analysis-repository";
 import { prisma } from "@/infrastructure/database/prisma";
 import { existingListingDetailPayloads, existingListingPayloads } from "@/infrastructure/database/listing-write-repository";
 import { BlocketUnofficialImporter } from "@/infrastructure/marketplaces/blocket-unofficial/importer";
@@ -47,15 +48,21 @@ export async function continueManualCatalogUpdate(runId: string) {
       incrementalCatchUp: true,
       incrementalSinglePage: true,
       incrementalLookbackHours: 30,
-      analysisRefreshLimit: 10,
+      analysisRefreshLimit: 250,
       deferDerivedData: true,
     });
+    try {
+      await refreshStoredListingAnalyses(result.changedListingIds, 250);
+    } catch (error) {
+      failedCount++;
+      console.error("Catalogue analysis refresh failed", error);
+    }
     if (result.status !== "interrupted") {
       // A resumed older job must be followed by a fresh head scan for this click.
       sourceFinished = result.startedAt >= parent.startedAt;
       createdCount = result.createdCount;
       updatedCount = result.updatedCount;
-      failedCount = result.status === "completed" ? 0 : 1;
+      failedCount += result.status === "completed" ? 0 : 1;
     }
   } catch (error) {
     if (!(error instanceof SynchronizationAlreadyRunningError)) {
