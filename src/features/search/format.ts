@@ -82,28 +82,25 @@ export function formatExactListingDate(value: string, locale: Locale) {
 }
 
 export function formatRelativeListingDate(value: string, locale: Locale) {
-  const elapsedMinutes = Math.max(
+  const elapsedSeconds = Math.max(
     0,
-    Math.floor((Date.now() - new Date(value).getTime()) / 60_000),
+    Math.floor((Date.now() - Date.parse(value)) / 1_000),
   );
   const suffix = locale === "en" ? "ago" : "sedan";
 
-  if (elapsedMinutes < 1) return locale === "en" ? "just now" : "just nu";
+  if (elapsedSeconds < 60) return `${elapsedSeconds}s ${suffix}`;
+
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
   if (elapsedMinutes < 60) return `${elapsedMinutes}m ${suffix}`;
 
   const elapsedHours = Math.floor(elapsedMinutes / 60);
   if (elapsedHours < 24) return `${elapsedHours}h ${suffix}`;
 
   const elapsedDays = Math.floor(elapsedHours / 24);
-  if (elapsedDays < 30) return `${elapsedDays}d ${suffix}`;
+  if (elapsedDays < 7) return `${elapsedDays}d ${suffix}`;
 
-  const elapsedMonths = Math.floor(elapsedDays / 30);
-  if (elapsedMonths < 12) {
-    return `${elapsedMonths}${locale === "en" ? "mo" : " mån"} ${suffix}`;
-  }
-
-  const elapsedYears = Math.floor(elapsedDays / 365);
-  return `${elapsedYears}${locale === "en" ? "y" : " år"} ${suffix}`;
+  const elapsedWeeks = Math.floor(elapsedDays / 7);
+  return `${elapsedWeeks}${locale === "en" ? "w" : "v"} ${suffix}`;
 }
 
 export function formatListingPublication(
@@ -116,9 +113,7 @@ export function formatListingPublication(
   return {
     dateTime: publishedAt,
     age: formatRelativeListingDate(publishedAt, locale),
-    // Bytbil's search feed reports a renewal age. The parser estimates a
-    // timestamp from it, so the clock time would imply unsupported precision.
-    exactDate: provider === "bytbil" ? undefined : formatExactListingDate(publishedAt, locale),
+    estimatedRenewal: provider === "bytbil",
   };
 }
 

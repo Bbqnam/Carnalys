@@ -13,18 +13,10 @@ export function ListingPublication({ publishedAt, provider, locale }: ListingPub
 
   if (!publication) return <span>{copy.postingTimeUnavailable}</span>;
 
-  const { dateTime, age, exactDate } = publication;
-  if (!exactDate) {
-    return (
-      <time dateTime={dateTime} suppressHydrationWarning>
-        {copy.estimatedRenewal} · {age}
-      </time>
-    );
-  }
-
+  const { dateTime, age, estimatedRenewal } = publication;
   return (
-    <time dateTime={dateTime}>
-      {copy.posted} {exactDate} · <span suppressHydrationWarning>{age}</span>
+    <time dateTime={dateTime} suppressHydrationWarning>
+      {estimatedRenewal ? `${copy.estimatedRenewal} · ${age}` : age}
     </time>
   );
 }
