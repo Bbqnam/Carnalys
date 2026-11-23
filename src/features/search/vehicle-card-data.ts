@@ -1,8 +1,6 @@
 import { uiCopy, type Locale } from "./copy";
 import {
   distanceBetweenKm,
-  formatExactListingDate,
-  formatRelativeListingDate,
   insuranceTone,
   scoreTone,
 } from "./format";
@@ -72,9 +70,6 @@ export function deriveVehicleCardData(
         )
       : undefined;
 
-  const listingDateValue = listing.publishedAt ?? listing.source.firstSeenAt;
-  const listingDate = formatRelativeListingDate(listingDateValue, locale);
-  const exactListingDate = formatExactListingDate(listingDateValue, locale);
   const dealScoreValue = analysis.dealScore.value;
   const hasDealScore = dealScoreValue !== null;
   const dealScoreTone = hasDealScore
@@ -115,9 +110,6 @@ export function deriveVehicleCardData(
     mileageLabel,
     sellerLocation,
     distanceKm,
-    listingDateValue,
-    listingDate,
-    exactListingDate,
     dealScoreValue,
     hasDealScore,
     dealScoreTone,

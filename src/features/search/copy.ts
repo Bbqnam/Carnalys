@@ -499,6 +499,8 @@ export const uiCopy = {
       photoPosition: (index: number, total: number) => `Photo ${index} of ${total}`,
       posted: "Posted",
       firstSeen: "First seen",
+      estimatedRenewal: "Estimated renewal",
+      postingTimeUnavailable: "Posting time unavailable",
       distanceAway: (distanceKm: number) => `${distanceKm} km away`,
       viewListing: "View listing",
       scoreOutOf: (label: string, value: number | null) =>
@@ -861,6 +863,8 @@ export const uiCopy = {
       photoPosition: (index: number, total: number) => `Bild ${index} av ${total}`,
       posted: "Publicerad",
       firstSeen: "Först sedd",
+      estimatedRenewal: "Uppskattad förnyelse",
+      postingTimeUnavailable: "Publiceringstid saknas",
       distanceAway: (distanceKm: number) => `${distanceKm} km bort`,
       viewListing: "Visa annons",
       scoreOutOf: (label: string, value: number | null) =>
