@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { formatExactListingDate, formatListingPublication, formatSynchronizedAt } from "./format";
+import { formatExactListingDate, formatListingPublication, formatRelativeListingDate, formatSynchronizedAt } from "./format";
 
 // These formatters must render byte-identically on the server (Node's bundled
 // ICU) and in the browser, or React hydration fails. `Intl` with
@@ -31,27 +31,46 @@ test("formatExactListingDate keeps the year and the same controlled month table"
   );
 });
 
-test("listing publication uses the source date for both clock time and age", (context) => {
+test("listing publication uses the source date for its relative age", (context) => {
   context.mock.method(Date, "now", () => Date.parse("2026-09-02T14:20:00Z"));
   const publishedAt = "2026-09-02T12:15:00Z";
   assert.deepEqual(formatListingPublication(publishedAt, "blocket", "en"), {
     dateTime: publishedAt,
     age: "2h ago",
-    exactDate: "2 Sep 2026 14:15",
+    estimatedRenewal: false,
   });
 });
 
-test("Bytbil renewal age does not imply an exact clock time", (context) => {
+test("Bytbil renewal age is marked as an estimate", (context) => {
   context.mock.method(Date, "now", () => Date.parse("2026-09-02T12:27:30Z"));
   const publishedAt = "2026-09-02T12:15:00Z";
   assert.deepEqual(formatListingPublication(publishedAt, "bytbil", "sv"), {
     dateTime: publishedAt,
     age: "12m sedan",
-    exactDate: undefined,
+    estimatedRenewal: true,
   });
 });
 
 test("listing publication is unavailable without a valid source date", () => {
   assert.equal(formatListingPublication(undefined, "hedin", "en"), undefined);
   assert.equal(formatListingPublication("invalid", "blocket", "en"), undefined);
+});
+
+test("relative ages use seconds, minutes, hours, days, and weeks", (context) => {
+  const now = Date.parse("2026-09-02T12:00:00Z");
+  context.mock.method(Date, "now", () => now);
+  const cases = [
+    [59, "59s ago"],
+    [60, "1m ago"],
+    [3_600, "1h ago"],
+    [86_400, "1d ago"],
+    [604_799, "6d ago"],
+    [604_800, "1w ago"],
+    [3_628_800, "6w ago"],
+  ] as const;
+  for (const [seconds, expected] of cases) {
+    const publishedAt = new Date(now - seconds * 1_000).toISOString();
+    assert.equal(formatRelativeListingDate(publishedAt, "en"), expected);
+  }
+  assert.equal(formatRelativeListingDate("2026-08-19T12:00:00Z", "sv"), "2v sedan");
 });
