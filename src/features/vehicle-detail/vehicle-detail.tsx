@@ -27,7 +27,6 @@ import {
   factorBarTone,
   factorChipTone,
   formatExactListingDate,
-  formatRelativeListingDate,
   ownershipCostCategoryTone,
   scoreTone,
   sellerTypeTone,
@@ -44,6 +43,7 @@ import {
   MapPinIcon,
   MarketAnalysisIcon,
 } from "@/features/search/icons";
+import { ListingPublication } from "@/features/search/listing-publication";
 import { setLocaleCookie } from "@/features/search/locale";
 import { clearSavedSearchState } from "@/features/search/search-state";
 import { CompareTray } from "@/features/search/compare-tray";
@@ -348,8 +348,9 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
   const visibleEquipment = showAllEquipment
     ? equipmentItems
     : equipmentItems.slice(0, equipmentPreviewCount);
-  const listingDateValue = listing.publishedAt ?? listing.source.firstSeenAt;
-  const listingDateLabel = listing.publishedAt ? copy.card.posted : copy.card.firstSeen;
+  const sellerLocation = [listing.seller.name, listing.location.municipality]
+    .filter(Boolean)
+    .join(" · ");
   const distanceKm =
     location &&
     listing.location.latitude !== undefined &&
@@ -711,24 +712,25 @@ export function VehicleDetail({ result, locale = "sv" }: VehicleDetailProps) {
                 : copy.card.privateSellerBadge}
             </span>
           </div>
-          {listing.seller.name || listing.location.municipality ? (
-            <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
-              <MapPinIcon className="size-3.5 shrink-0" />
-              {[listing.seller.name, listing.location.municipality].filter(Boolean).join(" · ")}
-              {distanceKm !== undefined ? (
-                <span className="font-medium text-accent">
-                  · {copy.card.distanceAway(distanceKm)}
-                </span>
-              ) : null}
-              <span className="text-ink-subtle">·</span>
-              <span>
-                {listingDateLabel}{" "}
-                <time dateTime={listingDateValue} suppressHydrationWarning title={formatExactListingDate(listingDateValue, locale)}>
-                  {formatRelativeListingDate(listingDateValue, locale)}
-                </time>
-              </span>
-            </p>
-          ) : null}
+          <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
+            {sellerLocation ? (
+              <>
+                <MapPinIcon className="size-3.5 shrink-0" />
+                <span>{sellerLocation}</span>
+                {distanceKm !== undefined ? (
+                  <span className="font-medium text-accent">
+                    · {copy.card.distanceAway(distanceKm)}
+                  </span>
+                ) : null}
+                <span className="text-ink-subtle">·</span>
+              </>
+            ) : null}
+            <ListingPublication
+              publishedAt={listing.publishedAt}
+              provider={listing.source.provider}
+              locale={locale}
+            />
+          </p>
 
           {listing.description ? (
             <section className="mt-5 rounded-2xl border border-border bg-surface-subtle p-4 sm:mt-6 sm:p-5">

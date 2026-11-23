@@ -106,6 +106,22 @@ export function formatRelativeListingDate(value: string, locale: Locale) {
   return `${elapsedYears}${locale === "en" ? "y" : " år"} ${suffix}`;
 }
 
+export function formatListingPublication(
+  publishedAt: string | undefined,
+  provider: string,
+  locale: Locale,
+) {
+  if (!publishedAt || !Number.isFinite(Date.parse(publishedAt))) return undefined;
+
+  return {
+    dateTime: publishedAt,
+    age: formatRelativeListingDate(publishedAt, locale),
+    // Bytbil's search feed reports a renewal age. The parser estimates a
+    // timestamp from it, so the clock time would imply unsupported precision.
+    exactDate: provider === "bytbil" ? undefined : formatExactListingDate(publishedAt, locale),
+  };
+}
+
 /** Tailwind border/text color classes for a Deal Score or Buy Confidence badge. */
 export function scoreTone(value: number) {
   if (value >= 80) return "border-positive/50 text-positive";

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BrandLogo } from "./brand-logo";
 import { type Locale } from "./copy";
+import { ListingPublication } from "./listing-publication";
 import {
   CalendarFilterIcon,
   CompareIcon,
@@ -57,9 +58,6 @@ export function VehicleCard({
     mileageLabel,
     sellerLocation,
     distanceKm,
-    listingDateValue,
-    listingDate,
-    exactListingDate,
     dealScoreValue,
     hasDealScore,
     dealScoreTone,
@@ -252,13 +250,11 @@ export function VehicleCard({
           <p className="flex items-center gap-1.5">
             <CalendarFilterIcon className="size-4 shrink-0" />
             <span>
-              <time
-                dateTime={listingDateValue}
-                suppressHydrationWarning
-                title={exactListingDate}
-              >
-                {listingDate}
-              </time>
+              <ListingPublication
+                publishedAt={listing.publishedAt}
+                provider={listing.source.provider}
+                locale={locale}
+              />
               {priceReduction > 0 ? (
                 <> · {copy.card.reduced} {moneyFormatter.format(priceReduction)}</>
               ) : null}

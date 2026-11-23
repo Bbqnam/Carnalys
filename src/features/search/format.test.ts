@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { formatExactListingDate, formatSynchronizedAt } from "./format";
+import { formatExactListingDate, formatListingPublication, formatSynchronizedAt } from "./format";
 
 // These formatters must render byte-identically on the server (Node's bundled
 // ICU) and in the browser, or React hydration fails. `Intl` with
@@ -29,4 +29,29 @@ test("formatExactListingDate keeps the year and the same controlled month table"
     formatExactListingDate("2026-09-02T12:15:00Z", "sv"),
     "2 sep 2026 14:15",
   );
+});
+
+test("listing publication uses the source date for both clock time and age", (context) => {
+  context.mock.method(Date, "now", () => Date.parse("2026-09-02T14:20:00Z"));
+  const publishedAt = "2026-09-02T12:15:00Z";
+  assert.deepEqual(formatListingPublication(publishedAt, "blocket", "en"), {
+    dateTime: publishedAt,
+    age: "2h ago",
+    exactDate: "2 Sep 2026 14:15",
+  });
+});
+
+test("Bytbil renewal age does not imply an exact clock time", (context) => {
+  context.mock.method(Date, "now", () => Date.parse("2026-09-02T12:27:30Z"));
+  const publishedAt = "2026-09-02T12:15:00Z";
+  assert.deepEqual(formatListingPublication(publishedAt, "bytbil", "sv"), {
+    dateTime: publishedAt,
+    age: "12m sedan",
+    exactDate: undefined,
+  });
+});
+
+test("listing publication is unavailable without a valid source date", () => {
+  assert.equal(formatListingPublication(undefined, "hedin", "en"), undefined);
+  assert.equal(formatListingPublication("invalid", "blocket", "en"), undefined);
 });
